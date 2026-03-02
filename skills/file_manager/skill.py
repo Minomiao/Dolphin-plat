@@ -14,30 +14,29 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
 def set_work_directory(directory: str) -> Dict[str, Any]:
-    global WORK_DIR
     try:
         path = Path(directory)
         if not path.exists():
             return {"error": f"目录不存在: {directory}"}
         if not path.is_dir():
             return {"error": f"路径不是目录: {directory}"}
-        WORK_DIR = str(path)
+        work_dir = str(path)
         
         current_config = config.load_config()
-        current_config['work_directory'] = WORK_DIR
+        current_config['work_directory'] = work_dir
         config.save_config(current_config)
         
         return {
             "success": True,
-            "work_directory": WORK_DIR,
-            "message": f"工作目录已设置为: {WORK_DIR}"
+            "work_directory": work_dir,
+            "message": f"工作目录已设置为: {work_dir}"
         }
     except Exception as e:
         return {"error": f"设置工作目录失败: {str(e)}"}
 
 
 def get_work_directory() -> str:
-    return WORK_DIR
+    return get_work_dir()
 
 
 def set_confirmation_required(required: bool) -> Dict[str, Any]:

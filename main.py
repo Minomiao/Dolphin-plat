@@ -29,11 +29,9 @@ def settings_mode():
     print("1. deepseek-chat")
     print("2. deepseek-coder")
     print("3. deepseek-reasoner")
-    print("4. gpt-3.5-turbo")
-    print("5. gpt-4")
-    print("6. 自定义模型")
+    print("4. 自定义模型")
     
-    model_choice = input("\n请选择模型 (1-6): ")
+    model_choice = input("\n请选择模型 (1-4): ")
     if model_choice == cmd.get_command('back'):
         log.info("用户取消设置，返回主界面")
         print("返回主界面")
@@ -42,14 +40,12 @@ def settings_mode():
     model_map = {
         "1": "deepseek-chat",
         "2": "deepseek-coder",
-        "3": "deepseek-reasoner",
-        "4": "gpt-3.5-turbo",
-        "5": "gpt-4"
+        "3": "deepseek-reasoner"
     }
     
     if model_choice in model_map:
         new_model = model_map[model_choice]
-    elif model_choice == "6":
+    elif model_choice == "4":
         new_model = input("请输入自定义模型名称: ")
         if new_model == cmd.get_command('back'):
             log.info("用户取消设置，返回主界面")
