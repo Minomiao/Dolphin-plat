@@ -175,7 +175,7 @@ class QuickAIChat:
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
         self.add_message("user", user_input)
         
-        system_message = "你是一个AI助手。当用户要求完成任务时，必须确保完成所有必要的步骤，不要中途停止。如果需要执行多个工具调用，应该一次性完成所有必要的操作，而不是等待用户继续。重要：在每次回答结束时，必须至少给出一个正常的输出（除了思考过程和工具调用之外的内容），让用户知道发生了什么。始终以完整的回答结束对话。"
+        system_message = "你是一个AI助手。当用户要求完成任务时，必须确保完成所有必要的步骤，不要中途停止。重要限制：每次只能调用一个工具（skill），等待工具返回结果后，再决定是否需要调用下一个工具。不要同时调用多个工具。重要：在每次回答结束时，必须至少给出一个正常的输出（除了思考过程和工具调用之外的内容），让用户知道发生了什么。始终以完整的回答结束对话。"
         
         kwargs = {
             "model": self.model,
@@ -263,55 +263,27 @@ class QuickAIChat:
                 try:
                     result_dict = json.loads(result)
                     
-                    if result_dict.get("requires_confirmation"):
-                        if tool_name == "skill_powershell_executor_run_script":
-                            print(f"\n⚠️  需要确认运行 PowerShell 脚本:")
-                            print(f"  脚本长度: {result_dict.get('script_length', 'unknown')} 字符")
-                            script_preview = result_dict.get('script_preview', '')
-                            print(f"  脚本预览:")
-                            print(f"    {script_preview}")
-                            
-                            confirm = input("\n是否确认运行此脚本? (y/n): ").lower()
-                            if confirm != 'y':
-                                tool_responses.append({
-                                    "tool_call_id": tc['id'],
-                                    "role": "tool",
-                                    "content": json.dumps({"error": "用户取消操作"}, ensure_ascii=False)
-                                })
-                                log.info(f"用户取消操作: {tool_name}")
-                                print("操作已取消")
-                                continue
-                            else:
-                                log.info(f"用户确认操作: {tool_name}")
-                                print("操作已确认，正在运行脚本...")
-                                confirm_result = self._execute_tool_sync("skill_powershell_executor_confirm_run_script", arguments)
-                                tool_responses.append({
-                                    "tool_call_id": tc['id'],
-                                    "role": "tool",
-                                    "content": confirm_result
-                                })
-                                print(f"  结果: {confirm_result}")
-                                continue
+                    # 处理需要确认的操作（文件操作等，不包括 powershell_executor）
+                    if result_dict.get("requires_confirmation") and tool_name != "skill_powershell_executor_run_script":
+                        print(f"\n⚠️  需要确认:")
+                        print(f"  操作: {result_dict.get('action', 'unknown')}")
+                        print(f"  文件: {result_dict.get('file_path', 'unknown')}")
+                        print(f"  工作目录: {result_dict.get('work_directory', 'unknown')}")
+                        print(f"  原因: {result_dict.get('error', 'unknown')}")
+                        
+                        confirm = input("\n是否确认此操作? (y/n): ").lower()
+                        if confirm != 'y':
+                            tool_responses.append({
+                                "tool_call_id": tc['id'],
+                                "role": "tool",
+                                "content": json.dumps({"error": "用户取消操作"}, ensure_ascii=False)
+                            })
+                            log.info(f"用户取消操作: {tool_name}")
+                            print("操作已取消")
+                            continue
                         else:
-                            print(f"\n⚠️  需要确认:")
-                            print(f"  操作: {result_dict.get('action', 'unknown')}")
-                            print(f"  文件: {result_dict.get('file_path', 'unknown')}")
-                            print(f"  工作目录: {result_dict.get('work_directory', 'unknown')}")
-                            print(f"  原因: {result_dict.get('error', 'unknown')}")
-                            
-                            confirm = input("\n是否确认此操作? (y/n): ").lower()
-                            if confirm != 'y':
-                                tool_responses.append({
-                                    "tool_call_id": tc['id'],
-                                    "role": "tool",
-                                    "content": json.dumps({"error": "用户取消操作"}, ensure_ascii=False)
-                                })
-                                log.info(f"用户取消操作: {tool_name}")
-                                print("操作已取消")
-                                continue
-                            else:
-                                log.info(f"用户确认操作: {tool_name}")
-                                print("操作已确认")
+                            log.info(f"用户确认操作: {tool_name}")
+                            print("操作已确认")
                 except:
                     pass
                 
