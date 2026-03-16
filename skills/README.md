@@ -11,6 +11,12 @@ skills/
 ├── __pycache__/           # Python 缓存目录
 ├── calculator/           # 计算器技能
 │   └── skill.py          # 技能实现文件
+├── file_manager/         # 文件管理器技能
+│   └── skill.py
+├── file_reader/          # 文件阅读器技能
+│   └── skill.py
+├── powershell_executor/  # PowerShell 执行器技能
+│   └── skill.py
 ├── random_generator/     # 随机数生成器技能
 │   └── skill.py
 └── web_search/          # 网络搜索技能
