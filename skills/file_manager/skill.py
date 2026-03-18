@@ -229,7 +229,7 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
         pending_count = 0
         backup_mgr = get_backup_manager()
         if path.exists() and backup_mgr:
-            backup_path = backup_mgr.backup_file(file_path, work_dir)
+            backup_path = backup_mgr.backup_file(file_path, work_dir, action="create")
         
         with open(path, 'w', encoding=encoding, errors='ignore') as f:
             f.write(content)
@@ -238,7 +238,6 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
             backup_mgr.record_change(
                 action="create",
                 file_path=file_path,
-                backup_path=backup_path,
                 work_dir=work_dir
             )
             pending_count = backup_mgr.get_pending_changes_count()
@@ -354,7 +353,7 @@ def modify_file(file_path: str, start_line: int, end_line: int, start_line_conte
         pending_count = 0
         backup_mgr = get_backup_manager()
         if backup_mgr:
-            backup_path = backup_mgr.backup_file(file_path, work_dir)
+            backup_path = backup_mgr.backup_file(file_path, work_dir, action="modify")
         
         # 构建新的文件内容
         new_content = []
@@ -371,7 +370,6 @@ def modify_file(file_path: str, start_line: int, end_line: int, start_line_conte
             backup_mgr.record_change(
                 action="modify",
                 file_path=file_path,
-                backup_path=backup_path,
                 work_dir=work_dir
             )
             pending_count = backup_mgr.get_pending_changes_count()
@@ -428,7 +426,7 @@ def delete_file(file_path: str) -> Dict[str, Any]:
         backup_path = None
         backup_mgr = get_backup_manager()
         if backup_mgr:
-            backup_path = backup_mgr.backup_file(file_path, work_dir)
+            backup_path = backup_mgr.backup_file(file_path, work_dir, action="delete")
         
         return {
             "success": True,
