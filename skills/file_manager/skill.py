@@ -135,12 +135,12 @@ skill_info = {
             }
         },
         "create_file": {
-            "description": "创建文件并写入内容。限制：最大文件大小10MB。",
+            "description": "创建文件并写入内容。限制：最大文件大小10MB，最大行数200行。提示：创建文件时不要一次性写入过多内容，先创建基本框架，然后使用 modify_file 函数分多次进行修改。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {"type": "string", "description": "文件路径（相对于工作目录），AI 可以决定文件名和后缀"},
-                    "content": {"type": "string", "description": "文件内容"},
+                    "content": {"type": "string", "description": "文件内容，单次不要超过200行"},
                     "encoding": {"type": "string", "description": "文件编码，默认为 'utf-8'"}
                 },
                 "required": ["file_path", "content"]
@@ -209,6 +209,7 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
             return {"error": path_check["message"], "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径和内容后再进行操作"}
         
         content_size = len(content.encode(encoding))
+        line_count = len(content.splitlines())
         
         if content_size > MAX_FILE_SIZE:
             return {
@@ -216,6 +217,14 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
                 "content_size": content_size,
                 "max_size": MAX_FILE_SIZE,
                 "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的内容后再进行操作"
+            }
+        
+        if line_count > 200:
+            return {
+                "error": f"文件行数过多: {line_count} 行，最大允许: 200 行",
+                "line_count": line_count,
+                "max_lines": 200,
+                "suggestion": "建议先创建一个基本框架（不超过200行），然后使用 modify_file 函数分多次进行修改"
             }
         
         work_dir = get_work_dir()
