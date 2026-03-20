@@ -17,6 +17,7 @@ def settings_mode():
     print(f"API密钥: {'***' if current_config.get('api_key') else '未设置'}")
     print(f"模型: {current_config.get('model', 'deepseek-chat')}")
     print(f"工作目录: {current_config.get('work_directory', 'workplace')}")
+    print(f"最大Token数: {current_config.get('max_tokens', 8192)}")
     print("\n输入新的配置 (留空保持当前值):")
     
     new_api_key = input("API密钥: ")
@@ -66,6 +67,20 @@ def settings_mode():
         return
     new_work_directory = new_work_directory or current_config.get('work_directory', 'workplace')
     
+    print(f"\n当前最大Token数: {current_config.get('max_tokens', 8192)}")
+    print("推荐值: 8192 (适合大多数场景)")
+    new_max_tokens = input("输入新的最大Token数 (留空保持当前值): ")
+    if new_max_tokens == cmd.get_command('back'):
+        log.info("用户取消设置，返回主界面")
+        print("返回主界面")
+        return
+    try:
+        new_max_tokens = int(new_max_tokens) if new_max_tokens else current_config.get('max_tokens', 8192)
+    except ValueError:
+        log.warning(f"无效的Token数: {new_max_tokens}")
+        print("无效的Token数，保持当前值")
+        new_max_tokens = current_config.get('max_tokens', 8192)
+    
     print("\n是否要修改命令配置? (y/n)")
     modify_commands = input().lower()
     if modify_commands == 'y':
@@ -84,10 +99,11 @@ def settings_mode():
     current_config['api_key'] = new_api_key
     current_config['model'] = new_model
     current_config['work_directory'] = new_work_directory
+    current_config['max_tokens'] = new_max_tokens
     
     config.save_config(current_config)
     cmd.save_commands(commands_config)
-    log.info(f"配置已保存: model={new_model}, work_directory={new_work_directory}")
+    log.info(f"配置已保存: model={new_model}, work_directory={new_work_directory}, max_tokens={new_max_tokens}")
     print("\n配置已保存")
     
     if new_work_directory != current_config.get('work_directory', 'workplace'):
@@ -106,7 +122,7 @@ def settings_mode():
         api_key=current_config.get("api_key"),
         base_url=current_config.get("base_url")
     )
-    chat_instance = chat.QuickAIChat(model=current_config.get('model'))
+    chat_instance = chat.QuickAIChat(model=current_config.get('model'), max_tokens=current_config.get('max_tokens', 8192))
     log.info("客户端已更新")
     print("客户端已更新")
 
@@ -277,11 +293,11 @@ if __name__ == "__main__":
         os.makedirs(WORKPLACE_DIR)
         log.info(f"创建工作目录: {WORKPLACE_DIR}")
     
-    chat_instance = chat.QuickAIChat(model=current_config.get('model', 'deepseek-chat'))
+    chat_instance = chat.QuickAIChat(model=current_config.get('model', 'deepseek-chat'), max_tokens=current_config.get('max_tokens', 8192))
     current_conversation = "main"
     
     log.info("QuickAI 启动")
-    log.info(f"当前配置: model={current_config.get('model')}, conversation={current_conversation}, work_directory={WORKPLACE_DIR}")
+    log.info(f"当前配置: model={current_config.get('model')}, max_tokens={current_config.get('max_tokens', 8192)}, conversation={current_conversation}, work_directory={WORKPLACE_DIR}")
     print("QuickAI 聊天助手")
     print(f"输入 '{cmd.get_command('help')}' 获取命令帮助")
     print("=" * 50)

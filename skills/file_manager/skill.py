@@ -219,12 +219,12 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
                 "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的内容后再进行操作"
             }
         
-        if line_count > 200:
+        if line_count > 400:
             return {
-                "error": f"文件行数过多: {line_count} 行，最大允许: 200 行",
+                "error": f"文件行数过多: {line_count} 行，最大允许: 400 行",
                 "line_count": line_count,
-                "max_lines": 200,
-                "suggestion": "建议先创建一个基本框架（不超过200行），然后使用 modify_file 函数分多次进行修改"
+                "max_lines": 400,
+                "suggestion": "建议先创建一个基本框架（不超过400行），然后使用 modify_file 函数分多次进行修改"
             }
         
         work_dir = get_work_dir()

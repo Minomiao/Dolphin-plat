@@ -53,9 +53,15 @@ def format_tool_result(result_str):
         return None
 
 class QuickAIChat:
-    def __init__(self, model="deepseek-chat", temperature=0.7, max_tokens=4096, enable_tools=True):
+    def __init__(self, model="deepseek-chat", temperature=0.7, max_tokens=None, enable_tools=True):
         self.model = model
         self.temperature = temperature
+        
+        # 从配置中读取 max_tokens，如果没有提供或配置中没有，则使用默认值 8192
+        if max_tokens is None:
+            config_data = config.load_config()
+            max_tokens = config_data.get('max_tokens', 8192)
+        
         self.max_tokens = max_tokens
         self.messages = []
         self.enable_tools = enable_tools
@@ -116,6 +122,20 @@ class QuickAIChat:
     
     def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
+        
+        # 添加系统提示
+        system_message = {
+            "role": "system",
+            "content": "你是一个智能助手，可以帮助用户创建和修改文件。重要提示：\n1. 创建文件时，如果内容超过 400 行，应该先创建一个基本框架（不超过 400 行），然后使用 modify_file 函数分多次进行修改。\n2. 对于大文件或复杂文件，建议分步骤逐步构建，每次修改范围不要太大。\n3. 这样可以确保操作的稳定性和可追溯性。"
+        }
+        
+        # 检查是否已有系统消息
+        has_system_message = any(msg.get("role") == "system" for msg in self.messages)
+        
+        # 如果没有系统消息，添加到开头
+        if not has_system_message:
+            self.messages.insert(0, system_message)
+        
         self.add_message("user", user_input)
         
         kwargs = {
