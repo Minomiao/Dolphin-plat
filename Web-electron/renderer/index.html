@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Dolphin AI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Dolphin AI</h2>
+            </div>
+            <div class="sidebar-actions">
+                <button id="new-chat-btn" class="btn btn-primary">
+                    <span>+</span> 新对话
+                </button>
+                <button id="clear-chat-btn" class="btn btn-secondary">
+                    清空对话
+                </button>
+            </div>
+            <div class="sidebar-section">
+                <h3>命令</h3>
+                <div class="command-list">
+                    <button class="cmd-btn" data-cmd=".help">.help - 帮助</button>
+                    <button class="cmd-btn" data-cmd=".tools">.tools - 工具</button>
+                    <button class="cmd-btn" data-cmd=".skills">.skills - 技能</button>
+                    <button class="cmd-btn" data-cmd=".toggle">.toggle - 切换工具</button>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <h3>设置</h3>
+                <button id="settings-btn" class="btn btn-secondary">打开设置</button>
+            </div>
+            <div class="sidebar-footer">
+                <div id="server-status" class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">检查中...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-container">
+                <div id="chat-output" class="chat-output"></div>
+                <div class="chat-input-area">
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="user-input" 
+                            placeholder="输入消息... (Shift+Enter 换行, Enter 发送)"
+                            rows="1"
+                        ></textarea>
+                        <button id="send-btn" class="send-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>设置</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>模型配置</h3>
+                    <div class="form-group">
+                        <label>模型</label>
+                        <input type="text" id="model-input" placeholder="deepseek-chat">
+                    </div>
+                    <div class="form-group">
+                        <label>API 基础URL</label>
+                        <input type="text" id="base-url" placeholder="https://api.deepseek.com">
+                    </div>
+                    <div class="form-group">
+                        <label>最大Token数</label>
+                        <input type="number" id="max-tokens" min="1024" max="32768" value="8192">
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="reasoning">
+                            启用推理
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>工作目录</h3>
+                    <div class="form-group">
+                        <div class="input-with-button">
+                            <input type="text" id="work-dir" placeholder="workplace">
+                            <button id="browse-dir-btn">浏览...</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>技能管理</h3>
+                    <div id="skills-list" class="skills-list"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-settings-btn" class="btn btn-primary">保存</button>
+                <button id="cancel-settings-btn" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
