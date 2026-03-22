@@ -30,6 +30,7 @@ ENV/
 env/
 .trae/
 skills/*/__init__.py
+beta/
 
 # Build files
 build/
