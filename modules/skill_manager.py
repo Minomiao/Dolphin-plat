@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Callable, Optional
 from pathlib import Path
 from modules import logger
 
-log = logger.get_logger("QuickAI.skill_manager")
+log = logger.get_logger("Dolphin.skill_manager")
 
 
 class SkillManager:

@@ -1,8 +1,8 @@
-# QuickAI MCP 和 Skill 使用说明
+# Dolphin MCP 和 Skill 使用说明
 
 ## 概述
 
-QuickAI 现在支持 MCP (Model Context Protocol) 和自定义 Skill 功能，让 AI 能够使用各种工具来增强其能力。
+Dolphin 现在支持 MCP (Model Context Protocol) 和自定义 Skill 功能，让 AI 能够使用各种工具来增强其能力。
 
 ## 功能特性
 

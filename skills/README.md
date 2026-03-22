@@ -1,6 +1,6 @@
 # Skills 目录说明
 
-本目录包含 QuickAI 的所有技能（Skills）。
+本目录包含 Dolphin 的所有技能（Skills）。
 
 ## 目录结构
 

@@ -97,7 +97,7 @@ client = OpenAI(
     base_url=config.get("base_url", "https://api.deepseek.com")
 )
 
-class QuickAIChat:
+class DolphinChat:
     def __init__(self, model="deepseek-chat", temperature=0.7, max_tokens=2000):
         self.model = model
         self.temperature = temperature
@@ -129,7 +129,7 @@ class QuickAIChat:
             stream=True
         )
         full_response = ""
-        print("QuickAI: ", end="", flush=True)
+        print("Dolphin: ", end="", flush=True)
         for chunk in stream:
             if chunk.choices[0].delta.content:
                 content = chunk.choices[0].delta.content
@@ -236,7 +236,7 @@ def settings_mode():
         api_key=config.get("api_key"),
         base_url=config.get("base_url")
     )
-    chat = QuickAIChat(model=config.get('model'))
+    chat = DolphinChat(model=config.get('model'))
     print("客户端已更新")
 
 def show_help():
@@ -251,10 +251,10 @@ def show_help():
     print("\n输入任何其他内容将发送给AI")
 
 if __name__ == "__main__":
-    chat = QuickAIChat(model=config.get('model', 'deepseek-chat'))
+    chat = DolphinChat(model=config.get('model', 'deepseek-chat'))
     current_conversation = "main"
     
-    print("QuickAI 聊天助手")
+    print("Dolphin 聊天助手")
     print(f"输入 '{get_command('help')}' 获取命令帮助")
     print("=" * 50)
     

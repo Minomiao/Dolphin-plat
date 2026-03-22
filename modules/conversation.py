@@ -2,7 +2,7 @@ import os
 import json
 from modules import logger
 
-log = logger.get_logger("QuickAI.conversation")
+log = logger.get_logger("Dolphin.conversation")
 
 DATE_DIR = "date"
 CONVERSATIONS_DIR = os.path.join(DATE_DIR, "conversations")

@@ -7,7 +7,7 @@ from modules import logger
 import json
 import asyncio
 
-log = logger.get_logger("QuickAI.chat")
+log = logger.get_logger("Dolphin.chat")
 
 def format_tool_result(result_str):
     """格式化工具返回结果，使其更易读"""

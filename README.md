@@ -1,6 +1,6 @@
-# QuickAI
+# Dolphin
 
-QuickAI 是一个实验性的 AI 聊天助手项目，旨在通过技能（Skills）系统扩展 AI 的能力，使 DeepSeek 等模型变得更加有用。
+Dolphin 是一个实验性的 AI 聊天助手项目，旨在通过技能（Skills）系统扩展 AI 的能力，使 DeepSeek 等模型变得更加有用。
 
 ## 主要特点
 

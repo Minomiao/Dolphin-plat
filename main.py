@@ -6,7 +6,7 @@ from modules import logger
 from modules import backup_manager
 import os
 
-log = logger.setup_logger("QuickAI")
+log = logger.setup_logger("Dolphin")
 
 def settings_mode():
     global current_config, chat_instance, commands_config
@@ -296,9 +296,9 @@ if __name__ == "__main__":
     chat_instance = chat.QuickAIChat(model=current_config.get('model', 'deepseek-chat'), max_tokens=current_config.get('max_tokens', 8192))
     current_conversation = "main"
     
-    log.info("QuickAI 启动")
+    log.info("Dolphin 启动")
     log.info(f"当前配置: model={current_config.get('model')}, max_tokens={current_config.get('max_tokens', 8192)}, conversation={current_conversation}, work_directory={WORKPLACE_DIR}")
-    print("QuickAI 聊天助手")
+    print("Dolphin 聊天助手")
     print(f"输入 '{cmd.get_command('help')}' 获取命令帮助")
     print("=" * 50)
     

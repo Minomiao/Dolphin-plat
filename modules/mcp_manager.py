@@ -5,7 +5,7 @@ from mcp.client.session import ClientSession
 from mcp.client.stdio import stdio_client
 from modules import logger
 
-log = logger.get_logger("QuickAI.mcp_manager")
+log = logger.get_logger("Dolphin.mcp_manager")
 
 
 class MCPManager:

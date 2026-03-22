@@ -3,7 +3,7 @@ import json
 from dotenv import load_dotenv
 from modules import logger
 
-log = logger.get_logger("QuickAI.config")
+log = logger.get_logger("Dolphin.config")
 
 load_dotenv()
 

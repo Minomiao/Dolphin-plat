@@ -9,7 +9,7 @@ client = OpenAI(
     base_url=os.getenv("QUICKAI_BASE_URL", "https://api.deepseek.com")
 )
 
-def chat_with_quickai(prompt, model="deepseek-chat", temperature=0.7, max_tokens=2000):
+def chat_with_dolphin(prompt, model="deepseek-chat", temperature=0.7, max_tokens=2000):
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -32,5 +32,5 @@ def chat_with_history(messages, model="deepseek-chat", temperature=0.7, max_toke
 
 if __name__ == "__main__":
     user_input = input("请输入您的问题: ")
-    response = chat_with_quickai(user_input)
-    print(f"\nQuickAI 回复:\n{response}")
+    response = chat_with_dolphin(user_input)
+    print(f"\nDolphin 回复:\n{response}")

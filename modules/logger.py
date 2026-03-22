@@ -5,7 +5,7 @@ from datetime import datetime
 DATE_DIR = "date"
 LOG_DIR = os.path.join(DATE_DIR, "log")
 
-def setup_logger(name="QuickAI", level=logging.DEBUG):
+def setup_logger(name="Dolphin", level=logging.DEBUG):
     if not os.path.exists(LOG_DIR):
         os.makedirs(LOG_DIR)
     
