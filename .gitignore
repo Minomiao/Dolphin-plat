@@ -36,9 +36,10 @@ beta/
 build/
 dist/
 dist_pyinstaller/
-dist_mainserver/
+dist_server/
 *.spec
 *.exe
 build.py
 build_pyinstaller.py
 build_webapi.py
+main_server.py

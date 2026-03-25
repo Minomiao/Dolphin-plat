@@ -50,7 +50,7 @@ function createWindow() {
 
 function startPythonServer() {
   const projectRoot = path.join(__dirname, '..');
-  const webApiPath = path.join(projectRoot, 'web_api.py');
+  const webApiPath = path.join(projectRoot, 'main_server.py');
   
   console.log('Starting Python server...');
   console.log('Project root:', projectRoot);
