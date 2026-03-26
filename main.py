@@ -340,23 +340,61 @@ if __name__ == "__main__":
                 log.info(f"切换到新对话: {new_name}")
                 print(f"已切换到新对话: {new_name}")
             continue
-        elif user_input == cmd.get_command('load'):
-            load_name = input("请输入要加载的对话名称: ")
+        elif user_input.startswith(cmd.get_command('load')):
+            # 提取加载名称参数
+            parts = user_input.split(' ', 1)
+            if len(parts) > 1:
+                load_name = parts[1].strip()
+            else:
+                load_name = input("请输入要加载的对话名称: ")
             if load_name:
                 if chat_instance.load_conversation(load_name):
                     current_conversation = load_name
                     log.info(f"加载对话: {load_name}")
                     print(f"已加载对话: {load_name}")
+                    
+                    # 显示加载的对话内容
+                    if chat_instance.messages:
+                        print("\n=== 对话历史 ===")
+                        for msg in chat_instance.messages:
+                            if msg['role'] == 'user':
+                                print(f"您: {msg['content']}")
+                            elif msg['role'] == 'assistant':
+                                print(f"AI: {msg['content']}")
+                            elif msg['role'] == 'tool':
+                                print(f"工具: {msg.get('name', 'unknown')}")
+                                if 'tool_call_id' in msg:
+                                    print(f"  调用ID: {msg['tool_call_id']}")
+                                if 'arguments' in msg:
+                                    print(f"  参数: {msg['arguments']}")
+                            elif msg['role'] == 'tool_response':
+                                print(f"工具响应: {msg.get('tool_call_id', 'unknown')}")
+                                if 'content' in msg:
+                                    print(f"  内容: {msg['content']}")
+                        print("================")
                 else:
                     log.warning(f"对话不存在: {load_name}")
                     print(f"对话 '{load_name}' 不存在")
             continue
-        elif user_input == cmd.get_command('save_as'):
-            save_name = input("请输入保存名称: ")
+        elif user_input.startswith(cmd.get_command('save_as')):
+            # 提取保存名称参数
+            parts = user_input.split(' ', 1)
+            if len(parts) > 1:
+                save_name = parts[1].strip()
+            else:
+                save_name = input("请输入保存名称: ")
             if save_name:
                 chat_instance.save_conversation(save_name)
                 log.info(f"对话已保存: {save_name}")
                 print(f"对话已保存为: {save_name}")
+                if current_conversation == "main":
+                    chat_instance.clear_history()
+                    log.info("main对话已清空")
+                    print("main对话已清空")
+                else:
+                    current_conversation = "main"
+                    log.info("切换到main对话")
+                    print("已切换到main对话")
             continue
         elif user_input == cmd.get_command('list'):
             conversations = chat_instance.list_conversations()
