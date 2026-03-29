@@ -228,7 +228,13 @@ class QuickAIChat:
                             continue
                         else:
                             log.info(f"用户确认操作: {tool_name}")
-                            print("操作已确认")
+                            print("操作已确认，正在重新执行...")
+                            # 添加 confirmed 参数
+                            if isinstance(arguments, dict):
+                                arguments['confirmed'] = True
+                            else:
+                                arguments = {'confirmed': True}
+                            result = self._execute_tool_sync(tool_name, arguments)
                 except:
                     pass
                 
@@ -368,7 +374,13 @@ class QuickAIChat:
                                 continue
                             else:
                                 log.info(f"用户确认操作: {tool_name}")
-                                print("操作已确认")
+                                print("操作已确认，正在重新执行...")
+                                # 添加 confirmed 参数
+                                if isinstance(arguments, dict):
+                                    arguments['confirmed'] = True
+                                else:
+                                    arguments = {'confirmed': True}
+                                result = self._execute_tool_sync(tool_name, arguments)
                 except:
                     pass
                 
@@ -487,7 +499,13 @@ class QuickAIChat:
                                     continue
                                 else:
                                     log.info(f"用户确认操作: {tool_name}")
-                                    print("操作已确认")
+                                    print("操作已确认，正在重新执行...")
+                                    # 添加 confirmed 参数
+                                    if isinstance(arguments, dict):
+                                        arguments['confirmed'] = True
+                                    else:
+                                        arguments = {'confirmed': True}
+                                    result = self._execute_tool_sync(tool_name, arguments)
                         except:
                             pass
                         
