@@ -75,13 +75,10 @@ QuickAI: 现在是 2026-02-17 23:30:00
 ```
 skills/
 ├── my_skill/
-│   ├── __init__.py
 │   └── skill.py
 ├── calculator/
-│   ├── __init__.py
 │   └── skill.py
 └── web_search/
-    ├── __init__.py
     └── skill.py
 ```
 
@@ -114,17 +111,11 @@ def my_function(param1: str, param2: float = 0.0) -> str:
     return f"结果: {param1}, {param2}"
 ```
 
-在技能文件夹中创建 `__init__.py` 文件：
-
-```python
-from .skill import skill_info
-```
-
 ### 技能文件要求
 
 1. 每个技能必须有自己的独立文件夹
 2. 文件夹名称即为技能名称
-3. 文件夹中必须包含 `skill.py` 和 `__init__.py` 文件
+3. 文件夹中必须包含 `skill.py` 文件
 4. `skill.py` 必须定义 `skill_info` 字典
 5. `skill_info` 必须包含：
    - `name`: 技能名称

@@ -211,9 +211,20 @@ class QuickAIChat:
                     if result_dict.get("requires_confirmation"):
                         print(f"\n⚠️  需要确认:")
                         print(f"  操作: {result_dict.get('action', 'unknown')}")
-                        print(f"  文件: {result_dict.get('file_path', 'unknown')}")
-                        print(f"  工作目录: {result_dict.get('work_directory', 'unknown')}")
-                        print(f"  原因: {result_dict.get('error', 'unknown')}")
+                        
+                        # 显示脚本预览（如果有）
+                        if result_dict.get('script_preview'):
+                            print(f"  脚本预览:")
+                            print(f"  {result_dict.get('script_preview')}")
+                        # 显示文件路径（如果有）
+                        if result_dict.get('file_path'):
+                            print(f"  文件: {result_dict.get('file_path')}")
+                        # 显示工作目录（如果有）
+                        if result_dict.get('work_directory'):
+                            print(f"  工作目录: {result_dict.get('work_directory')}")
+                        # 显示原因（如果有）
+                        if result_dict.get('error'):
+                            print(f"  原因: {result_dict.get('error')}")
                         
                         confirm = input("\n是否确认此操作? (y/n): ").lower()
                         if confirm != 'y':
@@ -227,13 +238,77 @@ class QuickAIChat:
                             continue
                         else:
                             log.info(f"用户确认操作: {tool_name}")
-                            print("操作已确认，正在重新执行...")
-                            # 添加 confirmed 参数
-                            if isinstance(arguments, dict):
-                                arguments['confirmed'] = True
+                            print("操作已确认，正在执行...")
+                            # 直接执行脚本（如果是 PowerShell 脚本）
+                            if result_dict.get('action') == 'run_powershell_script' and result_dict.get('script'):
+                                import subprocess
+                                from pathlib import Path
+                                import os
+                                import sys
+                                
+                                # 获取工作目录
+                                try:
+                                    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+                                    from modules import config
+                                    work_dir = config.load_config().get('work_directory', 'workplace')
+                                except:
+                                    work_dir = 'workplace'
+                                
+                                work_path = Path(work_dir).resolve()
+                                if not work_path.exists():
+                                    work_path.mkdir(parents=True, exist_ok=True)
+                                
+                                script = result_dict.get('script')
+                                script_length = len(script)
+                                
+                                try:
+                                    # 执行 PowerShell 脚本
+                                    ps_result = subprocess.run(
+                                        ['powershell', '-Command', script],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=30,
+                                        encoding='utf-8',
+                                        errors='ignore',
+                                        cwd=str(work_path)
+                                    )
+                                    
+                                    stdout = ps_result.stdout or ""
+                                    stderr = ps_result.stderr or ""
+                                    
+                                    # 处理输出截断
+                                    MAX_OUTPUT_LENGTH = 50000
+                                    if len(stdout) > MAX_OUTPUT_LENGTH:
+                                        stdout = stdout[:MAX_OUTPUT_LENGTH] + f"\n... (输出已截断，共 {len(ps_result.stdout)} 字符)"
+                                    if len(stderr) > MAX_OUTPUT_LENGTH:
+                                        stderr = stderr[:MAX_OUTPUT_LENGTH] + f"\n... (错误输出已截断，共 {len(ps_result.stderr)} 字符)"
+                                    
+                                    result = json.dumps({
+                                        "success": True,
+                                        "return_code": ps_result.returncode,
+                                        "stdout": stdout,
+                                        "stderr": stderr,
+                                        "script_length": script_length,
+                                        "message": f"脚本执行完成，返回码: {ps_result.returncode}"
+                                    }, ensure_ascii=False)
+                                except subprocess.TimeoutExpired:
+                                    result = json.dumps({
+                                        "success": False,
+                                        "error": "脚本执行超时（30 秒）",
+                                        "message": "脚本执行超时"
+                                    }, ensure_ascii=False)
+                                except Exception as e:
+                                    result = json.dumps({
+                                        "error": f"脚本执行失败: {str(e)}",
+                                        "message": "脚本执行失败"
+                                    }, ensure_ascii=False)
                             else:
-                                arguments = {'confirmed': True}
-                            result = self._execute_tool_sync(tool_name, arguments)
+                                # 其他需要确认的操作，使用原有的确认机制
+                                if isinstance(arguments, dict):
+                                    arguments['confirmed'] = True
+                                else:
+                                    arguments = {'confirmed': True}
+                                result = self._execute_tool_sync(tool_name, arguments)
                 except:
                     pass
                 
@@ -353,30 +428,103 @@ class QuickAIChat:
                 try:
                     result_dict = json.loads(result)
                     
-                    # 处理需要确认的操作（检查 skill 是否有自己的确认机制）
+                    # 处理需要确认的操作
                     if result_dict.get("requires_confirmation"):
-                        # 检查 skill 是否已经处理了确认（通过检查是否有 confirmed 字段）
-                        if not result_dict.get("confirmed"):
-                            print(f"\n⚠️  需要确认:")
-                            print(f"  操作: {result_dict.get('action', 'unknown')}")
-                            print(f"  文件: {result_dict.get('file_path', 'unknown')}")
-                            print(f"  工作目录: {result_dict.get('work_directory', 'unknown')}")
-                            print(f"  原因: {result_dict.get('error', 'unknown')}")
-                            
-                            confirm = input("\n是否确认此操作? (y/n): ").lower()
-                            if confirm != 'y':
-                                tool_responses.append({
-                                    "tool_call_id": tc['id'],
-                                    "role": "tool",
-                                    "content": json.dumps({"error": "用户取消操作"}, ensure_ascii=False)
-                                })
-                                log.info(f"用户取消操作: {tool_name}")
-                                print("操作已取消")
-                                continue
+                        print(f"\n⚠️  需要确认:")
+                        print(f"  操作: {result_dict.get('action', 'unknown')}")
+                        
+                        # 显示脚本预览（如果有）
+                        if result_dict.get('script_preview'):
+                            print(f"  脚本预览:")
+                            print(f"  {result_dict.get('script_preview')}")
+                        # 显示文件路径（如果有）
+                        if result_dict.get('file_path'):
+                            print(f"  文件: {result_dict.get('file_path')}")
+                        # 显示工作目录（如果有）
+                        if result_dict.get('work_directory'):
+                            print(f"  工作目录: {result_dict.get('work_directory')}")
+                        # 显示原因（如果有）
+                        if result_dict.get('error'):
+                            print(f"  原因: {result_dict.get('error')}")
+                        
+                        confirm = input("\n是否确认此操作? (y/n): ").lower()
+                        if confirm != 'y':
+                            tool_responses.append({
+                                "tool_call_id": tc['id'],
+                                "role": "tool",
+                                "content": json.dumps({"error": "用户取消操作"}, ensure_ascii=False)
+                            })
+                            log.info(f"用户取消操作: {tool_name}")
+                            print("操作已取消")
+                            continue
+                        else:
+                            log.info(f"用户确认操作: {tool_name}")
+                            print("操作已确认，正在执行...")
+                            # 直接执行脚本（如果是 PowerShell 脚本）
+                            if result_dict.get('action') == 'run_powershell_script' and result_dict.get('script'):
+                                import subprocess
+                                from pathlib import Path
+                                import os
+                                import sys
+                                
+                                # 获取工作目录
+                                try:
+                                    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+                                    from modules import config
+                                    work_dir = config.load_config().get('work_directory', 'workplace')
+                                except:
+                                    work_dir = 'workplace'
+                                
+                                work_path = Path(work_dir).resolve()
+                                if not work_path.exists():
+                                    work_path.mkdir(parents=True, exist_ok=True)
+                                
+                                script = result_dict.get('script')
+                                script_length = len(script)
+                                
+                                try:
+                                    # 执行 PowerShell 脚本
+                                    ps_result = subprocess.run(
+                                        ['powershell', '-Command', script],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=30,
+                                        encoding='utf-8',
+                                        errors='ignore',
+                                        cwd=str(work_path)
+                                    )
+                                    
+                                    stdout = ps_result.stdout or ""
+                                    stderr = ps_result.stderr or ""
+                                    
+                                    # 处理输出截断
+                                    MAX_OUTPUT_LENGTH = 50000
+                                    if len(stdout) > MAX_OUTPUT_LENGTH:
+                                        stdout = stdout[:MAX_OUTPUT_LENGTH] + f"\n... (输出已截断，共 {len(ps_result.stdout)} 字符)"
+                                    if len(stderr) > MAX_OUTPUT_LENGTH:
+                                        stderr = stderr[:MAX_OUTPUT_LENGTH] + f"\n... (错误输出已截断，共 {len(ps_result.stderr)} 字符)"
+                                    
+                                    result = json.dumps({
+                                        "success": True,
+                                        "return_code": ps_result.returncode,
+                                        "stdout": stdout,
+                                        "stderr": stderr,
+                                        "script_length": script_length,
+                                        "message": f"脚本执行完成，返回码: {ps_result.returncode}"
+                                    }, ensure_ascii=False)
+                                except subprocess.TimeoutExpired:
+                                    result = json.dumps({
+                                        "success": False,
+                                        "error": "脚本执行超时（30 秒）",
+                                        "message": "脚本执行超时"
+                                    }, ensure_ascii=False)
+                                except Exception as e:
+                                    result = json.dumps({
+                                        "error": f"脚本执行失败: {str(e)}",
+                                        "message": "脚本执行失败"
+                                    }, ensure_ascii=False)
                             else:
-                                log.info(f"用户确认操作: {tool_name}")
-                                print("操作已确认，正在重新执行...")
-                                # 添加 confirmed 参数
+                                # 其他需要确认的操作，使用原有的确认机制
                                 if isinstance(arguments, dict):
                                     arguments['confirmed'] = True
                                 else:
@@ -484,9 +632,20 @@ class QuickAIChat:
                             if result_dict.get("requires_confirmation"):
                                 print(f"\n⚠️  需要确认:")
                                 print(f"  操作: {result_dict.get('action', 'unknown')}")
-                                print(f"  文件: {result_dict.get('file_path', 'unknown')}")
-                                print(f"  工作目录: {result_dict.get('work_directory', 'unknown')}")
-                                print(f"  原因: {result_dict.get('error', 'unknown')}")
+                                
+                                # 显示脚本预览（如果有）
+                                if result_dict.get('script_preview'):
+                                    print(f"  脚本预览:")
+                                    print(f"  {result_dict.get('script_preview')}")
+                                # 显示文件路径（如果有）
+                                if result_dict.get('file_path'):
+                                    print(f"  文件: {result_dict.get('file_path')}")
+                                # 显示工作目录（如果有）
+                                if result_dict.get('work_directory'):
+                                    print(f"  工作目录: {result_dict.get('work_directory')}")
+                                # 显示原因（如果有）
+                                if result_dict.get('error'):
+                                    print(f"  原因: {result_dict.get('error')}")
                                 
                                 confirm = input("\n是否确认此操作? (y/n): ").lower()
                                 if confirm != 'y':
@@ -500,13 +659,77 @@ class QuickAIChat:
                                     continue
                                 else:
                                     log.info(f"用户确认操作: {tool_name}")
-                                    print("操作已确认，正在重新执行...")
-                                    # 添加 confirmed 参数
-                                    if isinstance(arguments, dict):
-                                        arguments['confirmed'] = True
+                                    print("操作已确认，正在执行...")
+                                    # 直接执行脚本（如果是 PowerShell 脚本）
+                                    if result_dict.get('action') == 'run_powershell_script' and result_dict.get('script'):
+                                        import subprocess
+                                        from pathlib import Path
+                                        import os
+                                        import sys
+                                        
+                                        # 获取工作目录
+                                        try:
+                                            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+                                            from modules import config
+                                            work_dir = config.load_config().get('work_directory', 'workplace')
+                                        except:
+                                            work_dir = 'workplace'
+                                        
+                                        work_path = Path(work_dir).resolve()
+                                        if not work_path.exists():
+                                            work_path.mkdir(parents=True, exist_ok=True)
+                                        
+                                        script = result_dict.get('script')
+                                        script_length = len(script)
+                                        
+                                        try:
+                                            # 执行 PowerShell 脚本
+                                            ps_result = subprocess.run(
+                                                ['powershell', '-Command', script],
+                                                capture_output=True,
+                                                text=True,
+                                                timeout=30,
+                                                encoding='utf-8',
+                                                errors='ignore',
+                                                cwd=str(work_path)
+                                            )
+                                            
+                                            stdout = ps_result.stdout or ""
+                                            stderr = ps_result.stderr or ""
+                                            
+                                            # 处理输出截断
+                                            MAX_OUTPUT_LENGTH = 50000
+                                            if len(stdout) > MAX_OUTPUT_LENGTH:
+                                                stdout = stdout[:MAX_OUTPUT_LENGTH] + f"\n... (输出已截断，共 {len(ps_result.stdout)} 字符)"
+                                            if len(stderr) > MAX_OUTPUT_LENGTH:
+                                                stderr = stderr[:MAX_OUTPUT_LENGTH] + f"\n... (错误输出已截断，共 {len(ps_result.stderr)} 字符)"
+                                            
+                                            result = json.dumps({
+                                                "success": True,
+                                                "return_code": ps_result.returncode,
+                                                "stdout": stdout,
+                                                "stderr": stderr,
+                                                "script_length": script_length,
+                                                "message": f"脚本执行完成，返回码: {ps_result.returncode}"
+                                            }, ensure_ascii=False)
+                                        except subprocess.TimeoutExpired:
+                                            result = json.dumps({
+                                                "success": False,
+                                                "error": "脚本执行超时（30 秒）",
+                                                "message": "脚本执行超时"
+                                            }, ensure_ascii=False)
+                                        except Exception as e:
+                                            result = json.dumps({
+                                                "error": f"脚本执行失败: {str(e)}",
+                                                "message": "脚本执行失败"
+                                            }, ensure_ascii=False)
                                     else:
-                                        arguments = {'confirmed': True}
-                                    result = self._execute_tool_sync(tool_name, arguments)
+                                        # 其他需要确认的操作，使用原有的确认机制
+                                        if isinstance(arguments, dict):
+                                            arguments['confirmed'] = True
+                                        else:
+                                            arguments = {'confirmed': True}
+                                        result = self._execute_tool_sync(tool_name, arguments)
                         except:
                             pass
                         

@@ -59,8 +59,7 @@ skill_info = {
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "script": {"type": "string", "description": "PowerShell 命令或脚本内容。建议使用简单直接的命令，如 'python script.py'、'dir'、'Get-ChildItem' 等。命令会在工作目录下执行。"},
-                    "confirmed": {"type": "boolean", "description": "是否已确认执行，默认 false"}
+                    "script": {"type": "string", "description": "PowerShell 命令或脚本内容。建议使用简单直接的命令，如 'python script.py'、'dir'、'Get-ChildItem' 等。命令会在工作目录下执行。"}
                 },
                 "required": ["script"]
             }
@@ -69,7 +68,7 @@ skill_info = {
 }
 
 
-def run_script(script: str, confirmed: bool = False) -> Dict[str, Any]:
+def run_script(script: str) -> Dict[str, Any]:
     """运行 PowerShell 脚本（自动处理用户确认和执行）"""
     log = get_logger()
     
@@ -89,22 +88,16 @@ def run_script(script: str, confirmed: bool = False) -> Dict[str, Any]:
         if log:
             log.info(f"AI 请求运行 PowerShell 脚本 (长度: {script_length} 字符): {script}")
         
-        # 第一次调用，返回确认申请
-        if not confirmed:
-            script_preview = script[:500] + "..." if len(script) > 500 else script
-            return {
-                "requires_confirmation": True,
-                "message": f"确认运行 PowerShell 脚本 (长度: {script_length} 字符):\n{script_preview}",
-                "action": "run_powershell_script",
-                "script_length": script_length,
-                "script_preview": script_preview
-            }
-        else:
-            # 确认后执行脚本
-            if log:
-                log.info(f"用户确认运行脚本，开始执行: {script}")
-            print("  正在执行脚本...")
-            return _execute_script(script, script_length)
+        # 返回确认申请
+        script_preview = script[:500] + "..." if len(script) > 500 else script
+        return {
+            "requires_confirmation": True,
+            "message": f"确认运行 PowerShell 脚本 (长度: {script_length} 字符):\n{script_preview}",
+            "action": "run_powershell_script",
+            "script": script,
+            "script_length": script_length,
+            "script_preview": script_preview
+        }
     
     except Exception as e:
         if log:
