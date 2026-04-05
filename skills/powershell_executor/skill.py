@@ -42,7 +42,7 @@ def set_timeout(timeout: int) -> Dict[str, Any]:
 
 skill_info = {
     "name": "powershell_executor",
-    "description": "PowerShell 脚本执行器技能，可以运行 PowerShell 命令和脚本。重要提示：1. 此技能会自动捕获所有输出（stdout 和 stderr）以及返回码，不需要在脚本中手动实现输出捕获。2. 请使用简单直接的命令，避免生成复杂的脚本。3. 所有命令都需要用户确认后才能执行。4. 命令会在工作目录下执行，使用相对路径即可访问工作区文件。5. 此技能会自动处理用户确认和执行流程，AI 只需要调用一次 run_script 函数。",
+    "description": "PowerShell 脚本执行器技能，可以运行 PowerShell 命令和脚本。",
     "functions": {
         "set_timeout": {
             "description": "设置脚本执行的超时时间（秒）",
