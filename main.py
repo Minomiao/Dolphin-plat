@@ -242,7 +242,11 @@ def manage_skills():
             continue
         elif choice == 'n':
             new_status = not current_status
-            result = chat_instance.skill_mgr.toggle_skill(skill_name, new_status)
+            # 检查是否是插件技能
+            if skill_name.startswith("plugin-"):
+                result = chat_instance.plugin_loader.toggle_skill(skill_name, new_status)
+            else:
+                result = chat_instance.skill_mgr.toggle_skill(skill_name, new_status)
             if result.get('success'):
                 new_status_text = "启用" if new_status else "禁用"
                 print(f"技能 '{skill_name}' 已{new_status_text}")
@@ -257,8 +261,14 @@ def manage_skills():
         print(f"\n=== 更新完成 ===")
         print(f"已更新 {len(updated_skills)} 个技能的状态")
         for skill_name in updated_skills:
-            skills_config = config.load_config().get('skills', {})
-            status = "启用" if skills_config.get(skill_name, True) else "禁用"
+            # 检查是否是插件技能
+            if skill_name.startswith("plugin-"):
+                original_skill_name = skill_name[8:]
+                plugins_config = config.load_config().get('plugins', {})
+                status = "启用" if plugins_config.get(original_skill_name, True) else "禁用"
+            else:
+                skills_config = config.load_config().get('skills', {})
+                status = "启用" if skills_config.get(skill_name, True) else "禁用"
             print(f"- {skill_name}: {status}")
     else:
         print("\n=== 操作完成 ===")

@@ -3,6 +3,7 @@ from modules import config
 from modules import conversation
 from modules import mcp_manager
 from modules import skill_manager
+from modules import plugin_skill_loader
 from modules import logger
 import json
 import asyncio
@@ -70,6 +71,7 @@ class QuickAIChat:
         )
         self.mcp_mgr = mcp_manager.get_mcp_manager()
         self.skill_mgr = skill_manager.get_skill_manager()
+        self.plugin_loader = plugin_skill_loader.get_plugin_skill_loader()
         self.tools = []
         self._update_tools()
         log.info(f"初始化 QuickAIChat: model={model}, temperature={temperature}, max_tokens={max_tokens}, enable_tools={enable_tools}")
@@ -88,6 +90,10 @@ class QuickAIChat:
         if self.enable_tools:
             skill_tools = self.skill_mgr.get_all_tools()
             self.tools.extend(skill_tools)
+            
+            # 添加插件技能工具
+            plugin_tools = self.plugin_loader.get_all_tools()
+            self.tools.extend(plugin_tools)
         log.debug(f"更新工具列表: 共 {len(self.tools)} 个工具")
     
     async def _execute_tool(self, tool_name: str, arguments: dict) -> str:
@@ -95,6 +101,8 @@ class QuickAIChat:
         try:
             if tool_name.startswith("skill_"):
                 result = await self.skill_mgr.call_tool(tool_name, arguments)
+            elif tool_name.startswith("plugin_"):
+                result = await self.plugin_loader.call_tool(tool_name, arguments)
             elif "_" in tool_name:
                 result = await self.mcp_mgr.call_tool(tool_name, arguments)
             else:
@@ -795,4 +803,8 @@ class QuickAIChat:
         self._update_tools()
     
     def list_skills(self):
-        return self.skill_mgr.list_skills()
+        # 合并普通技能和插件技能
+        skills = self.skill_mgr.list_skills()
+        plugin_skills = self.plugin_loader.list_skills()
+        skills.extend(plugin_skills)
+        return skills

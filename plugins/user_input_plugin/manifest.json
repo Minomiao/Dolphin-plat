@@ -1,0 +1,81 @@
+{
+  "manifest_version": "1.0",
+  "skill_info": {
+    "name": "user_input",
+    "version": "1.0.0",
+    "description": "向用户获取必要信息的插件，在不打断对话的前提下收集用户输入",
+    "author": "Dolphin Team",
+    "license": "MIT",
+    "created_at": "2026-04-06",
+    "updated_at": "2026-04-06",
+    "functions": {
+      "request_user_input": {
+        "description": "向用户请求输入信息，在不打断对话的前提下收集必要的确认信息",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "向用户显示的提示信息"
+            },
+            "input_type": {
+              "type": "string",
+              "description": "输入类型，如text, number, boolean等",
+              "default": "text"
+            },
+            "default_value": {
+              "type": "string",
+              "description": "默认值，可选"
+            },
+            "validation_pattern": {
+              "type": "string",
+              "description": "输入验证正则表达式，可选"
+            }
+          },
+          "required": ["prompt"]
+        }
+      },
+      "confirm_action": {
+        "description": "向用户确认一个操作是否执行",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "要确认的操作描述"
+            },
+            "default": {
+              "type": "boolean",
+              "description": "默认值，True或False",
+              "default": false
+            }
+          },
+          "required": ["action"]
+        }
+      }
+    }
+  },
+  "main": {
+    "entry_point": "skill/skill.py"
+  },
+  "signature": {
+    "algorithm": "SHA256",
+    "value": "",
+    "certificate": "",
+    "verified": false
+  },
+  "dependencies": {
+    "python_packages": [],
+    "system_requirements": []
+  },
+  "permissions": {
+    "file_system": false,
+    "network": false,
+    "system_commands": false
+  },
+  "metadata": {
+    "tags": ["user_input", "interaction", "utility"],
+    "category": "utility",
+    "min_platform_version": "1.0.0"
+  }
+}

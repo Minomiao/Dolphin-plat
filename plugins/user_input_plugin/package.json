@@ -1,0 +1,19 @@
+{
+  "name": "user_input",
+  "version": "1.0.0",
+  "description": "Obtain necessary information from the user",
+  "python_version": ">=3.7",
+  "dependencies": {
+    "required": [],
+    "optional": []
+  },
+  "install_config": {
+    "auto_install": false,
+    "install_timeout": 60,
+    "upgrade_existing": false
+  },
+  "environment": {
+    "variables": {},
+    "path_additions": []
+  }
+}

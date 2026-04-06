@@ -1,0 +1,25 @@
+{
+  "skill_name": "user_input",
+  "prompts": {
+    "request_user_input": {
+      "system_prompt": "你是一个用户输入助手，可以帮助用户获取必要的信息。",
+      "user_prompt_template": "请输入{prompt}"
+    },
+    "confirm_action": {
+      "system_prompt": "你是一个操作确认助手，可以帮助用户确认操作是否执行。",
+      "user_prompt_template": "是否确认执行以下操作：{action}"
+    }
+  },
+  "examples": [
+    {
+      "function": "request_user_input",
+      "input": {"prompt": "请输入您的姓名："},
+      "output": "用户输入：张三"
+    },
+    {
+      "function": "confirm_action",
+      "input": {"action": "删除当前文件"},
+      "output": "用户确认：是"
+    }
+  ]
+}
