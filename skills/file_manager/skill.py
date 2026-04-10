@@ -135,19 +135,19 @@ skill_info = {
             }
         },
         "create_file": {
-            "description": "创建文件并写入内容。限制：最大文件大小10MB，最大行数200行。提示：创建文件时不要一次性写入过多内容，先创建基本框架，然后使用 modify_file 函数分多次进行修改。",
+            "description": "创建文件并写入内容。限制：最大文件大小10MB，最大行数500行。提示：创建文件时不要一次性写入过多内容，先创建基本框架，然后使用 modify_file 函数分多次进行修改。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {"type": "string", "description": "文件路径（相对于工作目录），AI 可以决定文件名和后缀"},
-                    "content": {"type": "string", "description": "文件内容，单次不要超过200行"},
+                    "content": {"type": "string", "description": "文件内容，单次不要超过500行"},
                     "encoding": {"type": "string", "description": "文件编码，默认为 'utf-8'"}
                 },
                 "required": ["file_path", "content"]
             }
         },
         "modify_file": {
-            "description": "修改文件内容。需要提供要修改的起始行、结束行、首行内容、末行内容和新内容。限制：单次修改最多200行，最大文件大小10MB。提示：对于大文件修改，建议分多次进行，每次修改范围不要太大，以确保操作的稳定性和可追溯性。",
+            "description": "修改文件内容。需要提供要修改的起始行、结束行、首行内容、末行内容和新内容。限制：单次修改最多500行，最大文件大小10MB。提示：对于大文件修改，建议分多次进行，每次修改范围不要太大，以确保操作的稳定性和可追溯性。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -219,12 +219,12 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
                 "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的内容后再进行操作"
             }
         
-        if line_count > 400:
+        if line_count > 600:
             return {
-                "error": f"文件行数过多: {line_count} 行，最大允许: 400 行",
+                "error": f"文件行数过多: {line_count} 行，最大允许: 600 行",
                 "line_count": line_count,
-                "max_lines": 400,
-                "suggestion": "建议先创建一个基本框架（不超过400行），然后使用 modify_file 函数分多次进行修改"
+                "max_lines": 600,
+                "suggestion": "建议先创建一个基本框架（不超过500行），然后使用 modify_file 函数分多次进行修改"
             }
         
         work_dir = get_work_dir()
@@ -302,10 +302,10 @@ def modify_file(file_path: str, start_line: int, end_line: int, start_line_conte
         if end_line < start_line or end_line > total_lines:
             return {"error": f"结束行号无效，文件共 {total_lines} 行", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的行号后再进行操作"}
         
-        # 检查修改范围是否超过200行
+        # 检查修改范围是否超过600行
         line_count = end_line - start_line + 1
-        if line_count > 200:
-            return {"error": f"修改范围过大，单次修改最多支持200行，当前请求 {line_count} 行", "suggestion": "建议使用 read_file 函数重新阅读文件，分多次进行修改，每次修改范围不要超过200行"}
+        if line_count > 600:
+            return {"error": f"修改范围过大，单次修改最多支持600行，当前请求 {line_count} 行", "suggestion": "建议使用 read_file 函数重新阅读文件，分多次进行修改，每次修改范围不要超过500行"}
         
         # 计算数组索引（从0开始）
         start_index = start_line - 1
