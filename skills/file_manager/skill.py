@@ -65,22 +65,17 @@ def set_work_directory(directory: str) -> Dict[str, Any]:
         if not resolved_path.is_dir():
             return {"error": f"路径不是目录: {resolved_path}"}
         
-        # 转换为相对路径存储
+        # 转换为相对路径存储（临时切换，不保存到配置）
         relative_path = str(resolved_path.relative_to(base_path))
-        work_dir = str(resolved_path)
-        
-        config = get_config()
-        if config:
-            current_config = config.load_config()
-            current_config['work_directory'] = work_dir
-            config.save_config(current_config)
+        temp_work_dir = str(resolved_path)
         
         return {
             "success": True,
-            "work_directory": work_dir,
+            "work_directory": temp_work_dir,
             "relative_path": relative_path,
-            "message": f"工作目录已设置为: {work_dir}",
-            "format_hint": "建议使用相对路径格式，例如: 'subdir' 或 'subdir1/subdir2'"
+            "message": f"临时工作目录已切换为: {temp_work_dir}",
+            "format_hint": "建议使用相对路径格式，例如: 'subdir' 或 'subdir1/subdir2'",
+            "warning": "注意：此设置为临时切换，下次对话开始时将恢复为默认工作目录"
         }
     except Exception as e:
         return {"error": f"设置工作目录失败: {str(e)}"}

@@ -77,6 +77,11 @@ class QuickAIChat:
         self.request_manager = request_manager.get_request_manager()
         self.tools = []
         self._update_tools()
+        
+        # 从配置读取默认工作目录
+        self.default_work_directory = config.load_config().get('work_directory', 'workplace')
+        self.current_work_directory = self.default_work_directory
+        
         log.info(f"初始化 QuickAIChat: model={model}, temperature={temperature}, max_tokens={max_tokens}, enable_tools={enable_tools}")
     
     def add_message(self, role, content, tool_calls=None, reasoning_content=None):
@@ -98,6 +103,15 @@ class QuickAIChat:
             plugin_tools = self.plugin_loader.get_all_tools()
             self.tools.extend(plugin_tools)
         log.debug(f"更新工具列表: 共 {len(self.tools)} 个工具")
+    
+    def reset_work_directory(self):
+        """重置工作目录到默认配置"""
+        self.current_work_directory = self.default_work_directory
+        log.info(f"工作目录已重置为: {self.current_work_directory}")
+    
+    def get_system_prompt(self) -> str:
+        """获取系统提示，包含工作目录信息"""
+        return f"你是一个AI助手。当用户要求完成任务时，必须确保完成所有必要的步骤，不要中途停止。重要限制：每次只能调用一个工具（skill），等待工具返回结果后，再决定是否需要调用下一个工具。不要同时调用多个工具。重要：在每次回答结束时，必须至少给出一个正常的输出（除了思考过程和工具调用之外的内容），让用户知道发生了什么。始终以完整的回答结束对话。当前工作目录：{self.current_work_directory}。所有文件操作都在此目录下进行，可以使用子文件夹路径，例如 'subdir/file.txt' 或 'subdir1/subdir2/file.txt'。如果需要切换工作目录，请使用 file_manager 技能的 set_work_directory 函数。切换后的工作目录仅在当前对话有效，下次对话开始时会恢复为此目录。"
     
     async def _call_callback(self, event_type, data):
         """调用回调函数，支持同步和异步回调"""
@@ -159,10 +173,13 @@ class QuickAIChat:
     async def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
         
-        # 添加系统提示
+        # 重置工作目录到默认配置
+        self.reset_work_directory()
+        
+        # 使用包含工作目录信息的系统提示
         system_message = {
             "role": "system",
-            "content": "你是一个智能助手，可以帮助用户创建和修改文件。重要提示：\n1. 创建文件时，如果内容超过 400 行，应该先创建一个基本框架（不超过 400 行），然后使用 modify_file 函数分多次进行修改。\n2. 对于大文件或复杂文件，建议分步骤逐步构建，每次修改范围不要太大。\n3. 这样可以确保操作的稳定性和可追溯性。"
+            "content": self.get_system_prompt()
         }
         
         # 检查是否已有系统消息
@@ -395,9 +412,14 @@ class QuickAIChat:
     
     async def chat_stream(self, user_input):
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
+        
+        # 重置工作目录到默认配置
+        self.reset_work_directory()
+        
         self.add_message("user", user_input)
         
-        system_message = "你是一个AI助手。当用户要求完成任务时，必须确保完成所有必要的步骤，不要中途停止。重要限制：每次只能调用一个工具（skill），等待工具返回结果后，再决定是否需要调用下一个工具。不要同时调用多个工具。重要：在每次回答结束时，必须至少给出一个正常的输出（除了思考过程和工具调用之外的内容），让用户知道发生了什么。始终以完整的回答结束对话。"
+        # 使用包含工作目录信息的系统提示
+        system_message = self.get_system_prompt()
         
         kwargs = {
             "model": self.model,
