@@ -131,6 +131,16 @@ class QuickAIChat:
                     log.debug(f"检测到申请: {result.get('type', 'unknown')}")
                     # 处理申请（实际处理逻辑在回调中）
                     result = self.request_manager.handle_request(result, self.callback)
+                    
+                    # 处理与申请相关的控制台输出
+                    pending_requests = self.request_manager.get_pending_requests()
+                    for req in pending_requests:
+                        if req.get('type') == 'console_output':
+                            log.debug(f"处理控制台输出: {req.get('content')}")
+                            await self._call_callback('console_output', req)
+                    
+                    # 清空待处理申请
+                    self.request_manager.clear_pending_requests()
             
             if isinstance(result, dict):
                 result_str = json.dumps(result, ensure_ascii=False)

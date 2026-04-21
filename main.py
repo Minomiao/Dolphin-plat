@@ -354,6 +354,16 @@ def chat_callback(event_type, data):
         print("操作已取消")
     elif event_type == 'operation_confirmed':
         print("操作已确认，正在执行...")
+    elif event_type == 'console_output':
+        # 处理控制台输出
+        content = data.get('content', '')
+        level = data.get('level', 'info')
+        if level == 'error':
+            print(f"\n{Fore.RED}错误: {content}{Style.RESET_ALL}")
+        elif level == 'warning':
+            print(f"\n{Fore.YELLOW}警告: {content}{Style.RESET_ALL}")
+        else:
+            print(f"\n{Fore.GREEN}信息: {content}{Style.RESET_ALL}")
     elif event_type == 'max_iterations_reached':
         print(f"\n⚠️  注意: 已达到最大工具调用迭代次数 ({data['iterations']} 次)")
         print("如果任务未完成，请继续对话以继续执行。")

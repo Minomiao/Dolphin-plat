@@ -76,6 +76,6 @@
   "metadata": {
     "tags": ["user_input", "interaction", "utility"],
     "category": "utility",
-    "min_platform_version": "1.0.0-dev"
+    "min_platform_version": "1.0.0"
   }
 }
