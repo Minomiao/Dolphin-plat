@@ -44,7 +44,21 @@ class FileOperation:
                 return {"error": "缺少 content 参数"}
             if not work_directory:
                 return {"error": "缺少 work_directory 参数"}
-            
+
+            # 去除行号标记（AI可能把行号标记作为内容的一部分）
+            import re
+            line_number_pattern = re.compile(r'^\[\d+\]\s*')
+
+            def strip_line_number(text):
+                if text:
+                    return line_number_pattern.sub('', text)
+                return text
+
+            # 处理多行内容，对每一行都去除行号标记
+            lines = content.split('\n')
+            lines = [strip_line_number(line) for line in lines]
+            content = '\n'.join(lines)
+
             # 验证内容大小
             content_size = len(content.encode(encoding))
             if content_size > MAX_FILE_SIZE:
@@ -190,20 +204,27 @@ class FileOperation:
             end_line = min(offset + limit, total_lines)
             selected_lines = all_lines[offset:end_line]
             
-            # 构建带行号的内容
+            # 构建带行号的内容，使用方括号标注行号，便于AI理解
             lines_with_numbers = []
             for i, line in enumerate(selected_lines):
                 line_number = offset + i + 1
-                lines_with_numbers.append(f"{line_number}: {line.rstrip()}")
-            
+                line_content = line.rstrip('\n\r') if line else ''
+                lines_with_numbers.append(f"[{line_number}]{line_content}")
+
             content_with_numbers = "\n".join(lines_with_numbers)
-            
+
+            # 构建索引格式的 lines 对象，便于AI直接通过索引访问
+            lines_indexed = {}
+            for i, line in enumerate(selected_lines):
+                line_content = line.rstrip('\n\r') if line else ''
+                lines_indexed[str(i)] = line_content
+
             return {
                 "success": True,
                 "file_path": str(resolved_path),
                 "encoding": encoding,
                 "content": content_with_numbers,
-                "lines": lines_with_numbers,
+                "lines": lines_indexed,
                 "line_count": len(selected_lines),
                 "total_lines": total_lines,
                 "offset": offset,
@@ -243,7 +264,33 @@ class FileOperation:
                 return {"error": "缺少 new_lines 参数"}
             if not work_directory:
                 return {"error": "缺少 work_directory 参数"}
-            
+
+            # 去除行号标记（只有在检测到每行都具有特定格式的行号时才去除）
+            import re
+            line_number_pattern = re.compile(r'^\[\d+\]\s*')
+
+            # 检测是否所有行都具有行号标记
+            def has_line_numbers(lines):
+                if not lines:
+                    return False
+                for line in lines:
+                    if line and not line_number_pattern.match(line):
+                        return False
+                return True
+
+            # 去除行号标记
+            def strip_line_number(text):
+                if text:
+                    return line_number_pattern.sub('', text)
+                return text
+
+            # 检查是否需要去除行号标记
+            lines_to_check = [start_line_content, end_line_content] + new_lines
+            if has_line_numbers(lines_to_check):
+                start_line_content = strip_line_number(start_line_content)
+                end_line_content = strip_line_number(end_line_content)
+                new_lines = [strip_line_number(line) for line in new_lines]
+
             # 构建完整路径
             work_path = Path(work_directory).resolve()
             file_path_obj = Path(file_path)

@@ -366,19 +366,32 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
         end_line = min(offset + limit, total_lines)
         selected_lines = all_lines[offset:end_line]
         
+        # 构建纯文本内容
+        pure_content = "".join(selected_lines)
+
+        # 构建带行号的内容，使用方括号标注行号，便于AI理解
         lines_with_numbers = []
         for i, line in enumerate(selected_lines):
             line_number = offset + i + 1
-            lines_with_numbers.append(f"{line_number}: {line.rstrip()}")
-        
+            line_content = line.rstrip('\n\r') if line else ''
+            lines_with_numbers.append(f"[{line_number}]{line_content}")
+
         content_with_numbers = "\n".join(lines_with_numbers)
-        
+
+        # 构建从1开始计数的 lines 对象，与修改文件时的行号格式保持一致
+        lines_indexed = {}
+        for i, line in enumerate(selected_lines):
+            line_number = offset + i + 1
+            line_content = line.rstrip('\n\r') if line else ''
+            lines_indexed[str(line_number)] = line_content
+
         return {
             "success": True,
             "file_path": str(path),
             "encoding": encoding,
-            "content": content_with_numbers,
-            "lines": lines_with_numbers,
+            "content": pure_content,
+            "content_with_numbers": content_with_numbers,
+            "lines": lines_indexed,
             "line_count": len(selected_lines),
             "total_lines": total_lines,
             "offset": offset,
