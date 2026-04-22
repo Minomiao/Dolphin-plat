@@ -34,24 +34,6 @@
           },
           "required": ["prompt"]
         }
-      },
-      "confirm_action": {
-        "description": "向用户确认一个操作是否执行",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "description": "要确认的操作描述"
-            },
-            "default": {
-              "type": "boolean",
-              "description": "默认值，True或False",
-              "default": false
-            }
-          },
-          "required": ["action"]
-        }
       }
     }
   },
