@@ -13,8 +13,11 @@ TIMEOUT = 30
 def get_work_dir():
     """获取工作目录"""
     try:
-        from modules import config
-        return config.load_config().get('work_directory', 'workplace')
+        from modules import request_manager
+        req_mgr = request_manager.get_request_manager()
+        config_request = req_mgr.create_config_request('load')
+        config_data = req_mgr.handle_request(config_request, None)
+        return config_data.get('work_directory', 'workplace')
     except:
         return 'workplace'
 
@@ -22,8 +25,11 @@ def get_work_dir():
 def get_logger():
     """获取日志记录器"""
     try:
-        from modules import logger
-        return logger.get_logger("QuickAI.powershell_executor")
+        from modules import request_manager
+        req_mgr = request_manager.get_request_manager()
+        logger_request = req_mgr.create_logger_request('get', name="QuickAI.powershell_executor")
+        logger_result = req_mgr.handle_request(logger_request, None)
+        return logger_result.get('logger')
     except:
         return None
 

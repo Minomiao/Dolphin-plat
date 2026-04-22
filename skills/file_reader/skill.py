@@ -13,8 +13,11 @@ MAX_FILES_TO_SEARCH_IN_CONTENT = 100
 def get_work_dir():
     try:
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        from modules import config
-        return config.load_config().get('work_directory', 'workplace')
+        from modules import request_manager
+        req_mgr = request_manager.get_request_manager()
+        config_request = req_mgr.create_config_request('load')
+        config_data = req_mgr.handle_request(config_request, None)
+        return config_data.get('work_directory', 'workplace')
     except:
         return 'workplace'
 

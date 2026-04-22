@@ -1,54 +1,60 @@
 from typing import Dict, Any
-from pathlib import Path
 import sys
 import os
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 CONFIRMATION_REQUIRED = False
 
+def get_request_manager():
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from modules import request_manager
+        return request_manager.get_request_manager()
+    except Exception as e:
+        print(f"获取 request_manager 失败: {e}")
+        return None
 
 def get_work_dir():
     try:
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        from modules import config
-        return config.load_config().get('work_directory', 'workplace')
-    except:
+        req_mgr = get_request_manager()
+        if req_mgr:
+            config_request = req_mgr.create_config_request('load')
+            config_data = req_mgr.handle_request(config_request, None)
+            return config_data.get('work_directory', 'workplace')
         return 'workplace'
-
+    except Exception as e:
+        print(f"获取工作目录失败: {e}")
+        return 'workplace'
 
 def get_backup_manager():
     try:
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
         from modules import backup_manager
         return backup_manager
-    except:
+    except Exception as e:
+        print(f"获取 backup_manager 失败: {e}")
         return None
-
 
 def get_config():
     try:
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        from modules import config
-        return config
-    except:
+        # 现在通过 request_manager 访问配置
+        req_mgr = get_request_manager()
+        return req_mgr
+    except Exception as e:
+        print(f"获取 config 失败: {e}")
         return None
 
 
 def set_work_directory(directory: str) -> Dict[str, Any]:
     try:
-        # 获取当前工作目录作为基础目录
         base_work_dir = get_work_dir()
         base_path = Path(base_work_dir).resolve()
         
-        # 解析输入路径
         input_path = Path(directory)
         
-        # 默认解析为相对路径
         if input_path.is_absolute():
-            # 如果是绝对路径，检查是否在基础目录下
             resolved_path = input_path.resolve()
             try:
-                # 检查是否是基础目录的子目录
                 resolved_path.relative_to(base_path)
             except ValueError:
                 return {
@@ -56,16 +62,13 @@ def set_work_directory(directory: str) -> Dict[str, Any]:
                     "suggestion": "请使用相对路径或确保路径在当前工作目录下"
                 }
         else:
-            # 如果是相对路径，相对于基础目录解析
             resolved_path = (base_path / input_path).resolve()
         
-        # 检查目录是否存在
         if not resolved_path.exists():
             return {"error": f"目录不存在: {resolved_path}"}
         if not resolved_path.is_dir():
             return {"error": f"路径不是目录: {resolved_path}"}
         
-        # 转换为相对路径存储（临时切换，不保存到配置）
         relative_path = str(resolved_path.relative_to(base_path))
         temp_work_dir = str(resolved_path)
         
@@ -218,287 +221,75 @@ def get_work_directory_func() -> Dict[str, Any]:
 
 def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[str, Any]:
     try:
-        path_check = _is_path_allowed(file_path)
-        if not path_check["allowed"]:
-            if CONFIRMATION_REQUIRED:
-                return {
-                "error": path_check["message"],
-                "requires_confirmation": True,
-                "action": "create_file",
-                "file_path": file_path,
-                "work_directory": path_check["work_directory"],
-                "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径和内容后再进行操作"
-            }
-            return {"error": path_check["message"], "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径和内容后再进行操作"}
-        
-        content_size = len(content.encode(encoding))
-        line_count = len(content.splitlines())
-        
-        if content_size > MAX_FILE_SIZE:
-            return {
-                "error": f"文件内容过大: {content_size} 字节，最大允许: {MAX_FILE_SIZE} 字节",
-                "content_size": content_size,
-                "max_size": MAX_FILE_SIZE,
-                "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的内容后再进行操作"
-            }
-        
-        if line_count > 600:
-            return {
-                "error": f"文件行数过多: {line_count} 行，最大允许: 600 行",
-                "line_count": line_count,
-                "max_lines": 600,
-                "suggestion": "建议先创建一个基本框架（不超过500行），然后使用 modify_file 函数分多次进行修改"
-            }
-        
+        req_mgr = get_request_manager()
         work_dir = get_work_dir()
-        path = Path(work_dir) / file_path
         
-        parent_dir = path.parent
-        if not parent_dir.exists():
-            parent_dir.mkdir(parents=True, exist_ok=True)
+        create_request = req_mgr.create_file_operation_request(
+            "create_file",
+            file_path=file_path,
+            content=content,
+            encoding=encoding,
+            work_directory=work_dir
+        )
         
-        backup_path = None
-        pending_count = 0
-        backup_mgr = get_backup_manager()
-        if path.exists() and backup_mgr:
-            backup_path = backup_mgr.backup_file(file_path, work_dir, action="create")
-        
-        with open(path, 'w', encoding=encoding, errors='ignore') as f:
-            f.write(content)
-        
-        if backup_mgr:
-            backup_mgr.record_change(
-                action="create",
-                file_path=file_path,
-                work_dir=work_dir
-            )
-            pending_count = backup_mgr.get_pending_changes_count()
-        
-        return {
-            "success": True,
-            "file_path": str(path),
-            "encoding": encoding,
-            "content_size": content_size,
-            "line_count": len(content.splitlines()),
-            "backup_path": backup_path,
-            "pending_changes": pending_count,
-            "message": f"文件已创建: {file_path}"
-        }
-    
+        result = req_mgr.handle_request(create_request, None)
+        return result
     except Exception as e:
-        return {"error": f"创建文件失败: {str(e)}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件信息后再进行操作"}
+        return {"error": f"创建文件失败: {str(e)}"}
 
 
 def modify_file(file_path: str, start_line: int, end_line: int, start_line_content: str, end_line_content: str, new_lines: list, encoding: str = "utf-8") -> Dict[str, Any]:
     try:
-        path_check = _is_path_allowed(file_path)
-        if not path_check["allowed"]:
-            if CONFIRMATION_REQUIRED:
-                return {
-                    "error": path_check["message"],
-                    "requires_confirmation": True,
-                    "action": "modify_file",
-                    "file_path": file_path,
-                    "work_directory": path_check["work_directory"]
-                }
-            return {"error": path_check["message"]}
-        
+        req_mgr = get_request_manager()
         work_dir = get_work_dir()
-        path = Path(work_dir) / file_path
         
-        if not path.exists():
-            return {"error": f"文件不存在: {file_path}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件路径后再进行操作"}
+        modify_request = req_mgr.create_file_operation_request(
+            "modify_file",
+            file_path=file_path,
+            start_line=start_line,
+            end_line=end_line,
+            start_line_content=start_line_content,
+            end_line_content=end_line_content,
+            new_lines=new_lines,
+            encoding=encoding,
+            work_directory=work_dir
+        )
         
-        if not path.is_file():
-            return {"error": f"路径不是文件: {file_path}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件路径后再进行操作"}
-        
-        # 读取文件所有行
-        with open(path, 'r', encoding=encoding, errors='ignore') as f:
-            all_lines = f.readlines()
-        
-        total_lines = len(all_lines)
-        
-        # 验证行号范围
-        if start_line < 1 or start_line > total_lines:
-            return {"error": f"起始行号无效，文件共 {total_lines} 行", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的行号后再进行操作"}
-        
-        if end_line < start_line or end_line > total_lines:
-            return {"error": f"结束行号无效，文件共 {total_lines} 行", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的行号后再进行操作"}
-        
-        # 检查修改范围是否超过600行
-        line_count = end_line - start_line + 1
-        if line_count > 600:
-            return {"error": f"修改范围过大，单次修改最多支持600行，当前请求 {line_count} 行", "suggestion": "建议使用 read_file 函数重新阅读文件，分多次进行修改，每次修改范围不要超过500行"}
-        
-        # 计算数组索引（从0开始）
-        start_index = start_line - 1
-        end_index = end_line
-        
-        # 检查首末行内容是否匹配
-        actual_start_content = all_lines[start_index].strip()
-        actual_end_content = all_lines[end_index - 1].strip()
-        
-        # 如果首末行内容不匹配，进行滚动校验
-        if actual_start_content != start_line_content.strip() or actual_end_content != end_line_content.strip():
-            # 定义滚动范围（前后10行）
-            scroll_start = max(0, start_index - 10)
-            scroll_end = min(total_lines, end_index + 10)
-            
-            # 搜索匹配的首行
-            matched_start = None
-            for i in range(scroll_start, scroll_end):
-                if all_lines[i].strip() == start_line_content.strip():
-                    matched_start = i
-                    break
-            
-            # 搜索匹配的末行
-            matched_end = None
-            if matched_start is not None:
-                for i in range(matched_start, min(matched_start + 210, total_lines)):  # 最多搜索210行
-                    if all_lines[i].strip() == end_line_content.strip():
-                        matched_end = i + 1  # 转换为行号（从1开始）
-                        matched_start_line = matched_start + 1  # 转换为行号（从1开始）
-                        # 检查匹配的范围是否在合理范围内
-                        if matched_end - matched_start_line + 1 == line_count:
-                            # 更新行号和索引
-                            start_line = matched_start_line
-                            end_line = matched_end
-                            start_index = matched_start
-                            end_index = matched_end
-                            break
-            
-            # 如果没有找到匹配的首末行
-            if matched_start is None or matched_end is None:
-                return {
-                    "error": "首末行内容不匹配，且在前后10行范围内未找到相同内容",
-                    "actual_start_content": actual_start_content,
-                    "actual_end_content": actual_end_content,
-                    "expected_start_content": start_line_content.strip(),
-                    "expected_end_content": end_line_content.strip(),
-                    "start_line": start_line,
-                    "end_line": end_line,
-                    "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的行号和内容后再进行修改"
-                }
-        
-        # 备份文件
-        backup_path = None
-        pending_count = 0
-        backup_mgr = get_backup_manager()
-        if backup_mgr:
-            backup_path = backup_mgr.backup_file(file_path, work_dir, action="modify")
-        
-        # 构建新的文件内容
-        new_content = []
-        new_content.extend(all_lines[:start_index])
-        new_content.extend([line + '\n' if not line.endswith('\n') else line for line in new_lines])
-        new_content.extend(all_lines[end_index:])
-        
-        # 写入新内容
-        with open(path, 'w', encoding=encoding, errors='ignore') as f:
-            f.writelines(new_content)
-        
-        # 记录变更
-        if backup_mgr:
-            backup_mgr.record_change(
-                action="modify",
-                file_path=file_path,
-                work_dir=work_dir
-            )
-            pending_count = backup_mgr.get_pending_changes_count()
-        
-        # 计算内容大小
-        new_content_str = ''.join(new_content)
-        new_content_size = len(new_content_str.encode(encoding))
-        
-        return {
-            "success": True,
-            "file_path": str(path),
-            "encoding": encoding,
-            "start_line": start_line,
-            "end_line": end_line,
-            "modified_lines": line_count,
-            "new_lines_count": len(new_lines),
-            "total_lines": total_lines,
-            "new_content_size": new_content_size,
-            "backup_path": backup_path,
-            "pending_changes": pending_count,
-            "message": f"文件已修改: {file_path}，修改范围第 {start_line}-{end_line} 行"
-        }
-    
+        result = req_mgr.handle_request(modify_request, None)
+        return result
     except Exception as e:
-        return {"error": f"修改文件失败: {str(e)}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件信息后再进行操作"}
+        return {"error": f"修改文件失败: {str(e)}"}
 
 
 def delete_file(file_path: str) -> Dict[str, Any]:
     try:
-        path_check = _is_path_allowed(file_path)
-        if not path_check["allowed"]:
-            if CONFIRMATION_REQUIRED:
-                return {
-                "error": path_check["message"],
-                "requires_confirmation": True,
-                "action": "delete_file",
-                "file_path": file_path,
-                "work_directory": path_check["work_directory"],
-                "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径后再进行操作"
-            }
-            return {"error": path_check["message"], "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径后再进行操作"}
-        
+        req_mgr = get_request_manager()
         work_dir = get_work_dir()
-        path = Path(work_dir) / file_path
         
-        if not path.exists():
-            return {"error": f"文件不存在: {file_path}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件路径后再进行操作"}
+        delete_request = req_mgr.create_file_operation_request(
+            "delete_file",
+            file_path=file_path,
+            work_directory=work_dir
+        )
         
-        if not path.is_file():
-            return {"error": f"路径不是文件: {file_path}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件路径后再进行操作"}
-        
-        file_size = path.stat().st_size
-        
-        backup_path = None
-        backup_mgr = get_backup_manager()
-        if backup_mgr:
-            backup_path = backup_mgr.backup_file(file_path, work_dir, action="delete")
-        
-        return {
-            "success": True,
-            "file_path": str(path),
-            "file_size": file_size,
-            "backup_path": backup_path,
-            "requires_confirmation": True,
-            "message": f"确认删除文件: {file_path} (大小: {file_size} 字节)"
-        }
-    
+        result = req_mgr.handle_request(delete_request, None)
+        return result
     except Exception as e:
-        return {"error": f"删除文件失败: {str(e)}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件信息后再进行操作"}
+        return {"error": f"删除文件失败: {str(e)}"}
 
 
 def confirm_delete_file(file_path: str) -> Dict[str, Any]:
     try:
+        req_mgr = get_request_manager()
         work_dir = get_work_dir()
-        path = Path(work_dir) / file_path
         
-        if not path.exists():
-            return {"error": f"文件不存在: {file_path}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件路径后再进行操作"}
+        delete_request = req_mgr.create_file_operation_request(
+            "delete_file",
+            file_path=file_path,
+            work_directory=work_dir
+        )
         
-        path.unlink()
-        
-        pending_count = 0
-        backup_mgr = get_backup_manager()
-        if backup_mgr:
-            backup_mgr.record_change(
-                action="delete",
-                file_path=file_path,
-                work_dir=work_dir
-            )
-            pending_count = backup_mgr.get_pending_changes_count()
-        
-        return {
-            "success": True,
-            "file_path": str(path),
-            "pending_changes": pending_count,
-            "message": f"文件已删除: {file_path}"
-        }
-    
+        result = req_mgr.handle_request(delete_request, None)
+        return result
     except Exception as e:
-        return {"error": f"删除文件失败: {str(e)}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件信息后再进行操作"}
+        return {"error": f"删除文件失败: {str(e)}"}
