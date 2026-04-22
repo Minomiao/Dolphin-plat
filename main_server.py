@@ -50,7 +50,10 @@ def init_chat():
     print(f"加载配置: api_key={current_config.get('api_key', '')[:10]}..., base_url={current_config.get('base_url')}")
     chat_instance = QuickAIChat(
         model=current_config.get('model', 'deepseek-chat'),
-        max_tokens=current_config.get('max_tokens', 8192)
+        temperature=0.7,
+        max_tokens=current_config.get('max_tokens', 8192),
+        enable_tools=True,
+        callback=None
     )
     log.info("Chat instance initialized")
 
@@ -175,7 +178,8 @@ def chat_endpoint():
             return
         
         try:
-            system_message = "你是一个AI助手。当用户要求完成任务时，必须确保完成所有必要的步骤，不要中途停止。重要限制：每次只能调用一个工具（skill），等待工具返回结果后，再决定是否需要调用下一个工具。不要同时调用多个工具。重要：在每次回答结束时，必须至少给出一个正常的输出（除了思考过程和工具调用之外的内容），让用户知道发生了什么。始终以完整的回答结束对话。"
+            # 使用包含工作目录信息的系统提示
+            system_message = chat_instance.get_system_prompt()
             kwargs = {
                 "model": chat_instance.model,
                 "messages": [{"role": "system", "content": system_message}] + chat_instance.messages + [{"role": "user", "content": user_input}],
@@ -268,15 +272,29 @@ def chat_endpoint():
                         
                         result = chat_instance._execute_tool_sync(tool_name, arguments)
                         
-                        if isinstance(result, dict):
-                            if result.get('requires_confirmation'):
-                                needs_confirmation = True
-                                yield f"data: {json.dumps({'type': 'system', 'content': f'  ⚠️ 需要确认: {result.get("message", "")}'}, ensure_ascii=False)}\n\n"
-                                yield f"data: {json.dumps({'type': 'system', 'content': '  [Web版本不支持交互式确认，请使用命令行版本或修改文件路径到工作目录内]'}, ensure_ascii=False)}\n\n"
-                            elif result.get('success'):
-                                yield f"data: {json.dumps({'type': 'system', 'content': f'  ✓ 成功: {result.get("message", "")}'}, ensure_ascii=False)}\n\n"
-                            elif 'error' in result:
-                                yield f"data: {json.dumps({'type': 'error', 'content': f'  ✗ 错误: {result["error"]}'}, ensure_ascii=False)}\n\n"
+                        # 处理工具执行结果
+                        try:
+                            result_dict = json.loads(result)
+                            
+                            if isinstance(result_dict, dict):
+                                if result_dict.get('requires_confirmation'):
+                                    needs_confirmation = True
+                                    yield f"data: {json.dumps({'type': 'system', 'content': f'  ⚠️ 需要确认: {result_dict.get("message", "")}'}, ensure_ascii=False)}\n\n"
+                                    yield f"data: {json.dumps({'type': 'system', 'content': '  [Web版本不支持交互式确认，请使用命令行版本或修改文件路径到工作目录内]'}, ensure_ascii=False)}\n\n"
+                                elif result_dict.get('success'):
+                                    yield f"data: {json.dumps({'type': 'system', 'content': f'  ✓ 成功: {result_dict.get("message", "")}'}, ensure_ascii=False)}\n\n"
+                                elif 'error' in result_dict:
+                                    yield f"data: {json.dumps({'type': 'error', 'content': f'  ✗ 错误: {result_dict["error"]}'}, ensure_ascii=False)}\n\n"
+                        except:
+                            if isinstance(result, dict):
+                                if result.get('requires_confirmation'):
+                                    needs_confirmation = True
+                                    yield f"data: {json.dumps({'type': 'system', 'content': f'  ⚠️ 需要确认: {result.get("message", "")}'}, ensure_ascii=False)}\n\n"
+                                    yield f"data: {json.dumps({'type': 'system', 'content': '  [Web版本不支持交互式确认，请使用命令行版本或修改文件路径到工作目录内]'}, ensure_ascii=False)}\n\n"
+                                elif result.get('success'):
+                                    yield f"data: {json.dumps({'type': 'system', 'content': f'  ✓ 成功: {result.get("message", "")}'}, ensure_ascii=False)}\n\n"
+                                elif 'error' in result:
+                                    yield f"data: {json.dumps({'type': 'error', 'content': f'  ✗ 错误: {result["error"]}'}, ensure_ascii=False)}\n\n"
                         
                         tool_content = json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
                         chat_instance.messages.append({
