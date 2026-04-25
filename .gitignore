@@ -45,3 +45,7 @@ build_webapi.py
 build_main/
 
 # Documentation
+
+# Web files
+web/
+main_server.py

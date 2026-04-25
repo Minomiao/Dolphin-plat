@@ -509,6 +509,12 @@ class QuickAIChat:
                 full_response += content
                 if not response_started:
                     response_started = True
+                    if reasoning_started:
+                        await self._call_callback('thinking_end', {})
+                        reasoning_started = False
+                await self._call_callback('response_chunk', {
+                    'content': content
+                })
             
             if delta.tool_calls:
                 has_tool_calls = True
@@ -533,9 +539,7 @@ class QuickAIChat:
             await self._call_callback('thinking_end', {})
         
         if response_started:
-            await self._call_callback('response', {
-                'content': full_response
-            })
+            await self._call_callback('response_end', {})
         
         if not has_tool_calls:
             self.add_message("assistant", full_response, reasoning_content=full_reasoning)
@@ -735,6 +739,12 @@ class QuickAIChat:
                         full_response += content
                         if not response_started:
                             response_started = True
+                            if reasoning_started:
+                                await self._call_callback('thinking_end', {})
+                                reasoning_started = False
+                        await self._call_callback('response_chunk', {
+                            'content': content
+                        })
                     
                     if delta.tool_calls:
                         has_tool_calls = True
@@ -758,9 +768,7 @@ class QuickAIChat:
                     await self._call_callback('thinking_end', {})
                 
                 if response_started:
-                    await self._call_callback('response', {
-                        'content': full_response
-                    })
+                    await self._call_callback('response_end', {})
                 
                 if has_tool_calls and tool_calls_buffer:
                     tool_calls = list(tool_calls_buffer.values())

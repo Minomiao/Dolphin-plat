@@ -314,8 +314,9 @@ def chat_callback(event_type, data):
         print(f"{Style.DIM}{data['content']}{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_end':
         print("\n--- 思考过程结束 ---")
-    elif event_type == 'response':
+    elif event_type == 'response_chunk':
         print(data['content'], end="", flush=True)
+    elif event_type == 'response_end':
         print()
     elif event_type == 'tool_calls':
         print(f"{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
