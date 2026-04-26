@@ -20,6 +20,71 @@
 + Use + for additions, - for deletions, / for changes
 + Organize all requirements from previous context at the top of the change log in English
 
+## v0.2.1 (2026-04-25)
+
++ Implement real-time streaming output for AI response content with typewriter effect in terminal
+/ Separate thinking and response output to prevent interleaving in terminal display
++ Add new v4 models (deepseek-v4-flash, deepseek-v4-pro) with model registry system
++ Add deprecation tracking for legacy models (deepseek-chat/reasoner/coder → 2026-07-24)
++ Add deprecation warning on startup and in settings mode with remaining days countdown
++ Implement dual-layer work directory system (persisted config + AI temporary variable)
++ Make AI work directory actually switchable via set_work_directory with bounds validation
++ Support relative path navigation (..) to return to parent directory within work root
++ Auto-fallback to root work directory when path goes out of bounds instead of error
++ Keep AI work directory across messages within same conversation session
++ Extract _process_stream() common method to deduplicate ~110 lines of stream loops
++ Extract _process_tool_confirmation() to deduplicate ~360 lines of confirmation logic
++ Extract _execute_powershell_script() to centralize PowerShell execution with timeouts
++ Clean up RequestManager: remove 4 dead handler methods and unused create_request_output
+/ Update settings mode model selection to dynamic listing from model registry
+/ Change default model from deepseek-chat to deepseek-v4-flash across all modules
+/ Reset work directory only on /clear, /new, /load and startup, not every message
+/ Rewrite README with quick start first, complete execution flow, and confirmation workflow
+/ Reduce chat.py from 989 lines to 691 lines through method extraction
+
+**modules/chat.py**:
+  / Refactor stream processing into _process_stream() shared method
+  + Add _process_tool_confirmation() for unified USER_INPUT/CONFIRMATION/SKILL_CONFIRMATION handling
+  + Add _execute_powershell_script() for centralized PowerShell script execution
+  / Remove dead code related to RequestManager pending_requests iteration
+  / Remove reset_work_directory() calls from chat() and chat_stream() (mid-conversation)
+  / Add reset_work_directory() calls to clear_history() and load_conversation()
+
+**modules/config.py**:
+  + Add MODEL_REGISTRY with 5 models, deprecation metadata, and replacement mapping
+  + Add get_available_models() to return model list for dynamic UI generation
+  + Add check_model_deprecation() with days-left calculation and warning message
+  / Update default model from deepseek-chat to deepseek-v4-flash
+
+**modules/request_manager.py**:
+  + Add _ai_work_directory module-level variable for AI temporary directory
+  + Add set/get/reset_ai_work_directory() and get_persisted_work_directory() functions
+  / Modify _handle_config_request('load') to overlay AI work directory on config result
+  - Remove _handle_user_input_request, _handle_confirmation_request (dead code)
+  - Remove _handle_skill_confirmation, _handle_console_output (dead code)
+  - Remove create_request_output (unused)
+
+**skills/file_manager/skill.py**:
+  / Fix set_work_directory to use persisted directory as base, AI current as relative resolver
+  + Add out-of-bounds auto-fallback to root directory instead of returning error
+  + Add from pathlib import Path (previously missing import)
+
+**main.py**:
+  / Rewrite settings_mode model selection to dynamic registry-based listing
+  + Add deprecated model section with unified deprecation message
+  + Add deprecation check on program startup with colored warning
+  / Update response output from batch to streaming (response_chunk + response_end events)
+  / Add thinking_end before response starts to prevent interleaving
+  / Update callback with response_chunk and response_end event handlers
+
+**README.md**:
+  / Restructure with quick start at top, complete execution flow documentation
+  + Add model list with deprecation dates
+  + Add work directory dual-layer mechanism documentation
+  + Add confirmation operation flow documentation with extracted method details
+  + Add streaming output section
+  / Update architecture to reflect cleaned-up module responsibilities
+
 ## v0.2.0-alpha (2026-04-22)
 
 + Implement request manager for skills and plugins
