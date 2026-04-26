@@ -313,6 +313,9 @@ class RequestManager:
             
             if operation_type == 'load':
                 result = config.load_config()
+                if _ai_work_directory:
+                    result = dict(result)
+                    result['work_directory'] = _ai_work_directory
             elif operation_type == 'save':
                 config_data = request.get('config', {})
                 config.save_config(config_data)
@@ -399,8 +402,27 @@ class RequestManager:
 # 单例模式
 _request_manager = None
 
+# AI 临时工作目录（对话级别），None 表示未设置，此时使用 config.json 的值
+_ai_work_directory = None
+
 def get_request_manager() -> RequestManager:
     global _request_manager
     if _request_manager is None:
         _request_manager = RequestManager()
     return _request_manager
+
+def set_ai_work_directory(work_dir: str):
+    global _ai_work_directory
+    _ai_work_directory = work_dir
+
+def get_ai_work_directory() -> str:
+    global _ai_work_directory
+    return _ai_work_directory
+
+def reset_ai_work_directory():
+    global _ai_work_directory
+    _ai_work_directory = None
+
+def get_persisted_work_directory() -> str:
+    from modules import config
+    return config.load_config().get('work_directory', 'workplace')

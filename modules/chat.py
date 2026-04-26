@@ -95,6 +95,8 @@ class QuickAIChat:
         # 从配置读取默认工作目录
         self.default_work_directory = config.load_config().get('work_directory', 'workplace')
         self.current_work_directory = self.default_work_directory
+        from modules import request_manager as rm
+        rm.reset_ai_work_directory()
         
         log.info(f"初始化 QuickAIChat: model={model}, temperature={temperature}, max_tokens={max_tokens}, enable_tools={enable_tools}")
     
@@ -121,6 +123,8 @@ class QuickAIChat:
     def reset_work_directory(self):
         """重置工作目录到默认配置"""
         self.current_work_directory = self.default_work_directory
+        from modules import request_manager as rm
+        rm.reset_ai_work_directory()
         log.info(f"工作目录已重置为: {self.current_work_directory}")
     
     def get_system_prompt(self) -> str:
@@ -201,6 +205,12 @@ class QuickAIChat:
                     self.request_manager.clear_pending_requests()
             
             if isinstance(result, dict):
+                # 拦截 set_work_directory 成功结果，同步更新 AI 临时工作目录
+                if result.get("success") and "set_work_directory" in tool_name and result.get("work_directory"):
+                    self.current_work_directory = result["work_directory"]
+                    from modules import request_manager as rm
+                    rm.set_ai_work_directory(result["work_directory"])
+                    log.info(f"AI 临时工作目录已更新: {self.current_work_directory}")
                 result_str = json.dumps(result, ensure_ascii=False)
             else:
                 result_str = str(result)
@@ -216,9 +226,6 @@ class QuickAIChat:
     
     async def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
-        
-        # 重置工作目录到默认配置
-        self.reset_work_directory()
         
         # 使用包含工作目录信息的系统提示
         system_message = {
@@ -462,9 +469,6 @@ class QuickAIChat:
     
     async def chat_stream(self, user_input):
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
-        
-        # 重置工作目录到默认配置
-        self.reset_work_directory()
         
         self.add_message("user", user_input)
         
@@ -949,6 +953,7 @@ class QuickAIChat:
     
     def clear_history(self):
         self.messages = []
+        self.reset_work_directory()
     
     def save_conversation(self, name):
         conversation.save_conversation(self.messages, name)
@@ -957,6 +962,7 @@ class QuickAIChat:
         messages = conversation.load_conversation(name)
         if messages:
             self.messages = messages
+            self.reset_work_directory()
             return True
         return False
     

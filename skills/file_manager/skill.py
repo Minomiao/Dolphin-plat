@@ -1,6 +1,7 @@
 from typing import Dict, Any
 import sys
 import os
+from pathlib import Path
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 CONFIRMATION_REQUIRED = False
@@ -47,37 +48,46 @@ def get_config():
 
 def set_work_directory(directory: str) -> Dict[str, Any]:
     try:
-        base_work_dir = get_work_dir()
+        from modules.request_manager import get_persisted_work_directory, get_ai_work_directory
+        base_work_dir = get_persisted_work_directory()
         base_path = Path(base_work_dir).resolve()
-        
+
+        # 获取 AI 当前所在目录，用于解析相对路径
+        ai_current_dir = get_ai_work_directory()
+        if ai_current_dir:
+            current_path = Path(ai_current_dir).resolve()
+        else:
+            current_path = base_path
+
         input_path = Path(directory)
-        
+
         if input_path.is_absolute():
             resolved_path = input_path.resolve()
-            try:
-                resolved_path.relative_to(base_path)
-            except ValueError:
-                return {
-                    "error": f"路径必须是当前工作目录的子目录: {base_work_dir}",
-                    "suggestion": "请使用相对路径或确保路径在当前工作目录下"
-                }
         else:
-            resolved_path = (base_path / input_path).resolve()
-        
+            resolved_path = (current_path / input_path).resolve()
+
+        # 验证解析后的路径仍在持久化工作目录下，越界则回退到根目录
+        try:
+            resolved_path.relative_to(base_path)
+        except ValueError:
+            resolved_path = base_path
+
         if not resolved_path.exists():
             return {"error": f"目录不存在: {resolved_path}"}
         if not resolved_path.is_dir():
             return {"error": f"路径不是目录: {resolved_path}"}
-        
+
         relative_path = str(resolved_path.relative_to(base_path))
+        if relative_path == ".":
+            relative_path = ""
         temp_work_dir = str(resolved_path)
-        
+
         return {
             "success": True,
             "work_directory": temp_work_dir,
-            "relative_path": relative_path,
+            "relative_path": relative_path if relative_path else ".",
             "message": f"临时工作目录已切换为: {temp_work_dir}",
-            "format_hint": "建议使用相对路径格式，例如: 'subdir' 或 'subdir1/subdir2'",
+            "format_hint": "建议使用相对路径格式，例如: 'subdir' 或 'subdir1/subdir2'，使用 '..' 返回上级目录",
             "warning": "注意：此设置为临时切换，下次对话开始时将恢复为默认工作目录"
         }
     except Exception as e:
