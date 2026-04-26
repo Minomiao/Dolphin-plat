@@ -89,6 +89,12 @@ class FileOperation:
             else:
                 # 相对路径相对于工作目录
                 resolved_path = (work_path / file_path_obj).resolve()
+                try:
+                    resolved_path.relative_to(work_path)
+                except ValueError:
+                    return {
+                        "error": f"路径必须是工作目录的子目录: {work_directory}"
+                    }
             
             # 确保父目录存在
             parent_dir = resolved_path.parent
@@ -163,6 +169,12 @@ class FileOperation:
             else:
                 # 相对路径相对于工作目录
                 resolved_path = (work_path / file_path_obj).resolve()
+                try:
+                    resolved_path.relative_to(work_path)
+                except ValueError:
+                    return {
+                        "error": f"路径必须是工作目录的子目录: {work_directory}"
+                    }
             
             # 检查文件是否存在
             if not resolved_path.exists():
@@ -307,6 +319,12 @@ class FileOperation:
             else:
                 # 相对路径相对于工作目录
                 resolved_path = (work_path / file_path_obj).resolve()
+                try:
+                    resolved_path.relative_to(work_path)
+                except ValueError:
+                    return {
+                        "error": f"路径必须是工作目录的子目录: {work_directory}"
+                    }
             
             # 检查文件是否存在
             if not resolved_path.exists():
@@ -468,6 +486,12 @@ class FileOperation:
             else:
                 # 相对路径相对于工作目录
                 resolved_path = (work_path / file_path_obj).resolve()
+                try:
+                    resolved_path.relative_to(work_path)
+                except ValueError:
+                    return {
+                        "error": f"路径必须是工作目录的子目录: {work_directory}"
+                    }
             
             # 检查文件是否存在
             if not resolved_path.exists():
