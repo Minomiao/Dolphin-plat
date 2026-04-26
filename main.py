@@ -326,13 +326,13 @@ def manage_skills():
 def chat_callback(event_type, data):
     """处理聊天事件的回调函数"""
     if event_type == 'thinking':
-        print(f"思考过程:\n{Style.DIM}{data['content']}{Style.RESET_ALL}\n--- 思考过程结束 ---\n")
+        print(f"思考过程:\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}\n")
     elif event_type == 'thinking_start':
         print("思考过程:")
     elif event_type == 'thinking_chunk':
-        print(f"{Style.DIM}{data['content']}{Style.RESET_ALL}", end="", flush=True)
+        print(f"{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_end':
-        print("\n--- 思考过程结束 ---")
+        print(f"\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
     elif event_type == 'response_chunk':
         print(data['content'], end="", flush=True)
     elif event_type == 'response_end':
