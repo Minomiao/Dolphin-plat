@@ -134,6 +134,7 @@ def load_config():
         "base_url": os.getenv("QUICKAI_BASE_URL", "https://api.deepseek.com"),
         "model": "deepseek-v4-flash",
         "work_directory": os.getenv("QUICKAI_WORK_DIRECTORY", "workplace"),
+        "command_prefix": "/",
         "skills": {}
     }
 

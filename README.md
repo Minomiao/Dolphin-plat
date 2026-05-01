@@ -28,7 +28,7 @@ QUICKAI_WORK_DIRECTORY=workplace
 python main.py
 ```
 
-首次运行会自动创建 `workplace/` 工作目录、`date/config.json` 和 `date/.env` 文件。如果存在旧版 `date/config.json`（含 `api_key`），程序会自动将其中的敏感数据迁移到 `date/.env` 并清除。API 密钥和工作目录通过 `/set` 和 `/open` 配置后仅保存在 `date/.env` 中。
+首次运行会自动创建 `workplace/` 工作目录、`date/config.json` 和 `date/.env` 文件。如果存在旧版 `date/config.json`（含 `api_key`），程序会自动将其中的敏感数据迁移到 `date/.env` 并清除。API 密钥和模型通过 `/model` 配置，工作目录通过 `/open` 配置，仅保存在 `date/.env` 中。命令前缀存储在 `date/config.json` 的 `command_prefix` 字段中，默认 `/`。
 
 ---
 
@@ -42,7 +42,7 @@ python main.py
 | deepseek-reasoner | ⚠️ 2026-07-24 废弃 |
 | deepseek-coder | ⚠️ 2026-07-24 废弃 |
 
-已配置的模型若即将废弃，启动时会显示警告及剩余天数。可在 `/set` 中切换模型。
+已配置的模型若即将废弃，启动时会显示警告及剩余天数。可通过 `/model` 切换模型。
 
 ---
 
@@ -51,7 +51,8 @@ python main.py
 | 命令 | 说明 |
 |------|------|
 | `/help` | 显示帮助信息 |
-| `/set` | 进入设置模式（API 密钥、模型等） |
+| `/set` | 进入设置模式（Token 数、命令前缀等） |
+| `/model` | 切换模型和配置 API 密钥 |
 | `/open [path]` | 打开/切换工作目录，不传路径时交互式输入 |
 | `/clear` | 清空对话历史并重置工作目录 |
 | `/new` | 创建新对话 |
@@ -64,7 +65,31 @@ python main.py
 | `/skill` | 管理各项技能的启用/禁用状态 |
 | `/quit` | 退出程序 |
 
-输入以上命令之外的任何内容，将直接发送给 AI。
+输入以上命令之外的任何内容，将直接发送给 AI（以命令前缀开头的输入除外，见下）。
+
+### 命令前缀
+
+所有命令共用一个前缀，默认为 `/`。可通过 `/set` 统一修改（例如改为 `.` 后，`/help` 变为 `.help`）。
+
+```
+date/config.json → command_prefix: "/"  (默认)
+                         │
+                         ▼
+    所有命令自动拼接前缀: prefix + keyword
+    /help → "/" + "help" = "/help"
+    .help → "." + "help" = ".help"
+```
+
+修改前缀后，命令关键词（`help`、`set`、`model` 等）不可单独修改。关键词定义在 `_get_default_commands()` 中硬编码，每次启动自动校验 `date/commands.json`，发现关键词异常自动修复：
+
+```
+启动 → _validate_commands()
+  ├── 内置命令关键词被篡改？ → 自动重置为默认值
+  ├── 内置命令缺失？         → 自动补全
+  └── 额外自定义命令？       → 原样保留
+```
+
+`date/commands.json` 仅负责 `/help` 显示，只存纯关键词（不带前缀），前缀在读取时由 `config.json` 中的 `command_prefix` 拼接。
 
 ---
 
@@ -91,8 +116,13 @@ Dolphin 有两层工作目录：
 
 ```
 用户输入 ──> main.py async main()
-              ├── /set /open /help /clear /new /load ... → 命令处理
-              └── 其他内容 → chat_instance.chat_stream(user_input)
+              │
+              ├── 以 prefix 开头?
+              │     ├── 匹配已知命令? → 执行对应处理
+              │     └── 未知命令?     → 红色报错 + continue（不发送给 AI）
+              │
+              └── 不以 prefix 开头?
+                    └── chat_instance.chat_stream(user_input)
 ```
 
 ### 2. 流式对话：chat.py chat_stream()
@@ -290,7 +320,7 @@ modules/request_manager.py  # 内部请求分发（PROMPT/FILE/CONFIG/LOGGER）
 modules/prompt_manager.py   # 系统提示词管理
 modules/file_operation.py   # 集中化文件读写
 modules/backup_manager.py   # 对话级文件备份与恢复
-modules/commands.py         # 命令行命令管理
+modules/commands.py         # 命令管理（前缀化、关键词校验、启动自动修复）
 modules/conversation.py     # 对话历史保存与加载
 modules/logger.py           # 日志系统
 modules/mcp_manager.py      # MCP 协议管理器
@@ -418,7 +448,7 @@ QUICKAI_WORK_DIRECTORY=workplace
 
 - `api_key` 和 `work_directory` 仅在 `date/.env` 中保存，`config.json` 不再包含这两项
 - 旧版 `config.json` 中的存量数据会在首次加载时自动迁移到 `.env` 并清除
-- 所有配置均可通过 `/set` 和 `/open` 修改，`date/.env` 无需手动编辑
+- 所有配置均可通过 `/set`、`/model` 和 `/open` 修改，`date/.env` 无需手动编辑
 
 ---
 

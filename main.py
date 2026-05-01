@@ -15,77 +15,17 @@ init()
 log = logger.setup_logger("Dolphin")
 
 def settings_mode():
-    global current_config, chat_instance, commands_config
+    global current_config, chat_instance
     log.info("进入设置模式")
     print("\n=== 设置模式 ===")
     print(f"输入 '{cmd.get_command('back')}' 返回主界面")
-    print("当前配置:")
-    print(f"API密钥: {'***' if current_config.get('api_key') else '未设置'}")
-    print(f"模型: {current_config.get('model', 'deepseek-v4-flash')}")
-    print(f"最大Token数: {current_config.get('max_tokens', 8192)}")
-    print("\n输入新的配置 (留空保持当前值):")
-    
-    new_api_key = input("API密钥: ")
-    if new_api_key == cmd.get_command('back'):
-        log.info("用户取消设置，返回主界面")
-        print("返回主界面")
-        return
-    new_api_key = new_api_key or current_config.get('api_key')
-    
-    print("\n可用模型:")
-    
-    from modules.config import get_available_models, MODEL_REGISTRY
-    available_models = get_available_models()
-    
-    new_models = [m for m in available_models if not m["deprecated"]]
-    deprecated_models = [m for m in available_models if m["deprecated"]]
-    
-    idx = 1
-    choice_map = {}
-    
-    for model_info in new_models:
-        print(f"{idx}. {model_info['name']} - {model_info['description']}")
-        choice_map[str(idx)] = model_info["name"]
-        idx += 1
-    
-    if deprecated_models:
-        deprecation_msg = config.check_model_deprecation(deprecated_models[0]["name"])
-        warning = ""
-        if deprecation_msg:
-            warning = f" ({deprecation_msg})"
-        print(f"\n--- 以下模型即将/已废弃{warning} ---")
-        for model_info in deprecated_models:
-            print(f"{idx}. {model_info['name']} - {model_info['description']}")
-            choice_map[str(idx)] = model_info["name"]
-            idx += 1
-    
-    print(f"{idx}. 自定义模型")
-    choice_map[str(idx)] = "__custom__"
-    
-    model_choice = input(f"\n请选择模型 (1-{idx}): ")
-    if model_choice == cmd.get_command('back'):
-        log.info("用户取消设置，返回主界面")
-        print("返回主界面")
-        return
-    
-    if model_choice in choice_map:
-        if choice_map[model_choice] == "__custom__":
-            new_model = input("请输入自定义模型名称: ")
-            if new_model == cmd.get_command('back'):
-                log.info("用户取消设置，返回主界面")
-                print("返回主界面")
-                return
-            new_model = new_model or current_config.get('model', 'deepseek-v4-flash')
-        else:
-            new_model = choice_map[model_choice]
-    else:
-        log.warning(f"无效的模型选择: {model_choice}")
-        print("无效选择，保持当前模型")
-        new_model = current_config.get('model', 'deepseek-v4-flash')
-    
-    print(f"\n当前最大Token数: {current_config.get('max_tokens', 8192)}")
+    print("其他配置可使用以下命令:")
+    print(f"  {cmd.get_command('model')} - 切换模型和配置 API 密钥")
+    print(f"  {cmd.get_command('open')}  - 切换工作目录")
+    print()
+    print(f"当前最大Token数: {current_config.get('max_tokens', 8192)}")
     print("推荐值: 8192 (适合大多数场景)")
-    new_max_tokens = input("输入新的最大Token数 (留空保持当前值): ")
+    new_max_tokens = input("\n输入新的最大Token数 (留空保持当前值): ")
     if new_max_tokens == cmd.get_command('back'):
         log.info("用户取消设置，返回主界面")
         print("返回主界面")
@@ -97,28 +37,23 @@ def settings_mode():
         print("无效的Token数，保持当前值")
         new_max_tokens = current_config.get('max_tokens', 8192)
     
-    print("\n是否要修改命令配置? (y/n)")
-    modify_commands = input().lower()
-    if modify_commands == 'y':
-        cmd_list = commands_config.get("commands", {})
-        for cmd_key in cmd_list.keys():
-            current_input = cmd_list[cmd_key].get('input', '')
-            new_input = input(f"{cmd_key} 命令输入 (当前: {current_input}): ")
-            if new_input == cmd.get_command('back'):
-                log.info("用户取消设置，返回主界面")
-                print("返回主界面")
-                return
-            if new_input:
-                log.info(f"修改命令 {cmd_key} 输入: {current_input} -> {new_input}")
-                commands_config["commands"][cmd_key]["input"] = new_input
+    current_prefix = current_config.get('command_prefix', '/')
+    print(f"\n当前命令前缀: {current_prefix}")
+    print("修改后将统一更改所有命令的唤起前缀 (例如 /help → .help)")
+    new_prefix = input("输入新的命令前缀 (留空保持当前值): ")
+    if new_prefix == cmd.get_command('back'):
+        log.info("用户取消设置，返回主界面")
+        print("返回主界面")
+        return
+    if new_prefix:
+        current_config['command_prefix'] = new_prefix
+        log.info(f"命令前缀已更改: {current_prefix} -> {new_prefix}")
     
-    current_config['api_key'] = new_api_key
-    current_config['model'] = new_model
     current_config['max_tokens'] = new_max_tokens
     
     config.save_config(current_config)
-    cmd.save_commands(commands_config)
-    log.info(f"配置已保存: model={new_model}, max_tokens={new_max_tokens}")
+    cmd.save_commands()
+    log.info(f"配置已保存: max_tokens={new_max_tokens}")
     print("\n配置已保存")
     
     global client
@@ -234,6 +169,92 @@ def open_work_directory(path=None):
         print("技能模块已重新加载")
     
     print(f"工作目录已设置为: {path}")
+
+def model_settings():
+    global current_config, chat_instance
+    log.info("进入模型设置")
+    print("\n=== 模型设置 ===")
+    print(f"输入 '{cmd.get_command('back')}' 返回主界面")
+    print(f"当前 API 密钥: {'***' if current_config.get('api_key') else '未设置'}")
+    print(f"当前模型: {current_config.get('model', 'deepseek-v4-flash')}")
+    
+    new_api_key = input("\nAPI 密钥 (留空保持当前值): ")
+    if new_api_key == cmd.get_command('back'):
+        log.info("用户取消模型设置，返回主界面")
+        print("返回主界面")
+        return
+    new_api_key = new_api_key or current_config.get('api_key')
+    
+    print("\n可用模型:")
+    from modules.config import get_available_models
+    available_models = get_available_models()
+    
+    new_models = [m for m in available_models if not m["deprecated"]]
+    deprecated_models = [m for m in available_models if m["deprecated"]]
+    
+    idx = 1
+    choice_map = {}
+    
+    for model_info in new_models:
+        print(f"{idx}. {model_info['name']} - {model_info['description']}")
+        choice_map[str(idx)] = model_info["name"]
+        idx += 1
+    
+    if deprecated_models:
+        from modules.config import check_model_deprecation
+        deprecation_msg = check_model_deprecation(deprecated_models[0]["name"])
+        warning = ""
+        if deprecation_msg:
+            warning = f" ({deprecation_msg})"
+        print(f"\n--- 以下模型即将/已废弃{warning} ---")
+        for model_info in deprecated_models:
+            print(f"{idx}. {model_info['name']} - {model_info['description']}")
+            choice_map[str(idx)] = model_info["name"]
+            idx += 1
+    
+    print(f"{idx}. 自定义模型")
+    choice_map[str(idx)] = "__custom__"
+    
+    model_choice = input(f"\n请选择模型 (1-{idx}): ")
+    if model_choice == cmd.get_command('back'):
+        log.info("用户取消模型设置，返回主界面")
+        print("返回主界面")
+        return
+    
+    if model_choice in choice_map:
+        if choice_map[model_choice] == "__custom__":
+            new_model = input("请输入自定义模型名称: ")
+            if new_model == cmd.get_command('back'):
+                log.info("用户取消模型设置，返回主界面")
+                print("返回主界面")
+                return
+            new_model = new_model or current_config.get('model', 'deepseek-v4-flash')
+        else:
+            new_model = choice_map[model_choice]
+    else:
+        log.warning(f"无效的模型选择: {model_choice}")
+        print("无效选择，保持当前模型")
+        new_model = current_config.get('model', 'deepseek-v4-flash')
+    
+    current_config['api_key'] = new_api_key
+    current_config['model'] = new_model
+    
+    config.save_config(current_config)
+    log.info(f"模型配置已保存: model={new_model}")
+    print(f"\n模型已切换至: {new_model}")
+    
+    global client
+    client = OpenAI(
+        api_key=current_config.get("api_key"),
+        base_url=current_config.get("base_url")
+    )
+    chat_instance = chat.QuickAIChat(
+        model=current_config.get('model'), 
+        max_tokens=current_config.get('max_tokens', 8192),
+        callback=chat_callback
+    )
+    log.info("客户端已更新")
+    print("客户端已更新")
 
 def manage_skills():
     from modules import config
@@ -395,7 +416,7 @@ def chat_callback(event_type, data):
         print("如果任务未完成，请继续对话以继续执行。")
 
 async def main():
-    global current_config, commands_config, chat_instance, current_conversation
+    global current_config, chat_instance, current_conversation
     
     while True:
         user_input = input("\n您: ").strip()
@@ -415,6 +436,9 @@ async def main():
             continue
         elif user_input == cmd.get_command('set'):
             settings_mode()
+            continue
+        elif user_input == cmd.get_command('model'):
+            model_settings()
             continue
         elif user_input.startswith(cmd.get_command('open')):
             open_cmd = cmd.get_command('open')
@@ -517,6 +541,12 @@ async def main():
             manage_skills()
             continue
         
+        prefix = cmd._get_prefix()
+        if user_input.startswith(prefix):
+            print(f"{Fore.RED}错误: 未知命令 '{user_input}'。输入 '{cmd.get_command('help')}' 查看可用命令{Style.RESET_ALL}")
+            log.warning(f"未知命令: {user_input}")
+            continue
+        
         log.info(f"用户输入: {user_input}")
         await chat_instance.chat_stream(user_input)
         
@@ -527,7 +557,8 @@ if __name__ == "__main__":
     import asyncio
     
     current_config = config.load_config()
-    commands_config = cmd.load_commands()
+    
+    cmd._validate_commands()
     
     deprecation_warning = config.check_model_deprecation(current_config.get('model', 'deepseek-v4-flash'))
     if deprecation_warning:
