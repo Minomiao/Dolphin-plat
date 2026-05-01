@@ -543,7 +543,11 @@ async def main():
         
         prefix = cmd._get_prefix()
         if user_input.startswith(prefix):
-            print(f"{Fore.RED}错误: 未知命令 '{user_input}'。输入 '{cmd.get_command('help')}' 查看可用命令{Style.RESET_ALL}")
+            suggestion = cmd._fuzzy_match_keyword(user_input)
+            if suggestion:
+                print(f"{Fore.RED}错误: 未知命令 '{user_input}'。您可能想输入 '{suggestion}'。输入 '{cmd.get_command('help')}' 查看可用命令{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}错误: 未知命令 '{user_input}'。输入 '{cmd.get_command('help')}' 查看可用命令{Style.RESET_ALL}")
             log.warning(f"未知命令: {user_input}")
             continue
         
