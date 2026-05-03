@@ -44,16 +44,18 @@ def calculate(expression: str) -> Dict[str, Any]:
 
     try:
         expr = sympify(expression)
-        result = N(expr)
+        sympy_result = N(expr)
 
-        if result == int(result):
-            result = int(result)
+        if sympy_result == int(sympy_result):
+            result = int(sympy_result)
+        else:
+            result = float(sympy_result)
 
         return {
             "success": True,
             "expression": expression,
             "result": result,
-            "user_output": {"label": "Calc", "content": f"--{result}"}
+            "user_output": {"label": "Calculator", "content": f"{Fore.LIGHTBLACK_EX}{expression}{Style.RESET_ALL} {result}"}
         }
     except SympifyError:
         return {
@@ -67,5 +69,10 @@ def calculate(expression: str) -> Dict[str, Any]:
         }
 
 
-def get_current_time() -> str:
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def get_current_time() -> Dict[str, Any]:
+    time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return {
+        "success": True,
+        "time": time_str,
+        "user_output": {"label": "Calculator", "content": f"--time {Fore.LIGHTBLACK_EX}{time_str}{Style.RESET_ALL}"}
+    }
