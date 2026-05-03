@@ -202,7 +202,16 @@ def modify_file(file_path: str, start_line: int, end_line: int, start_line_conte
         return {"error": f"修改文件失败: {str(e)}"}
 
 
-def delete_file(file_path: str) -> Dict[str, Any]:
+def delete_file(file_path: str, confirmed: bool = False) -> Dict[str, Any]:
+    if not confirmed:
+        return {
+            "requires_confirmation": True,
+            "message": f"确认删除文件: {file_path}",
+            "action": "delete_file",
+            "file_path": file_path,
+            "work_directory": get_work_dir()
+        }
+
     try:
         req_mgr = get_request_manager()
         work_dir = get_work_dir()

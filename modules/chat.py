@@ -420,6 +420,7 @@ class QuickAIChat:
                 has_user_output = self._last_tool_had_user_output
                 
                 result, skip = await self._process_tool_confirmation(result, tool_name, arguments)
+                has_user_output = has_user_output or self._last_tool_had_user_output
                 if skip:
                     tool_responses.append({"tool_call_id": tc.id, "role": "tool", "content": result})
                     continue
@@ -572,6 +573,7 @@ class QuickAIChat:
                 has_user_output = self._last_tool_had_user_output
                 
                 result, skip = await self._process_tool_confirmation(result, tool_name, arguments)
+                has_user_output = has_user_output or self._last_tool_had_user_output
                 if skip:
                     tool_responses.append({"tool_call_id": tc['id'], "role": "tool", "content": result})
                     continue
@@ -636,6 +638,7 @@ class QuickAIChat:
                         has_user_output = self._last_tool_had_user_output
                         
                         result, skip = await self._process_tool_confirmation(result, tool_name, arguments)
+                        has_user_output = has_user_output or self._last_tool_had_user_output
                         if skip:
                             tool_responses.append({"tool_call_id": tc['id'], "role": "tool", "content": result})
                             continue
