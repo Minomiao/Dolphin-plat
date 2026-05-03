@@ -47,7 +47,7 @@ class FileOperation:
 
             # 去除行号标记（AI可能把行号标记作为内容的一部分）
             import re
-            line_number_pattern = re.compile(r'^\[\d+\]\s*')
+            line_number_pattern = re.compile(r'^\d+\|\s*')
 
             def strip_line_number(text):
                 if text:
@@ -124,7 +124,7 @@ class FileOperation:
             
             return {
                 "success": True,
-                "file_path": str(resolved_path),
+                "file_path": str(resolved_path.relative_to(work_path)),
                 "encoding": encoding,
                 "content_size": content_size,
                 "line_count": line_count,
@@ -199,10 +199,9 @@ class FileOperation:
             if offset >= total_lines:
                 return {
                     "success": True,
-                    "file_path": str(resolved_path),
+                    "file_path": str(resolved_path.relative_to(work_path)),
                     "encoding": encoding,
                     "content": "",
-                    "lines": [],
                     "line_count": 0,
                     "total_lines": total_lines,
                     "offset": offset,
@@ -216,27 +215,19 @@ class FileOperation:
             end_line = min(offset + limit, total_lines)
             selected_lines = all_lines[offset:end_line]
             
-            # 构建带行号的内容，使用方括号标注行号，便于AI理解
             lines_with_numbers = []
             for i, line in enumerate(selected_lines):
                 line_number = offset + i + 1
                 line_content = line.rstrip('\n\r') if line else ''
-                lines_with_numbers.append(f"[{line_number}]{line_content}")
+                lines_with_numbers.append(f"{line_number}|{line_content}")
 
-            content_with_numbers = "\n".join(lines_with_numbers)
-
-            # 构建索引格式的 lines 对象，便于AI直接通过索引访问
-            lines_indexed = {}
-            for i, line in enumerate(selected_lines):
-                line_content = line.rstrip('\n\r') if line else ''
-                lines_indexed[str(i)] = line_content
+            content = "\n".join(lines_with_numbers)
 
             return {
                 "success": True,
-                "file_path": str(resolved_path),
+                "file_path": str(resolved_path.relative_to(work_path)),
                 "encoding": encoding,
-                "content": content_with_numbers,
-                "lines": lines_indexed,
+                "content": content,
                 "line_count": len(selected_lines),
                 "total_lines": total_lines,
                 "offset": offset,
@@ -245,6 +236,7 @@ class FileOperation:
                 "end_line": end_line,
                 "has_more": end_line < total_lines,
                 "size": file_size,
+                "line_number_format": "N|content (N is the 1-based line number). Numbers and '|' are annotations ONLY, they are NOT part of the actual file content.",
                 "message": f"读取第 {offset + 1}-{end_line} 行，共 {total_lines} 行"
             }
         except Exception as e:
@@ -279,7 +271,7 @@ class FileOperation:
 
             # 去除行号标记（只有在检测到每行都具有特定格式的行号时才去除）
             import re
-            line_number_pattern = re.compile(r'^\[\d+\]\s*')
+            line_number_pattern = re.compile(r'^\d+\|\s*')
 
             # 检测是否所有行都具有行号标记
             def has_line_numbers(lines):
@@ -440,7 +432,7 @@ class FileOperation:
             
             return {
                 "success": True,
-                "file_path": str(resolved_path),
+                "file_path": str(resolved_path.relative_to(work_path)),
                 "encoding": encoding,
                 "start_line": start_line,
                 "end_line": end_line,
@@ -531,7 +523,7 @@ class FileOperation:
             
             return {
                 "success": True,
-                "file_path": str(resolved_path),
+                "file_path": str(resolved_path.relative_to(work_path)),
                 "file_size": file_size,
                 "backup_path": backup_path,
                 "pending_changes": pending_count,

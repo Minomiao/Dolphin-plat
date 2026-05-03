@@ -350,10 +350,9 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
         if offset >= total_lines:
             return {
                 "success": True,
-                "file_path": str(path),
+                "file_path": str(path.relative_to(Path(get_work_dir()))),
                 "encoding": encoding,
                 "content": "",
-                "lines": [],
                 "line_count": 0,
                 "total_lines": total_lines,
                 "offset": offset,
@@ -366,32 +365,19 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
         end_line = min(offset + limit, total_lines)
         selected_lines = all_lines[offset:end_line]
         
-        # 构建纯文本内容
-        pure_content = "".join(selected_lines)
-
-        # 构建带行号的内容，使用方括号标注行号，便于AI理解
         lines_with_numbers = []
         for i, line in enumerate(selected_lines):
             line_number = offset + i + 1
             line_content = line.rstrip('\n\r') if line else ''
-            lines_with_numbers.append(f"[{line_number}]{line_content}")
+            lines_with_numbers.append(f"{line_number}|{line_content}")
 
-        content_with_numbers = "\n".join(lines_with_numbers)
-
-        # 构建从1开始计数的 lines 对象，与修改文件时的行号格式保持一致
-        lines_indexed = {}
-        for i, line in enumerate(selected_lines):
-            line_number = offset + i + 1
-            line_content = line.rstrip('\n\r') if line else ''
-            lines_indexed[str(line_number)] = line_content
+        content = "\n".join(lines_with_numbers)
 
         return {
             "success": True,
-            "file_path": str(path),
+            "file_path": str(path.relative_to(Path(get_work_dir()))),
             "encoding": encoding,
-            "content": pure_content,
-            "content_with_numbers": content_with_numbers,
-            "lines": lines_indexed,
+            "content": content,
             "line_count": len(selected_lines),
             "total_lines": total_lines,
             "offset": offset,
@@ -400,6 +386,7 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
             "end_line": end_line,
             "has_more": end_line < total_lines,
             "size": file_size,
+            "line_number_format": "N|content (N is the 1-based line number). Numbers and '|' are annotations ONLY, they are NOT part of the actual file content.",
             "message": f"读取第 {offset + 1}-{end_line} 行，共 {total_lines} 行"
         }
     
