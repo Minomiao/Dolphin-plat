@@ -222,57 +222,9 @@ class QuickAIChat:
     async def _execute_tool_sync(self, tool_name: str, arguments: dict) -> str:
         return await self._execute_tool(tool_name, arguments)
 
-    def _execute_powershell_script(self, script: str) -> dict:
-        import subprocess
-        from pathlib import Path
-        import os
-        import sys
-        
-        try:
-            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-            from modules import config
-            work_dir = config.load_config().get('work_directory', 'workplace')
-        except:
-            work_dir = 'workplace'
-        
-        work_path = Path(work_dir).resolve()
-        if not work_path.exists():
-            work_path.mkdir(parents=True, exist_ok=True)
-        
-        script_length = len(script)
-        
-        try:
-            ps_result = subprocess.run(
-                ['powershell', '-Command', script],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                encoding='utf-8',
-                errors='ignore',
-                cwd=str(work_path)
-            )
-            
-            stdout = ps_result.stdout or ""
-            stderr = ps_result.stderr or ""
-            
-            MAX_OUTPUT_LENGTH = 50000
-            if len(stdout) > MAX_OUTPUT_LENGTH:
-                stdout = stdout[:MAX_OUTPUT_LENGTH] + f"\n... (输出已截断，共 {len(ps_result.stdout)} 字符)"
-            if len(stderr) > MAX_OUTPUT_LENGTH:
-                stderr = stderr[:MAX_OUTPUT_LENGTH] + f"\n... (错误输出已截断，共 {len(ps_result.stderr)} 字符)"
-            
-            return {
-                "success": True,
-                "return_code": ps_result.returncode,
-                "stdout": stdout,
-                "stderr": stderr,
-                "script_length": script_length,
-                "message": f"脚本执行完成，返回码: {ps_result.returncode}"
-            }
-        except subprocess.TimeoutExpired:
-            return {"success": False, "error": "脚本执行超时（30 秒）", "message": "脚本执行超时"}
-        except Exception as e:
-            return {"error": f"脚本执行失败: {str(e)}", "message": "脚本执行失败"}
+    async def _execute_powershell_script(self, script: str, timeout: int = 30, wait_time: int = 10) -> dict:
+        from modules import powershell_manager
+        return await powershell_manager.execute_script(script, timeout, wait_time)
 
     async def _process_tool_confirmation(self, result_raw: str, tool_name: str, arguments: dict):
         """处理工具返回的确认申请，返回 (result_str, should_skip)"""
@@ -322,7 +274,9 @@ class QuickAIChat:
             await self._call_callback('operation_confirmed', {})
 
             if result_dict.get('action') == 'run_powershell_script' and result_dict.get('script'):
-                ps_result = self._execute_powershell_script(result_dict['script'])
+                ps_timeout = result_dict.get('timeout', 30)
+                ps_wait = result_dict.get('wait_time', 10)
+                ps_result = await self._execute_powershell_script(result_dict['script'], ps_timeout, ps_wait)
                 return json.dumps(ps_result, ensure_ascii=False), False
 
             if isinstance(arguments, dict):

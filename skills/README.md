@@ -139,25 +139,23 @@ def my_function(param1: str, param2: float = 0.0) -> str:
   - 删除文件前显示文件大小，让用户确认
 
 ### 4. powershell_executor（PowerShell 执行器）
-提供 PowerShell 脚本执行功能：
-- `set_confirmation_required` - 设置是否需要用户确认（启用后，运行脚本前需要用户确认）
-- `set_timeout` - 设置脚本执行的超时时间（秒）
-- `run_script` - 请求运行 PowerShell 脚本（显示脚本内容，请求用户确认）
-- `confirm_run_script` - 确认运行 PowerShell 脚本（在用户确认后调用）
+提供 PowerShell 脚本异步执行功能：
+- `run_script(script, timeout, wait_time)` — 异步运行脚本，wait_time 后返回（未完成附 command_id）
+- `check_script(command_id, wait_time)` — 轮询后台命令状态和输出
+- `kill_command(command_id)` — 强制终止后台命令
 
 **安全特性：**
 - 运行脚本前必须用户确认
 - 限制脚本长度（最大 10000 字符）
-- 限制输出长度（最大 50000 字符）
-- 设置超时时间（默认 30 秒）
-- 确认操作由程序执行，而非 AI 自动执行
+- 限制输出长度（最大 50000 字符 / 500 行）
+- 超时后命令继续运行不杀死，通过 atexit/signal 兜底清理
+- 子进程生命周期由 `modules/powershell_manager.py` 集中管理
 
 **功能特点：**
 - 显示脚本预览（前 500 字符）
-- 显示脚本长度
-- 捕获标准输出和错误输出
-- 输出过长时自动截断
-- 返回脚本执行结果和返回码
+- 命令完成则立即返回，不白等
+- 未完成返回 command_id 供后续轮询
+- 异步不阻塞聊天
 
 ### 5. random_generator（随机数生成器）
 提供各种随机数生成功能：

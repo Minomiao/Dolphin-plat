@@ -148,13 +148,14 @@ chat_stream()
   │
   ├── 有 tool_calls?
   │     │
-  │     ├── callback('tool_calls')  显示工具调用列表(蓝色)
+  │     ├── callback('tool_calls')  显示工具调用列表(蓝色，有 user_output 的工具跳过)
   │     │
   │     ├── 第2轮: 逐个执行工具
   │     │     for tc in tool_calls:
   │     │       │
   │     │       ├── _execute_tool_sync()
   │     │       │     ├── 工具路由: skill_xxx / plugin_xxx / mcp_xxx
+  │     │       │     ├── 检测 user_output → callback('user_output') 简约显示
   │     │       │     ├── 检测 set_work_directory 成功 → 更新 AI 临时工作目录
   │     │       │     └── 返回 result (JSON string)
   │     │       │
@@ -166,11 +167,11 @@ chat_stream()
   │     │       │     └── requires_confirmation
   │     │       │           ├── 取消? → (error, skip=True) → 跳过该工具
   │     │       │           └── 确认?
-  │     │       │                 ├── run_powershell_script → _execute_powershell_script()
+  │     │       │                 ├── run_powershell_script → _execute_powershell_script() → powershell_manager
   │     │       │                 └── 其他 → _execute_tool_sync(confirmed=True)
   │     │       │
   │     │       ├── skip? → continue (跳过)
-  │     │       └── callback('tool_result')  显示执行结果(绿色)
+  │     │       └── 无 user_output → callback('tool_result')  显示执行结果(绿色)
   │     │
   │     └── messages.extend(tool_responses)
   │
@@ -198,6 +199,7 @@ chat_stream()
 | `response_end` | 回复结束 | 换行 |
 | `tool_calls` | 检测到工具调用 | 蓝色列表 |
 | `tool_result` | 工具执行完毕 | 绿色格式化 |
+| `user_output` | Skill 返回面向用户输出 | 青色标签 + 内容（带内联颜色） |
 | `user_input_required` | 申请需用户输入 | 提示 + 阻塞输入 |
 | `confirmation_required` | 申请需确认 | 提示 + y/n |
 
@@ -235,10 +237,16 @@ _process_tool_confirmation(result, tool_name, arguments)
                     ├── callback('operation_confirmed')
                     │
                     ├── action == run_powershell_script?
-                    │     └── _execute_powershell_script(script)
-                    │           ├── subprocess.run('powershell', ...)
-                    │           ├── 超时 30s / 输出截断 50000 字符
-                    │           └── return ({"success":true, stdout, stderr, ...}, False)
+                    │     └── _execute_powershell_script(script, timeout, wait_time)
+                    │           ├── powershell_manager.execute_script()
+                    │           │     ├── asyncio.create_subprocess_exec('powershell', ...)
+                    │           │     ├── 后台任务 _read_stream() 实时读取 stdout/stderr
+                    │           │     ├── asyncio.wait_for(process.wait(), timeout=wait_time)
+                    │           │     │     ├── wait_time 内完成 → 返回完整输出 + "completed":true
+                    │           │     │     └── wait_time 超时   → 返回当前输出 + command_id
+                    │           │     ├── 超时后命令继续在后台运行（不杀死）
+                    │           │     └── 进程受 atexit/signal 清理保护
+                    │           └── return (result, False)
                     │
                     └── 其他确认操作
                           └── _execute_tool_sync(confirmed=True) 二次调用
@@ -348,14 +356,68 @@ Request Manager 处理**不需要用户交互**的内部请求，需用户交互
 
 内置 6 个技能，位于 `skills/` 目录：
 
-| 技能 | 功能 |
+| 技能 | 功能 | 工具 |
+|------|------|------|
+| **calculator** | sympy 数学表达式求值、获取当前时间 | `calculate`, `get_current_time` |
+| **file_reader** | 文件搜索、目录结构查看、文件内容阅读 | `get_work_directory`, `search_files`, `list_directory`, `read_file` |
+| **file_manager** | 文件创建、修改、删除、工作目录切换 | `set_work_directory`, `create_file`, `modify_file`, `delete_file` |
+| **powershell_executor** | PowerShell 脚本异步执行（需用户确认），支持后台轮询与强制终止 | `run_script`, `check_script`, `kill_command` |
+| **random_generator** | 随机数、随机选择、随机密码生成 | `random_int`, `random_float`, `random_choice`, `random_password` |
+| **web_search** | 网络搜索（DuckDuckGo） | `search` |
+
+### 面向用户输出 (user_output)
+
+Skill 工具可以通过返回 `user_output` 字段精简终端显示，避免冗长的原始 JSON。当存在 `user_output` 时，工具调用和结果区块自动隐藏，仅显示一行简约输出。
+
+```python
+# 返回格式
+return {
+    "success": True,
+    "result": value,
+    "user_output": {"label": "标签", "content": "内容（支持 Fore/RED 等内联色彩）"}
+}
+```
+
+| 技能 | 工具 | 显示示例 |
+|------|------|---------|
+| file_reader | `read_file` | `[Read] --example.txt` |
+| file_reader | `list_directory` | `[Read] --all\` / `[Read] --subdir\` |
+| file_reader | `search_files` | `[Search] --pattern` |
+| file_reader | `get_work_directory` | `[Read] workplace` |
+| file_manager | `create_file` | `[File Change] test.txt +5(绿) -0(红)` |
+| file_manager | `modify_file` | `[File Change] test.txt +3(绿) -2(红)` |
+| file_manager | `delete_file` | `[File Change] --test.txt Delet(红)` |
+| file_manager | `set_work_directory` | `[Work Place] --.` |
+| random_generator | `random_int` | `[Random] --int (1-100)(灰)` |
+| random_generator | `random_choice` | `[Random] --choices (a, b, c, ...)(灰)` |
+| random_generator | `random_password` | `[Random] --password (12)(灰)` |
+| calculator | `calculate` | `[Calculator] 2+3*4(灰) 14` |
+| calculator | `get_current_time` | `[Calculator] --time 2026-01-01(灰)` |
+
+### 确认保护
+
+`delete_file` 和 `run_script` 采用系统级确认机制，与 `_process_tool_confirmation` 集成：首次调用返回 `requires_confirmation=True` 触发用户 y/n 确认，确认后系统自动二次调用，无需 AI 介入。
+
+### PowerShell 异步执行架构
+
+```
+skill.py (纯确认) ─→ chat.py ─→ modules/powershell_manager.py (子进程管理)
+```
+
+| 模块 | 职责 |
 |------|------|
-| **calculator** | 基本数学运算、获取当前时间 |
-| **file_reader** | 文件搜索、目录结构查看、文件内容阅读 |
-| **file_manager** | 文件创建、修改、删除、工作目录切换 |
-| **powershell_executor** | PowerShell 脚本执行（需用户确认） |
-| **random_generator** | 随机数、随机密码生成 |
-| **web_search** | 网络搜索（DuckDuckGo） |
+| `skill.py` | 只做脚本长度校验 + 创建确认请求，无子进程代码 |
+| `chat.py` | 确认后调用 `powershell_manager.execute_script()` |
+| `powershell_manager.py` | 集中管理所有子进程：创建、等待、超时、轮询、终止、清理 |
+
+**执行流程：**
+1. `run_script(script, timeout, wait_time)` → 确认后 → `asyncio.create_subprocess_exec()`
+2. 后台 task 实时读取 stdout/stderr 到缓冲区
+3. `asyncio.wait_for(process.wait(), timeout=wait_time)` — 命令完成则**立即返回**，不等够时间
+4. 超时未完成 → 返回当前输出 + `command_id: dps0001`，**命令不杀死继续运行**
+5. `check_script(command_id, wait_time)` → 轮询状态（running/done + output）
+6. `kill_command(command_id)` → 强制终止 + 清理 transport
+7. 程序退出 → `atexit` + `signal` 自动清理所有子进程
 
 ---
 
@@ -462,6 +524,7 @@ requests>=2.31.0
 flask>=2.0.0
 flask-cors>=3.0.0
 colorama>=0.4.6
+sympy>=1.12
 ```
 
 ---
