@@ -14,6 +14,47 @@ init()
 
 log = logger.setup_logger("Dolphin")
 
+_SCREEN_ALT_ENTER = '\033[?1049h'
+_SCREEN_ALT_EXIT = '\033[?1049l'
+
+_using_alt_screen = False
+
+
+def _supports_ansi():
+    import sys as _sys
+    if not _sys.stdout.isatty():
+        return False
+    if os.name == 'nt':
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+            stdout_handle = kernel32.GetStdHandle(-11)
+            mode = ctypes.c_uint32()
+            if not kernel32.GetConsoleMode(stdout_handle, ctypes.byref(mode)):
+                return False
+            if mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING:
+                return True
+            new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            return kernel32.SetConsoleMode(stdout_handle, new_mode) != 0
+        except Exception:
+            return False
+    term = os.environ.get('TERM', '')
+    return term not in ('', 'dumb')
+
+
+def _enter_screen():
+    global _using_alt_screen
+    if _supports_ansi():
+        print(_SCREEN_ALT_ENTER, end='', flush=True)
+        _using_alt_screen = True
+
+
+def _exit_screen():
+    global _using_alt_screen
+    if _using_alt_screen:
+        print(_SCREEN_ALT_EXIT, end='', flush=True)
+
 def settings_mode():
     global current_config, chat_instance
     log.info("进入设置模式")
@@ -382,10 +423,18 @@ async def main():
             print("历史记录已清空")
             continue
         elif user_input == cmd.get_command('set'):
-            settings_mode()
+            try:
+                _enter_screen()
+                settings_mode()
+            finally:
+                _exit_screen()
             continue
         elif user_input == cmd.get_command('model'):
-            model_settings()
+            try:
+                _enter_screen()
+                model_settings()
+            finally:
+                _exit_screen()
             continue
         elif user_input.startswith(cmd.get_command('open')):
             open_cmd = cmd.get_command('open')
@@ -479,7 +528,11 @@ async def main():
             show_tools()
             continue
         elif user_input == cmd.get_command('skills'):
-            show_skills()
+            try:
+                _enter_screen()
+                show_skills()
+            finally:
+                _exit_screen()
             continue
         elif user_input == cmd.get_command('toggle'):
             toggle_tools()
