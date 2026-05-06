@@ -1,4 +1,5 @@
 from openai import OpenAI
+from colorama import Fore, Style
 from modules import config
 from modules import conversation
 from modules import mcp_manager
@@ -247,6 +248,9 @@ class QuickAIChat:
                 'default_value': result_dict.get('default_value')
             }
             user_input = await self._call_callback('user_input_required', input_data)
+            user_out_content = f"{result_dict.get('prompt', '')} {Fore.LIGHTBLACK_EX}{user_input}{Style.RESET_ALL}"
+            await self._call_callback('user_output', {'label': 'Input', 'content': user_out_content})
+            self._last_tool_had_user_output = True
             return json.dumps({"success": True, "input": user_input}, ensure_ascii=False), False
 
         elif request_type == request_manager.RequestType.CONFIRMATION:
@@ -255,6 +259,9 @@ class QuickAIChat:
                 'default': result_dict.get('default')
             }
             confirm = await self._call_callback('confirmation_required', confirmation_data)
+            status = Fore.GREEN + "已确认" + Style.RESET_ALL if confirm == 'y' else Fore.RED + "已取消" + Style.RESET_ALL
+            await self._call_callback('user_output', {'label': 'Confirm', 'content': f"{result_dict.get('action', 'unknown')} {status}"})
+            self._last_tool_had_user_output = True
             return json.dumps({"success": True, "confirmed": confirm == 'y'}, ensure_ascii=False), False
 
         elif result_dict.get("requires_confirmation"):
