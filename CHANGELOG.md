@@ -1,7 +1,5 @@
 # Change Log
 
-## Requirements
-
 ## v1.0.0-rc (2026-05-06)
 
 User Output System, extendable tool iterations, sympy calculator, async PowerShell manager, splash screen, and CMD-friendly UI overhaul.
