@@ -1,6 +1,6 @@
 # Change Log
 
-## v1.0.0-rc (2026-05-06)
+## v1.0.0 (2026-05-06)
 
 User Output System, extendable tool iterations, sympy calculator, async PowerShell manager, splash screen, and CMD-friendly UI overhaul.
 
@@ -77,6 +77,12 @@ User Output System, extendable tool iterations, sympy calculator, async PowerShe
 ### Plugin
 
 + Re-packaged user_input_plugin.zip for consistency
+
+### Validation
+
++ Add pre-send validation for model and API key before sending message to AI
++ Missing config shows red error with `/model` command hint and DeepSeek registration guide
++ Message blocked from reaching AI when config is incomplete
 
 ## v0.2.2-fix (2026-04-26)
 
