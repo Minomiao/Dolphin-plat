@@ -2,6 +2,84 @@
 
 ## Requirements
 
+## v1.0.0-rc (2026-05-06)
+
+User Output System, extendable tool iterations, sympy calculator, async PowerShell manager, splash screen, and CMD-friendly UI overhaul.
+
+### User Output System
+
++ Add `user_output` mechanism for skill tools with compact terminal display (label + content)
++ Add colored label/output separation (colorama Fore/RED, Fore/GREEN, Fore/LIGHTBLACK_EX)
++ Implement per-tool user_output display for all 6 skills
+  - file_reader: `[Read]`, `[Search]` labels
+  - file_manager: `[File Change] +N/-N`, `[Work Place]`, `Delete` with color
+  - random_generator: `[Random]` with gray parameter hints
+  - calculator: `[Calculator] expr(result) result`
+  - powershell_executor: `[PowerShell]` with status and output
++ Add user_output for plugin USER_INPUT/CONFIRMATION requests, hiding verbose tool_call/tool_result blocks
++ Fix tool_calls/tool_result display order (calls before results)
++ Add confirmation protection for delete_file with system-level confirm flow
++ Add missing user_output to all skill error paths
+
+### Tool Iteration
+
+/ Increase max tool call iterations from 20 to extendable system (initial 30, +20 on confirm, hard limit 100)
++ Add interactive confirmation prompt when iteration limit reached
++ Fix iteration counter to include first API call round
+
+### Calculator
+
+/ Replace basic arithmetic calculator with sympy-powered expression evaluator
++ Support: + - * / **, sqrt, sin/cos/tan, log, factorial, pi, e
+/ Fix sympy Float → Python float/int JSON serialization
+
+### PowerShell Executor
+
+/ Extract subprocess management into dedicated `modules/powershell_manager.py`
++ Support `run_script`, `check_script`, `kill_command` with async execution
++ Implement `wait_time` mechanism: immediate return on completion, background polling on timeout
++ Timeout does not kill process — continues in background with command_id tracking
++ Auto-cleanup on exit via atexit + signal (SIGINT/SIGTERM)
++ Transport leak prevention with `_DummySock` pattern
++ UTF-8 output encoding, output capped at 50000 chars / 500 lines
+
+### UI & Terminal
+
++ Add pixel-art DOLPHIN splash screen with loading progress bar
++ Add alternate screen buffer for `/set`, `/skills`, `/model` modes
+/ Change thinking label from DIM to LIGHTBLACK_EX for legacy CMD compatibility
++ Add `/showthinking` command to toggle thinking process display (on/off)
++ Add fuzzy keyword matching for unknown command suggestions
+- Remove all emoji from terminal prompts, use yellow colored brackets instead
++ System prompt enforces plain text output (no markdown, no emoji)
+
+### Command System
+
+/ Refactor command system: prefix-based routing, startup auto-validation
++ Intercept unknown commands with fuzzy match suggestions instead of sending to AI
++ Add `_get_default_commands()` as single source of truth, auto-repair on startup
+
+### Config
+
+/ Separate sensitive data into `date/.env` (API key, work directory)
+/ Strip api_key and work_directory from config.json permanently
++ Auto-migration of legacy config (api_key + work_directory → .env)
+
+### Documentation
+
++ Create FEATURES.md with bilingual descriptions (English + Chinese)
+/ Update README.md to match actual code structure, commands, and architecture
++ Add architecture descriptions: powershell_manager, request types, config keys
+
+### Code Quality
+
+/ Simplify read_file output format with `N|` line numbering and English annotations
+/ Clean up file_manager dead code (removed unused functions)
+
+### Plugin
+
++ Re-packaged user_input_plugin.zip for consistency
+
 ## v0.2.2-fix (2026-04-26)
 
 + Add path traversal protection for file operations (create, read, modify, delete)
