@@ -382,7 +382,7 @@ def chat_callback(event_type, data):
         else:
             print(f"{Fore.CYAN}{content}{Style.RESET_ALL}")
     elif event_type == 'user_input_required':
-        print(f"\n📝 需要输入:")
+        print(f"\n{Fore.YELLOW}[需要输入]{Style.RESET_ALL}")
         print(f"  {data.get('prompt', '请输入信息')}")
         if data.get('default_value'):
             print(f"  默认值: {data.get('default_value')}")
@@ -391,7 +391,7 @@ def chat_callback(event_type, data):
             user_input = data.get('default_value')
         return user_input
     elif event_type == 'confirmation_required':
-        print(f"\n⚠️  需要确认:")
+        print(f"\n{Fore.YELLOW}[需要确认]{Style.RESET_ALL}")
         print(f"  操作: {data.get('action', 'unknown')}")
         if data.get('script_preview'):
             print(f"  脚本预览:")
