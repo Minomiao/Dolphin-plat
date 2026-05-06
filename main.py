@@ -597,6 +597,17 @@ async def main():
             log.warning(f"未知命令: {user_input}")
             continue
         
+        missing = []
+        if not current_config.get('api_key'):
+            missing.append("API 密钥")
+        if not current_config.get('model'):
+            missing.append("模型")
+        if missing:
+            missing_text = "、".join(missing)
+            print(f"{Fore.RED}错误: 未设置{missing_text}，无法发送消息。输入 '{cmd.get_command('model')}' 进行配置。可前往 DeepSeek 官网申请 API key{Style.RESET_ALL}")
+            log.warning(f"发送消息前检查失败: 缺少{missing_text}")
+            continue
+
         log.info(f"用户输入: {user_input}")
         await chat_instance.chat_stream(user_input)
         
