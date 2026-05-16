@@ -1,4 +1,4 @@
-from modules import request_manager
+from modules.main_server.middleware import request_manager
 
 rm = request_manager.get_request_manager()
 

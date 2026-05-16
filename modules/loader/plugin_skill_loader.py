@@ -6,9 +6,9 @@ import zipfile
 import tempfile
 from typing import Dict, List, Any, Callable, Optional
 from pathlib import Path
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.plugin_skill_loader")
+log = get_logger("Dolphin.plugin_skill_loader")
 
 
 class PluginSkillLoader:
@@ -147,7 +147,7 @@ class PluginSkillLoader:
     
     def get_all_tools(self) -> List[Dict[str, Any]]:
         tools = []
-        from modules import config
+        from modules.main_server import config
         plugins_config = config.load_config().get('plugins', {})
         
         for skill_name, skill_info in self.skills.items():
@@ -254,7 +254,7 @@ class PluginSkillLoader:
         return names
     
     def list_skills(self) -> List[Dict[str, Any]]:
-        from modules import config
+        from modules.main_server import config
         plugins_config = config.load_config().get('plugins', {})
         return [
             {
@@ -282,7 +282,7 @@ class PluginSkillLoader:
         }
     
     def toggle_skill(self, skill_name: str, enabled: bool) -> Dict[str, Any]:
-        from modules import config
+        from modules.main_server import config
         
         # 移除 "plugin-" 前缀
         if skill_name.startswith("plugin-"):

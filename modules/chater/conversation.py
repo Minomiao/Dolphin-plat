@@ -1,8 +1,8 @@
 import os
 import json
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.conversation")
+log = get_logger("Dolphin.conversation")
 
 DATE_DIR = "date"
 CONVERSATIONS_DIR = os.path.join(DATE_DIR, "conversations")

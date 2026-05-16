@@ -4,9 +4,9 @@ import importlib.util
 import traceback
 from typing import Dict, List, Any, Callable, Optional
 from pathlib import Path
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.skill_manager")
+log = get_logger("Dolphin.skill_manager")
 
 
 class SkillManager:
@@ -81,7 +81,7 @@ class SkillManager:
     
     def get_all_tools(self) -> List[Dict[str, Any]]:
         tools = []
-        from modules import config
+        from modules.main_server import config
         skills_config = config.load_config().get('skills', {})
         
         for skill_name, skill_info in self.skills.items():
@@ -185,7 +185,7 @@ class SkillManager:
         return names
     
     def list_skills(self) -> List[Dict[str, Any]]:
-        from modules import config
+        from modules.main_server import config
         skills_config = config.load_config().get('skills', {})
         return [
             {
@@ -212,7 +212,7 @@ class SkillManager:
         }
     
     def toggle_skill(self, skill_name: str, enabled: bool) -> Dict[str, Any]:
-        from modules import config
+        from modules.main_server import config
         if skill_name not in self.skills:
             return {"error": f"技能不存在: {skill_name}"}
         

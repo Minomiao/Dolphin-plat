@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.file_operation")
+log = get_logger("Dolphin.file_operation")
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_LINE_COUNT = 600
@@ -17,7 +17,7 @@ class FileOperation:
     def get_work_directory(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """获取工作目录"""
         try:
-            from modules import config
+            from modules.main_server import config
             work_directory = config.load_config().get('work_directory', 'workplace')
             return {
                 "success": True,
@@ -109,7 +109,7 @@ class FileOperation:
             backup_path = None
             pending_count = 0
             try:
-                from modules import backup_manager
+                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_path = backup_mgr.backup_file(str(file_path_obj), work_directory, action="create")
@@ -395,7 +395,7 @@ class FileOperation:
             backup_path = None
             pending_count = 0
             try:
-                from modules import backup_manager
+                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_path = backup_mgr.backup_file(str(file_path_obj), work_directory, action="modify")
@@ -414,7 +414,7 @@ class FileOperation:
             
             # 记录变更
             try:
-                from modules import backup_manager
+                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_mgr.record_change(
@@ -496,7 +496,7 @@ class FileOperation:
             # 备份文件
             backup_path = None
             try:
-                from modules import backup_manager
+                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_path = backup_mgr.backup_file(str(file_path_obj), work_directory, action="delete")
@@ -509,7 +509,7 @@ class FileOperation:
             # 记录变更
             pending_count = 0
             try:
-                from modules import backup_manager
+                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_mgr.record_change(

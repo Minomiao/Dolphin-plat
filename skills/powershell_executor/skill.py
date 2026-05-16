@@ -8,7 +8,7 @@ MAX_SCRIPT_LENGTH = 10000
 
 def get_logger():
     try:
-        from modules import request_manager
+        from modules.main_server.middleware import request_manager
         req_mgr = request_manager.get_request_manager()
         logger_request = req_mgr.create_logger_request('get', name="QuickAI.powershell_executor")
         logger_result = req_mgr.handle_request(logger_request, None)
@@ -19,7 +19,7 @@ def get_logger():
 
 def get_request_manager():
     try:
-        from modules import request_manager
+        from modules.main_server.middleware import request_manager
         return request_manager.get_request_manager()
     except:
         return None
@@ -130,7 +130,7 @@ def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[
 
 async def check_script(command_id: str, wait_time: int = None) -> Dict[str, Any]:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from modules import powershell_manager
+    from modules.loader import powershell_manager
     actual_wait = wait_time if wait_time is not None else 10
     result = await powershell_manager.check_script(command_id, actual_wait)
     output = result.get("output", "")
@@ -154,7 +154,7 @@ def _truncate_output(output: str) -> str:
 
 def kill_command(command_id: str) -> Dict[str, Any]:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from modules import powershell_manager
+    from modules.loader import powershell_manager
     result = powershell_manager.kill_command(command_id)
     result["user_output"] = {
         "label": "Stop",

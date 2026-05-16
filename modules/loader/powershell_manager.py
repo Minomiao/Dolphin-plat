@@ -7,9 +7,9 @@ import base64
 from typing import Dict, Any
 from pathlib import Path
 
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.powershell_manager")
+log = get_logger("Dolphin.powershell_manager")
 
 MAX_SCRIPT_LENGTH = 10000
 MAX_OUTPUT_LENGTH = 50000
@@ -31,7 +31,7 @@ class _DummySock:
 
 def _get_work_dir():
     try:
-        from modules import config
+        from modules.main_server import config
         return config.load_config().get('work_directory', 'workplace')
     except Exception:
         return 'workplace'

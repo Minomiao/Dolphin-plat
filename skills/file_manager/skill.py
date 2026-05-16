@@ -9,7 +9,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 def get_request_manager():
     try:
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        from modules import request_manager
+        from modules.main_server.middleware import request_manager
         return request_manager.get_request_manager()
     except Exception as e:
         print(f"获取 request_manager 失败: {e}")
@@ -30,7 +30,7 @@ def get_work_dir():
 def get_backup_manager():
     try:
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        from modules import backup_manager
+        from modules.functions import backup_manager
         return backup_manager
     except Exception as e:
         print(f"获取 backup_manager 失败: {e}")
@@ -39,7 +39,7 @@ def get_backup_manager():
 
 def set_work_directory(directory: str) -> Dict[str, Any]:
     try:
-        from modules.request_manager import get_persisted_work_directory, get_ai_work_directory
+        from modules.main_server.middleware.request_manager import get_persisted_work_directory, get_ai_work_directory
         base_work_dir = get_persisted_work_directory()
         base_path = Path(base_work_dir).resolve()
 

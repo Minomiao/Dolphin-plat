@@ -1,19 +1,17 @@
 from openai import OpenAI
 from colorama import Fore, Style
-from modules import config
-from modules import conversation
-from modules import mcp_manager
-from modules import skill_manager
-from modules import plugin_skill_loader
-from modules import request_manager
-from modules import logger
+from modules.main_server import config
+from modules.chater import conversation
+from modules.loader import mcp_manager
+from modules.loader import skill_manager
+from modules.loader import plugin_skill_loader
+from modules.main_server.middleware import request_manager
+from modules.logger import get_logger, log_thinking
 import json
 import asyncio
 import uuid
 
-log = logger.get_logger("Dolphin.chat")
-
-from modules.logger import log_thinking
+log = get_logger("Dolphin.chat")
 
 def format_tool_result(result_str):
     """格式化工具返回结果，使其更易读"""
@@ -81,7 +79,7 @@ class QuickAIChat:
         self.request_manager = request_manager.get_request_manager()
         
         # 导入备份管理器
-        from modules import backup_manager
+        from modules.functions import backup_manager
         self.backup_mgr = backup_manager.get_backup_manager()
         
         # 生成对话ID
@@ -98,7 +96,7 @@ class QuickAIChat:
         # 从配置读取默认工作目录
         self.default_work_directory = config.load_config().get('work_directory', 'workplace')
         self.current_work_directory = self.default_work_directory
-        from modules import request_manager as rm
+        from modules.main_server.middleware import request_manager as rm
         rm.reset_ai_work_directory()
         
         log.info(f"初始化 QuickAIChat: model={model}, temperature={temperature}, max_tokens={max_tokens}, enable_tools={enable_tools}")
@@ -126,7 +124,7 @@ class QuickAIChat:
     def reset_work_directory(self):
         """重置工作目录到默认配置"""
         self.current_work_directory = self.default_work_directory
-        from modules import request_manager as rm
+        from modules.main_server.middleware import request_manager as rm
         rm.reset_ai_work_directory()
         log.info(f"工作目录已重置为: {self.current_work_directory}")
     
@@ -209,7 +207,7 @@ class QuickAIChat:
                 # 拦截 set_work_directory 成功结果，同步更新 AI 临时工作目录
                 if result.get("success") and "set_work_directory" in tool_name and result.get("work_directory"):
                     self.current_work_directory = result["work_directory"]
-                    from modules import request_manager as rm
+                    from modules.main_server.middleware import request_manager as rm
                     rm.set_ai_work_directory(result["work_directory"])
                     log.info(f"AI 临时工作目录已更新: {self.current_work_directory}")
                 result_str = json.dumps(result, ensure_ascii=False)
@@ -226,7 +224,7 @@ class QuickAIChat:
         return await self._execute_tool(tool_name, arguments)
 
     async def _execute_powershell_script(self, script: str, timeout: int = 30, wait_time: int = 10) -> dict:
-        from modules import powershell_manager
+        from modules.loader import powershell_manager
         return await powershell_manager.execute_script(script, timeout, wait_time)
 
     async def _process_tool_confirmation(self, result_raw: str, tool_name: str, arguments: dict):

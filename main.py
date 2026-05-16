@@ -1,9 +1,9 @@
 from openai import OpenAI
-from modules import config
-from modules import commands as cmd
-from modules import chat
-from modules import logger
-from modules import backup_manager
+from modules.main_server import config
+from modules.CLIserver import commands as cmd
+from modules.chater import chat
+from modules.logger import setup_logger, get_logger
+from modules.functions import backup_manager
 import os
 import time
 
@@ -13,7 +13,7 @@ from colorama import init, Fore, Back, Style
 # 初始化 colorama
 init()
 
-log = logger.setup_logger("Dolphin")
+log = setup_logger("Dolphin")
 
 _SCREEN_ALT_ENTER = '\033[?1049h'
 _SCREEN_ALT_EXIT = '\033[?1049l'
@@ -239,7 +239,7 @@ def open_work_directory(path=None):
     if path != old_work_directory:
         print(f"工作目录已更改，正在重新加载技能模块...")
         import importlib
-        import modules.skill_manager as sm
+        import modules.loader.skill_manager as sm
         importlib.reload(sm)
         global skill_mgr
         skill_mgr = sm.get_skill_manager()
@@ -265,7 +265,7 @@ def model_settings():
     new_api_key = new_api_key or current_config.get('api_key')
     
     print("\n可用模型:")
-    from modules.config import get_available_models
+    from modules.main_server.config import get_available_models
     available_models = get_available_models()
     
     new_models = [m for m in available_models if not m["deprecated"]]
@@ -280,7 +280,7 @@ def model_settings():
         idx += 1
     
     if deprecated_models:
-        from modules.config import check_model_deprecation
+        from modules.main_server.config import check_model_deprecation
         deprecation_msg = check_model_deprecation(deprecated_models[0]["name"])
         warning = ""
         if deprecation_msg:

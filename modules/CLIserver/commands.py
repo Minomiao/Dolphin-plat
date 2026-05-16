@@ -1,8 +1,8 @@
 import os
 import json
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.commands")
+log = get_logger("Dolphin.commands")
 
 DATE_DIR = "date"
 COMMANDS_FILE = os.path.join(DATE_DIR, "commands.json")

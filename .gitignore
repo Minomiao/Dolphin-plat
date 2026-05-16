@@ -31,6 +31,7 @@ env/
 .trae/
 skills/*/__init__.py
 beta/
+modules/old_version/
 
 # Build files
 build/
@@ -43,6 +44,7 @@ build.py
 build_pyinstaller.py
 build_webapi.py
 build_main/
+dolphin-plat/
 
 # Documentation
 

@@ -3,9 +3,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv, set_key
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.config")
+log = get_logger("Dolphin.config")
 
 DATE_DIR = "date"
 CONFIG_FILE = os.path.join(DATE_DIR, "config.json")

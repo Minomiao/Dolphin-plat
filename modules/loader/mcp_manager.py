@@ -3,9 +3,9 @@ import json
 from typing import Dict, List, Any, Optional
 from mcp.client.session import ClientSession
 from mcp.client.stdio import stdio_client
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.mcp_manager")
+log = get_logger("Dolphin.mcp_manager")
 
 
 class MCPManager:

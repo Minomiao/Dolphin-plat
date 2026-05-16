@@ -4,9 +4,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import json
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.backup_manager")
+log = get_logger("Dolphin.backup_manager")
 
 BACKUP_DIR = "date/backup"
 

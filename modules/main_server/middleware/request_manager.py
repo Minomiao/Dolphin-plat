@@ -1,8 +1,8 @@
 import json
 from typing import Dict, Any, Optional
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.request_manager")
+log = get_logger("Dolphin.request_manager")
 
 class RequestType:
     """申请类型枚举"""
@@ -28,14 +28,14 @@ class RequestManager:
     def _get_prompt_manager(self):
         """延迟加载提示词管理器"""
         if self._prompt_manager is None:
-            from modules import prompt_manager
+            from modules.main_server import prompt_manager
             self._prompt_manager = prompt_manager.get_prompt_manager()
         return self._prompt_manager
     
     def _get_file_operation(self):
         """延迟加载文件操作管理器"""
         if self._file_operation is None:
-            from modules import file_operation
+            from modules.functions import file_operation
             self._file_operation = file_operation.get_file_operation()
         return self._file_operation
     
@@ -251,7 +251,7 @@ class RequestManager:
         try:
             operation_type = request.get('operation_type')
             
-            from modules import config
+            from modules.main_server import config
             
             if operation_type == 'load':
                 result = config.load_config()
@@ -287,17 +287,17 @@ class RequestManager:
         try:
             operation_type = request.get('operation_type')
             
-            from modules import logger
+            from modules.logger import get_logger as _get_logger
             
             if operation_type == 'get':
                 logger_name = request.get('name', 'Dolphin')
-                logger_instance = logger.get_logger(logger_name)
+                logger_instance = _get_logger(logger_name)
                 result = {"success": True, "logger": logger_instance}
             elif operation_type == 'log':
                 level = request.get('level', 'info')
                 message = request.get('message', '')
                 logger_name = request.get('name', 'Dolphin')
-                logger_instance = logger.get_logger(logger_name)
+                logger_instance = _get_logger(logger_name)
                 
                 if level == 'debug':
                     logger_instance.debug(message)
@@ -327,7 +327,7 @@ class RequestManager:
             function_name = request.get('function_name')
             arguments = request.get('arguments', {})
             
-            from modules import skill_manager
+            from modules.loader import skill_manager
             skill_mgr = skill_manager.get_skill_manager()
             
             # 构建工具名称
@@ -366,5 +366,5 @@ def reset_ai_work_directory():
     _ai_work_directory = None
 
 def get_persisted_work_directory() -> str:
-    from modules import config
+    from modules.main_server import config
     return config.load_config().get('work_directory', 'workplace')

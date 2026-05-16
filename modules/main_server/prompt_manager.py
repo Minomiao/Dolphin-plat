@@ -1,8 +1,8 @@
 import os
 import json
-from modules import logger
+from modules.logger import get_logger
 
-log = logger.get_logger("Dolphin.prompt_manager")
+log = get_logger("Dolphin.prompt_manager")
 
 DATE_DIR = "date"
 PROMPT_DIR = os.path.join(DATE_DIR, "prompts")
