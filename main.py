@@ -223,7 +223,7 @@ def toggle_tools():
     print(f"工具已{status_text}")
 
 def open_work_directory(path=None):
-    global current_config, chat_instance, skill_mgr
+    global current_config, chat_instance, skill_mgr, current_conversation
     if not path:
         print(f"\n当前工作目录: {current_config.get('work_directory', 'workplace')}")
         path = input("输入要打开的工作目录: ")
@@ -246,6 +246,45 @@ def open_work_directory(path=None):
         chat_instance.skill_mgr = skill_mgr
         chat_instance._update_tools()
         print("技能模块已重新加载")
+    
+    from modules.chater import dpc_manager
+    
+    dpc_conv = dpc_manager.get_current_conversation(path)
+    
+    if dpc_conv and chat_instance.load_conversation(dpc_conv):
+        current_conversation = dpc_conv
+        log.info(f"从 .dpc 自动加载对话: {dpc_conv}")
+        print(f"已自动加载对话: {dpc_conv}")
+    else:
+        if dpc_conv:
+            log.warning(f".dpc 指向的对话 '{dpc_conv}' 不存在，将创建新对话")
+        
+        if chat_instance.messages:
+            auto_save_name = current_conversation
+            if current_conversation == "main":
+                auto_save_name = os.path.basename(old_work_directory.rstrip('/\\'))
+                if not auto_save_name:
+                    auto_save_name = "default"
+                dpc_manager.add_to_dpc(old_work_directory, auto_save_name)
+            chat_instance.save_conversation(auto_save_name)
+            log.info(f"自动保存旧对话: {auto_save_name}")
+        
+        chat_instance.clear_history()
+        
+        conv_name = os.path.basename(path.rstrip('/\\'))
+        if not conv_name:
+            conv_name = "default"
+        dpc_convs = dpc_manager.get_dpc_conversations(path)
+        base_name = conv_name
+        counter = 1
+        while conv_name in dpc_convs:
+            conv_name = f"{base_name}_{counter}"
+            counter += 1
+        
+        current_conversation = conv_name
+        dpc_manager.add_to_dpc(path, conv_name)
+        log.info(f"为工作目录创建新对话: {conv_name}")
+        print(f"已创建新对话: {conv_name}")
     
     print(f"工作目录已设置为: {path}")
 
@@ -477,11 +516,12 @@ async def main():
                         print(f"对话已保存为: {save_name}")
                 chat_instance.clear_history()
                 current_conversation = new_name
+                from modules.chater import dpc_manager
+                dpc_manager.add_to_dpc(current_config.get('work_directory', 'workplace'), new_name)
                 log.info(f"切换到新对话: {new_name}")
                 print(f"已切换到新对话: {new_name}")
             continue
         elif user_input.startswith(cmd.get_command('load')):
-            # 提取加载名称参数
             parts = user_input.split(' ', 1)
             if len(parts) > 1:
                 load_name = parts[1].strip()
@@ -490,6 +530,8 @@ async def main():
             if load_name:
                 if chat_instance.load_conversation(load_name):
                     current_conversation = load_name
+                    from modules.chater import dpc_manager
+                    dpc_manager.add_to_dpc(current_config.get('work_directory', 'workplace'), load_name)
                     log.info(f"加载对话: {load_name}")
                     print(f"已加载对话: {load_name}")
                     
@@ -516,7 +558,6 @@ async def main():
                     print(f"对话 '{load_name}' 不存在")
             continue
         elif user_input.startswith(cmd.get_command('saveas')):
-            # 提取保存名称参数
             save_as_command = cmd.get_command('saveas')
             if len(user_input) > len(save_as_command):
                 save_name = user_input[len(save_as_command):].strip()
@@ -526,6 +567,8 @@ async def main():
                 chat_instance.save_conversation(save_name)
                 log.info(f"对话已保存: {save_name}")
                 print(f"对话已保存为: {save_name}")
+                from modules.chater import dpc_manager
+                dpc_manager.add_to_dpc(current_config.get('work_directory', 'workplace'), save_name)
                 if current_conversation == "main":
                     chat_instance.clear_history()
                     log.info("main对话已清空")
@@ -536,14 +579,17 @@ async def main():
                     print("已切换到main对话")
             continue
         elif user_input == cmd.get_command('list'):
-            conversations = chat_instance.list_conversations()
-            log.info(f"列出所有对话，共 {len(conversations)} 个")
-            if conversations:
-                print("\n=== 所有对话 ===")
-                for conv in conversations:
-                    print(f"  - {conv}")
+            from modules.chater import dpc_manager
+            work_dir = current_config.get('work_directory', 'workplace')
+            dpc_convs = dpc_manager.get_dpc_conversations(work_dir)
+            log.info(f"列出对话（当前目录: {work_dir}），共 {len(dpc_convs)} 个")
+            if dpc_convs:
+                print(f"\n=== 当前目录 '{work_dir}' 的对话 ===")
+                for conv in dpc_convs:
+                    marker = " *" if conv == current_conversation else "  "
+                    print(f"  {marker} {conv}")
             else:
-                print("没有找到任何对话")
+                print(f"当前目录 '{work_dir}' 没有关联的对话")
             continue
         elif user_input == cmd.get_command('tools'):
             show_tools()
@@ -610,6 +656,10 @@ async def main():
 
         log.info(f"用户输入: {user_input}")
         await chat_instance.chat_stream(user_input)
+        
+        if current_conversation and current_conversation != "main":
+            chat_instance.save_conversation(current_conversation)
+            log.debug(f"对话实时保存: {current_conversation}")
         
         # 每次对话结束后检查是否有待确认的文件更改
         handle_pending_changes()
