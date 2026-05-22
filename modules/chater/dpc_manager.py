@@ -62,12 +62,23 @@ def get_dir_id(work_dir):
 
 
 def ensure_dir_id(work_dir):
-    data = _read_raw(work_dir) or {}
-    data = _migrate_old_format(data)
-    if "dir_id" not in data:
-        data["dir_id"] = str(uuid.uuid4())
-        _write_raw(work_dir, data)
-    return data["dir_id"]
+    data = _read_raw(work_dir)
+    if data is not None:
+        data = _migrate_old_format(data)
+        if "dir_id" not in data:
+            data["dir_id"] = str(uuid.uuid4())
+            _write_raw(work_dir, data)
+        return data["dir_id"]
+    dir_id = str(uuid.uuid4())
+    data = {
+        "dir_id": dir_id,
+        "conversations": [],
+        "current": None,
+        "updated_at": datetime.now().isoformat()
+    }
+    _write_raw(work_dir, data)
+    log.info(f".dpc 初始化: dir_id={dir_id}")
+    return dir_id
 
 
 def get_conversations(work_dir):
