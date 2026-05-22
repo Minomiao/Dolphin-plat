@@ -677,19 +677,16 @@ class QuickAIChat:
         self.messages = []
         self.reset_work_directory()
     
-    def save_conversation(self, name):
-        conversation.save_conversation(self.messages, name)
-    
-    def load_conversation(self, name):
-        messages = conversation.load_conversation(name)
+    def save_conversation(self, dir_id, conv_id):
+        conversation.save_conversation(self.messages, dir_id, conv_id)
+
+    def load_conversation(self, dir_id, conv_id):
+        messages = conversation.load_conversation(dir_id, conv_id)
         if messages:
             self.messages = messages
             self.reset_work_directory()
             return True
         return False
-    
-    def list_conversations(self):
-        return conversation.list_conversations()
     
     def list_available_tools(self):
         if not self.enable_tools:
