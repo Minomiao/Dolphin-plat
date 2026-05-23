@@ -568,29 +568,6 @@ async def main():
                     log.warning(f"对话不存在: {load_name}")
                     print(f"对话 '{load_name}' 不存在")
             continue
-        elif user_input.startswith(cmd.get_command('saveas')):
-            save_as_command = cmd.get_command('saveas')
-            if len(user_input) > len(save_as_command):
-                save_name = user_input[len(save_as_command):].strip()
-            else:
-                save_name = input("请输入保存名称: ")
-            if save_name:
-                from modules.chater import dpc_manager
-                work_dir = current_config.get('work_directory', 'workplace')
-                dir_id = dpc_manager.ensure_dir_id(work_dir)
-                save_conv_id = dpc_manager.add_conversation(work_dir, save_name)
-                chat_instance.save_conversation(dir_id, save_conv_id)
-                current_conversation = save_name
-                current_dir_id = dir_id
-                current_conv_id = save_conv_id
-                log.info(f"对话已保存: {save_name} ({save_conv_id})")
-                print(f"对话已保存为: {save_name}")
-                chat_instance.clear_history()
-                current_conversation = "main"
-                current_conv_id = None
-                log.info("切换到main对话")
-                print("已切换到main对话")
-            continue
         elif user_input == cmd.get_command('list'):
             from modules.chater import dpc_manager
             work_dir = current_config.get('work_directory', 'workplace')

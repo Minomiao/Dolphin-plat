@@ -40,10 +40,6 @@ def _get_default_commands():
                 "input": "load",
                 "description": "加载旧对话"
             },
-            "save_as": {
-                "input": "saveas",
-                "description": "保存对话"
-            },
             "list": {
                 "input": "list",
                 "description": "查看所有对话"
