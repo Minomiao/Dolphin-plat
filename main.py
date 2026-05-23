@@ -222,7 +222,7 @@ def toggle_tools():
     log.info(f"工具状态已切换: {status_text}")
     print(f"工具已{status_text}")
 
-def open_work_directory(path=None):
+def open_work_directory(path=None, silent=False):
     global current_config, chat_instance, skill_mgr, current_conversation, current_dir_id, current_conv_id
     if not path:
         print(f"\n当前工作目录: {current_config.get('work_directory', 'workplace')}")
@@ -285,7 +285,8 @@ def open_work_directory(path=None):
         log.info(f"为工作目录创建新对话: {conv_name} ({new_conv_id})")
         print(f"已创建新对话: {conv_name}")
     
-    print(f"工作目录已设置为: {path}")
+    if not silent:
+        print(f"工作目录已设置为: {path}")
 
 def model_settings():
     global current_config, chat_instance
@@ -783,6 +784,6 @@ if __name__ == "__main__":
     print(f"工作目录: {WORKPLACE_DIR}")
     print("=" * 50)
     
-    open_work_directory(WORKPLACE_DIR)
+    open_work_directory(WORKPLACE_DIR, silent=True)
     
     asyncio.run(main())
