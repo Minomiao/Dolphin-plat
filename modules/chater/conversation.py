@@ -4,18 +4,12 @@ from modules.logger import get_logger
 
 log = get_logger("Dolphin.conversation")
 
-DATE_DIR = "date"
-CONVERSATIONS_DIR = os.path.join(DATE_DIR, "conversations")
-
-
-def _ensure_dir(dir_id):
-    conv_dir = os.path.join(CONVERSATIONS_DIR, dir_id)
-    os.makedirs(conv_dir, exist_ok=True)
-    return conv_dir
+CONVERSATIONS_DIR = os.path.join("date", "conversations")
 
 
 def save_conversation(messages, dir_id, conv_id):
-    conv_dir = _ensure_dir(dir_id)
+    conv_dir = os.path.join(CONVERSATIONS_DIR, dir_id)
+    os.makedirs(conv_dir, exist_ok=True)
     filepath = os.path.join(conv_dir, f"{conv_id}.json")
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
