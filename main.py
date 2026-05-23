@@ -780,6 +780,9 @@ if __name__ == "__main__":
     if deprecation_warning:
         print(f"{Fore.YELLOW}警告: {deprecation_warning}{Style.RESET_ALL}")
     print(f"输入 '{cmd.get_command('help')}' 获取命令帮助")
+    print(f"工作目录: {WORKPLACE_DIR}")
     print("=" * 50)
+    
+    open_work_directory(WORKPLACE_DIR)
     
     asyncio.run(main())
