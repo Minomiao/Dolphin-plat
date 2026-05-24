@@ -37,6 +37,7 @@ modules/old_version/
 build/
 dist/
 dist_pyinstaller/
+dist_dolphin/
 dist_server/
 *.spec
 *.exe
@@ -45,8 +46,18 @@ build_pyinstaller.py
 build_webapi.py
 build_main/
 dolphin-plat/
+package.py
 
 # Documentation
+
+# IDE
+.idea/
+.vscode/
+*.sublime-workspace
+
+# OS
+Thumbs.db
+.DS_Store
 
 # Web files
 web/

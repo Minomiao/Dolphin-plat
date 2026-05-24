@@ -6,3 +6,4 @@ flask>=2.0.0
 flask-cors>=3.0.0
 colorama>=0.4.6
 sympy>=1.12
+pyinstaller>=6.0.0

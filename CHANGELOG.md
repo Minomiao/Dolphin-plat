@@ -1,5 +1,36 @@
 # Change Log
 
+## v1.1.0 (2026-05-24)
+
+File protection via DPC access control, improved work directory switching, hidden DPC files, and build script.
+
+### DPC Access Control
+
++ Add `restricted` field to `.dpc` format for path-level access control (default `[".dpc"]`)
++ Add `is_path_allowed()`, `filter_allowed_paths()`, `ensure_restriction()` to dpc_manager
++ Logger auto-creates `date/.dpc` with `restricted: ["*"]` on first init (protects all program data)
++ file_reader and file_operation check dpc restrictions before reading/writing/listing/searching
++ list_directory and search_files filter out restricted files from results
++ DPC check walks up directory tree to find nearest `.dpc` for restriction rules
+
+### Work Directory
+
++ Clear screen and refresh conversation display when switching work directories
++ Auto-save old conversation before switching to new work directory
++ Fallback to default `workplace` directory when configured directory no longer exists
++ Create empty conversation data file automatically when `.dpc` references missing conversation
+
+### Hidden DPC Files
+
++ Set `.dpc` file as hidden on Windows using `SetFileAttributesW` API
++ Properly restore/remove hidden attribute before writing to avoid permission errors
++ Preserve existing file attributes when toggling hidden flag
+
+### Build
+
++ Add `package.py` build script using PyInstaller `--onedir` (not `--onefile`)
++ Add `pyinstaller>=6.0.0` to requirements.txt
+
 ## v1.0.0 (2026-05-06)
 
 User Output System, extendable tool iterations, sympy calculator, async PowerShell manager, splash screen, and CMD-friendly UI overhaul.

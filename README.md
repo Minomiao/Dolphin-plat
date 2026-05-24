@@ -108,6 +108,48 @@ Dolphin 有两层工作目录：
 
 ---
 
+## DPC 文件保护
+
+Dolphin 使用 `.dpc`（Dolphin Path Control）文件来保护敏感目录不被 AI 访问。
+
+### 保护机制
+
+每个工作目录下的 `.dpc` 文件包含 `restricted` 字段，定义该目录下禁止访问的文件/目录模式：
+
+```json
+{
+  "restricted": [".dpc"]
+}
+```
+
+- 普通工作目录仅保护 `.dpc` 自身不被读取
+- `date/.dpc` 的 `restricted: ["*"]` 阻止 AI 读取所有程序数据（配置、日志、对话记录、备份）
+- `*` 通配符拒绝访问该目录下所有文件
+- 支持 `fnmatch` 模式匹配（如 `*.key`、`secrets/*`）
+
+### 检查流程
+
+```
+file_reader / file_operation
+  → _check_dpc_restriction(path)
+    → 沿路径向上查找所有 .dpc 文件
+      → dpc_manager.is_path_allowed(dir, rel_path)
+        → 匹配 restricted 模式 → 允许/拒绝
+```
+
+---
+
+## 打包
+
+```bash
+pip install -r requirements.txt
+python package.py
+```
+
+打包完成后，可执行文件位于 `dist_dolphin/Dolphin.exe`。
+
+---
+
 ## 完整执行流程
 
 以下是用户输入一句话到 AI 完成回复的完整调用链：
@@ -331,6 +373,8 @@ modules/file_operation.py   # 集中化文件读写
 modules/backup_manager.py   # 对话级文件备份与恢复
 modules/commands.py         # 命令管理（前缀化、关键词校验、启动自动修复）
 modules/conversation.py     # 对话历史保存与加载
+modules/conversation_loader.py # 对话加载与激活
+modules/dpc_manager.py      # DPC 路径访问控制（保护敏感目录）
 modules/logger.py           # 日志系统
 modules/powershell_manager.py  # PowerShell 子进程管理（执行、轮询、终止、清理）
 modules/mcp_manager.py      # MCP 协议管理器
