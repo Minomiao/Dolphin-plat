@@ -1,7 +1,7 @@
 from openai import OpenAI
 from modules.main_server import config
 from modules.CLIserver import commands as cmd
-from modules.chater import chat
+from modules.chater import chat, conversation_loader
 from modules.logger import setup_logger, get_logger
 from modules.functions import backup_manager
 import os
@@ -157,6 +157,24 @@ def show_help():
         print(f"{cmd_input:<12} - {cmd_description}")
     print("\n输入任何其他内容将发送给AI")
 
+def _print_header():
+    deprecation_warning = config.check_model_deprecation(
+        current_config.get('model', 'deepseek-v4-flash'))
+    work_dir = current_config.get('work_directory', 'workplace')
+    _print_dolphin()
+    print("=" * 50)
+    if deprecation_warning:
+        print(f"{Fore.YELLOW}警告: {deprecation_warning}{Style.RESET_ALL}")
+    print(f"输入 '{cmd.get_command('help')}' 获取命令帮助")
+    print(f"工作目录: {work_dir}")
+    print("=" * 50)
+
+def _print_conversation_history():
+    output = conversation_loader.format_conversation_history(
+        chat_instance.messages, show_thinking)
+    if output:
+        print(output)
+
 def show_tools():
     tools = chat_instance.list_available_tools()
     log.info(f"显示可用工具，共 {len(tools)} 个")
@@ -252,12 +270,14 @@ def open_work_directory(path=None, silent=False):
     dir_id = dpc_manager.ensure_dir_id(path)
     conv_id, conv_name = dpc_manager.get_current(path)
     
-    if conv_id and conv_name and chat_instance.load_conversation(dir_id, conv_id):
-        current_conversation = conv_name
-        current_dir_id = dir_id
-        current_conv_id = conv_id
-        log.info(f"从 .dpc 自动加载对话: {conv_name} ({conv_id})")
-        print(f"已自动加载对话: {conv_name}")
+    if conv_id and conv_name:
+        result = conversation_loader.load_and_activate(
+            chat_instance, dir_id, conv_id, conv_name, path)
+        if result:
+            current_conversation = result['conv_name']
+            current_dir_id = result['dir_id']
+            current_conv_id = result['conv_id']
+            print(f"已自动加载对话: {conv_name}")
     else:
         if conv_id:
             log.warning(f".dpc 指向的对话不存在，将创建新对话")
@@ -540,31 +560,17 @@ async def main():
                 work_dir = current_config.get('work_directory', 'workplace')
                 dir_id = dpc_manager.ensure_dir_id(work_dir)
                 load_conv_id = dpc_manager.get_id_by_name(work_dir, load_name)
-                if load_conv_id and chat_instance.load_conversation(dir_id, load_conv_id):
-                    current_conversation = load_name
-                    current_dir_id = dir_id
-                    current_conv_id = load_conv_id
-                    dpc_manager.set_current_by_id(work_dir, load_conv_id)
-                    log.info(f"加载对话: {load_name} ({load_conv_id})")
-                    print(f"已加载对话: {load_name}")
+                result = conversation_loader.load_and_activate(
+                    chat_instance, dir_id, load_conv_id, load_name, work_dir)
+                if result:
+                    current_conversation = result['conv_name']
+                    current_dir_id = result['dir_id']
+                    current_conv_id = result['conv_id']
                     
-                    if chat_instance.messages:
-                        print("\n=== 对话历史 ===")
-                        for msg in chat_instance.messages:
-                            if msg['role'] == 'user':
-                                print(f"您: {msg['content']}")
-                            elif msg['role'] == 'assistant':
-                                print(f"AI: {msg['content']}")
-                            elif msg['role'] == 'tool':
-                                print(f"工具: {msg.get('name', 'unknown')}")
-                                if 'tool_call_id' in msg:
-                                    print(f"  调用ID: {msg['tool_call_id']}")
-                                if 'arguments' in msg:
-                                    print(f"  参数: {msg['arguments']}")
-                            elif msg['role'] == 'tool_response':
-                                print(f"工具响应: {msg.get('tool_call_id', 'unknown')}")
-                                if 'content' in msg:
-                                    print(f"  内容: {msg['content']}")
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    _print_header()
+                    print(f"已加载对话: {load_name}")
+                    _print_conversation_history()
                 else:
                     log.warning(f"对话不存在: {load_name}")
                     print(f"对话 '{load_name}' 不存在")
@@ -702,11 +708,11 @@ def _build_dolphin_art():
         " ██║ ██║ ",
     ]
     I = [
-        " ██╗ ",
-        " ██║ ",
-        " ██║ ",
-        " ██║ ",
-        " ██║ ",
+        " ██╗  ",
+        " ██║  ",
+        " ██║  ",
+        " ██║  ",
+        " ██║  ",
     ]
     N = [
         " ███╗   ██╗ ",
@@ -776,14 +782,11 @@ if __name__ == "__main__":
     time.sleep(0.3)
     os.system('cls' if os.name == 'nt' else 'clear')
     
-    _print_dolphin()
-    print("=" * 50)
-    if deprecation_warning:
-        print(f"{Fore.YELLOW}警告: {deprecation_warning}{Style.RESET_ALL}")
-    print(f"输入 '{cmd.get_command('help')}' 获取命令帮助")
-    print(f"工作目录: {WORKPLACE_DIR}")
-    print("=" * 50)
+    _print_header()
     
     open_work_directory(WORKPLACE_DIR, silent=True)
+    
+    if chat_instance.messages:
+        _print_conversation_history()
     
     asyncio.run(main())
