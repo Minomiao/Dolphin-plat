@@ -5,9 +5,26 @@ from datetime import datetime
 DATE_DIR = "date"
 LOG_DIR = os.path.join(DATE_DIR, "log")
 
+_dpc_initialized = False
+
+
+def _init_date_dpc():
+    global _dpc_initialized
+    if _dpc_initialized:
+        return
+    _dpc_initialized = True
+    try:
+        from modules.chater import dpc_manager
+        dpc_manager.ensure_restriction(DATE_DIR, ["*"])
+    except Exception as e:
+        pass
+
+
 def setup_logger(name="Dolphin", level=logging.DEBUG):
     if not os.path.exists(LOG_DIR):
         os.makedirs(LOG_DIR)
+    
+    _init_date_dpc()
     
     logger = logging.getLogger(name)
     logger.setLevel(level)

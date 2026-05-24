@@ -8,6 +8,24 @@ log = get_logger("Dolphin.file_operation")
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_LINE_COUNT = 600
 
+
+def _check_dpc_restriction(absolute_path):
+    from modules.chater import dpc_manager
+    current = os.path.dirname(os.path.abspath(absolute_path))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    while True:
+        dpc_path = os.path.join(current, '.dpc')
+        if os.path.exists(dpc_path):
+            rel = os.path.relpath(absolute_path, current)
+            allowed, msg = dpc_manager.is_path_allowed(current, rel)
+            if not allowed:
+                return False, msg
+        parent = os.path.dirname(current)
+        if parent == current or os.path.commonpath([parent, project_root]) != project_root:
+            break
+        current = parent
+    return True, None
+
 class FileOperation:
     """文件操作管理器"""
     
@@ -96,6 +114,10 @@ class FileOperation:
                         "error": f"路径必须是工作目录的子目录: {work_directory}"
                     }
             
+            allowed, msg = _check_dpc_restriction(str(resolved_path))
+            if not allowed:
+                return {"error": msg}
+
             # 确保父目录存在
             parent_dir = resolved_path.parent
             if not parent_dir.exists():
@@ -176,6 +198,10 @@ class FileOperation:
                         "error": f"路径必须是工作目录的子目录: {work_directory}"
                     }
             
+            allowed, msg = _check_dpc_restriction(str(resolved_path))
+            if not allowed:
+                return {"error": msg}
+
             # 检查文件是否存在
             if not resolved_path.exists():
                 return {"error": f"文件不存在: {file_path}"}
@@ -318,6 +344,10 @@ class FileOperation:
                         "error": f"路径必须是工作目录的子目录: {work_directory}"
                     }
             
+            allowed, msg = _check_dpc_restriction(str(resolved_path))
+            if not allowed:
+                return {"error": msg}
+
             # 检查文件是否存在
             if not resolved_path.exists():
                 return {"error": f"文件不存在: {file_path}"}
@@ -488,6 +518,10 @@ class FileOperation:
                         "error": f"路径必须是工作目录的子目录: {work_directory}"
                     }
             
+            allowed, msg = _check_dpc_restriction(str(resolved_path))
+            if not allowed:
+                return {"error": msg}
+
             # 检查文件是否存在
             if not resolved_path.exists():
                 return {"error": f"文件不存在: {file_path}"}

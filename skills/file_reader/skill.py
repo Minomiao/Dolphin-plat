@@ -9,10 +9,12 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 MAX_SEARCH_RESULTS = 500
 MAX_FILES_TO_SEARCH_IN_CONTENT = 100
 
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 def get_work_dir():
     try:
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        sys.path.insert(0, _PROJECT_ROOT)
         from modules.main_server.middleware import request_manager
         req_mgr = request_manager.get_request_manager()
         config_request = req_mgr.create_config_request('load')
@@ -20,6 +22,25 @@ def get_work_dir():
         return config_data.get('work_directory', 'workplace')
     except:
         return 'workplace'
+
+
+def _check_dpc_restriction(absolute_path):
+    sys.path.insert(0, _PROJECT_ROOT)
+    from modules.chater import dpc_manager
+    current = os.path.dirname(os.path.abspath(absolute_path))
+    project_root = _PROJECT_ROOT
+    while True:
+        dpc_path = os.path.join(current, '.dpc')
+        if os.path.exists(dpc_path):
+            rel = os.path.relpath(absolute_path, current)
+            allowed, msg = dpc_manager.is_path_allowed(current, rel)
+            if not allowed:
+                return False, msg
+        parent = os.path.dirname(current)
+        if parent == current or os.path.commonpath([parent, project_root]) != project_root:
+            break
+        current = parent
+    return True, None
 
 
 def get_work_directory() -> Dict[str, Any]:
@@ -44,7 +65,6 @@ def _is_path_allowed(file_path: str) -> Dict[str, Any]:
         
         try:
             resolved_path.relative_to(work_path)
-            return {"allowed": True, "path": str(resolved_path)}
         except ValueError:
             return {
                 "allowed": False,
@@ -53,6 +73,16 @@ def _is_path_allowed(file_path: str) -> Dict[str, Any]:
                 "requires_confirmation": True,
                 "message": f"路径 '{file_path}' 不在工作目录 '{get_work_dir()}' 内"
             }
+
+        allowed, msg = _check_dpc_restriction(str(resolved_path))
+        if not allowed:
+            return {
+                "allowed": False,
+                "path": str(resolved_path),
+                "message": msg
+            }
+
+        return {"allowed": True, "path": str(resolved_path)}
     except Exception as e:
         return {
             "allowed": False,
@@ -153,6 +183,10 @@ def search_files(pattern: str, directory: str = ".", search_in_content: bool = F
                     if file_size > MAX_FILE_SIZE:
                         continue
                     
+                    allowed, _ = _check_dpc_restriction(str(file_path))
+                    if not allowed:
+                        continue
+
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                         if pattern.lower() in content.lower():
@@ -176,6 +210,9 @@ def search_files(pattern: str, directory: str = ".", search_in_content: bool = F
                     break
                 
                 if pattern.lower() in file_path.name.lower():
+                    allowed, _ = _check_dpc_restriction(str(file_path))
+                    if not allowed:
+                        continue
                     relative_path = file_path.relative_to(Path(get_work_dir()))
                     results.append({
                         "name": file_path.name,
@@ -239,6 +276,11 @@ def list_directory(directory: str = ".", max_depth: int = 10, show_hidden: bool 
             for i, item in enumerate(items):
                 if not show_hidden and item.name.startswith('.'):
                     continue
+
+                if not item.is_dir():
+                    allowed, _ = _check_dpc_restriction(str(item))
+                    if not allowed:
+                        continue
                 
                 if file_count >= MAX_FILES_TO_READ:
                     lines.append(f"{prefix}└── ... (已达到最大文件数量限制 {MAX_FILES_TO_READ})")

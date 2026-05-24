@@ -47,12 +47,15 @@ def _write_raw(work_dir, data):
 def _migrate_old_format(data):
     if "dir_id" in data and "conversations" in data and isinstance(data["conversations"], list):
         if data["conversations"] and isinstance(data["conversations"][0], dict):
+            if "restricted" not in data:
+                data["restricted"] = [".dpc"]
             return data
     new = {
         "dir_id": data.get("dir_id", str(uuid.uuid4())),
         "conversations": [],
         "current": None,
-        "updated_at": data.get("updated_at", datetime.now().isoformat())
+        "updated_at": data.get("updated_at", datetime.now().isoformat()),
+        "restricted": data.get("restricted", [".dpc"])
     }
     old_convs = data.get("conversations", [])
     old_current = data.get("current") or data.get("conversation")
@@ -82,8 +85,14 @@ def ensure_dir_id(work_dir):
     data = _read_raw(work_dir)
     if data is not None:
         data = _migrate_old_format(data)
+        needs_write = False
         if "dir_id" not in data:
             data["dir_id"] = str(uuid.uuid4())
+            needs_write = True
+        if "restricted" not in data:
+            data["restricted"] = [".dpc"]
+            needs_write = True
+        if needs_write:
             _write_raw(work_dir, data)
         return data["dir_id"]
     dir_id = str(uuid.uuid4())
@@ -91,7 +100,8 @@ def ensure_dir_id(work_dir):
         "dir_id": dir_id,
         "conversations": [],
         "current": None,
-        "updated_at": datetime.now().isoformat()
+        "updated_at": datetime.now().isoformat(),
+        "restricted": [".dpc"]
     }
     _write_raw(work_dir, data)
     log.info(f".dpc 初始化: dir_id={dir_id}")
@@ -170,3 +180,62 @@ def set_current_by_id(work_dir, conv_id):
     data["updated_at"] = datetime.now().isoformat()
     _write_raw(work_dir, data)
     log.info(f".dpc: current -> {conv_id}")
+
+
+def get_restricted_paths(work_dir):
+    data = _read_raw(work_dir)
+    if data is None:
+        return [".dpc"]
+    data = _migrate_old_format(data)
+    return data.get("restricted", [".dpc"])
+
+
+def is_path_allowed(work_dir, relative_path):
+    import fnmatch
+    restricted = get_restricted_paths(work_dir)
+    normalized = relative_path.replace('\\', '/').lstrip('/')
+    for pattern in restricted:
+        if pattern == "*":
+            return False, f"目录 {work_dir} 禁止访问"
+        if fnmatch.fnmatch(normalized, pattern):
+            return False, f"文件 '{relative_path}' 被 .dpc 限制访问"
+        if fnmatch.fnmatch(os.path.basename(normalized), pattern):
+            return False, f"文件 '{relative_path}' 被 .dpc 限制访问"
+    return True, None
+
+
+def filter_allowed_paths(work_dir, paths):
+    allowed = []
+    blocked = []
+    for p in paths:
+        ok, _ = is_path_allowed(work_dir, p)
+        if ok:
+            allowed.append(p)
+        else:
+            blocked.append(p)
+    return allowed, blocked
+
+
+def ensure_restriction(work_dir, restricted_patterns):
+    data = _read_raw(work_dir)
+    if data is None:
+        dpc_dir_id = str(uuid.uuid4())
+        data = {
+            "dir_id": dpc_dir_id,
+            "conversations": [],
+            "current": None,
+            "updated_at": datetime.now().isoformat(),
+            "restricted": [".dpc"]
+        }
+        _write_raw(work_dir, data)
+        log.info(f".dpc 初始化(restriction): dir_id={dpc_dir_id}")
+        data = _read_raw(work_dir)
+
+    data = _migrate_old_format(data)
+    existing = set(data.get("restricted", [".dpc"]))
+    for p in restricted_patterns:
+        existing.add(p)
+    data["restricted"] = list(existing)
+    data["updated_at"] = datetime.now().isoformat()
+    _write_raw(work_dir, data)
+    log.info(f".dpc restriction 已更新: {data['restricted']}")
