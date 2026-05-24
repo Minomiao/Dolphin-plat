@@ -7,9 +7,11 @@ log = get_logger("Dolphin.conversation_loader")
 
 
 def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):
-    if not chat_instance.load_conversation(dir_id, conv_id):
-        log.warning(f"load_and_activate 失败: conv_id={conv_id}")
-        return None
+    loaded = chat_instance.load_conversation(dir_id, conv_id)
+    if not loaded:
+        chat_instance.clear_history()
+        chat_instance.save_conversation(dir_id, conv_id)
+        log.info(f"初始化空对话文件: {conv_name} ({conv_id})")
 
     dpc_manager.set_current_by_id(work_dir, conv_id)
 

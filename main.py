@@ -267,6 +267,10 @@ def open_work_directory(path=None, silent=False):
     
     from modules.chater import dpc_manager
     
+    if chat_instance.messages and current_dir_id and current_conv_id:
+        chat_instance.save_conversation(current_dir_id, current_conv_id)
+        log.info(f"自动保存旧对话: {current_conversation}")
+    
     dir_id = dpc_manager.ensure_dir_id(path)
     conv_id, conv_name = dpc_manager.get_current(path)
     
@@ -277,32 +281,38 @@ def open_work_directory(path=None, silent=False):
             current_conversation = result['conv_name']
             current_dir_id = result['dir_id']
             current_conv_id = result['conv_id']
-            print(f"已自动加载对话: {conv_name}")
-    else:
-        if conv_id:
-            log.warning(f".dpc 指向的对话不存在，将创建新对话")
-        
-        if chat_instance.messages and current_dir_id and current_conv_id:
-            chat_instance.save_conversation(current_dir_id, current_conv_id)
-            log.info(f"自动保存旧对话: {current_conversation}")
-        
-        chat_instance.clear_history()
-        
-        conv_name = os.path.basename(path.rstrip('/\\'))
-        if not conv_name:
-            conv_name = "default"
-        existing_names = [c["name"] for c in dpc_manager.get_conversations(path)]
-        base_name = conv_name
-        counter = 1
-        while conv_name in existing_names:
-            conv_name = f"{base_name}_{counter}"
-            counter += 1
-        
-        new_conv_id = dpc_manager.add_conversation(path, conv_name)
-        current_conversation = conv_name
-        current_dir_id = dir_id
-        current_conv_id = new_conv_id
-        log.info(f"为工作目录创建新对话: {conv_name} ({new_conv_id})")
+            if not silent:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                _print_header()
+                print(f"已自动加载对话: {conv_name}")
+                _print_conversation_history()
+            if not silent:
+                print(f"工作目录已设置为: {path}")
+            return
+    
+    if conv_id:
+        log.warning(f".dpc 指向的对话不存在，将创建新对话")
+    
+    chat_instance.clear_history()
+    
+    conv_name = os.path.basename(path.rstrip('/\\'))
+    if not conv_name:
+        conv_name = "default"
+    existing_names = [c["name"] for c in dpc_manager.get_conversations(path)]
+    base_name = conv_name
+    counter = 1
+    while conv_name in existing_names:
+        conv_name = f"{base_name}_{counter}"
+        counter += 1
+    
+    new_conv_id = dpc_manager.add_conversation(path, conv_name)
+    current_conversation = conv_name
+    current_dir_id = dir_id
+    current_conv_id = new_conv_id
+    log.info(f"为工作目录创建新对话: {conv_name} ({new_conv_id})")
+    if not silent:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        _print_header()
         print(f"已创建新对话: {conv_name}")
     
     if not silent:
@@ -758,6 +768,11 @@ if __name__ == "__main__":
         log.warning(deprecation_warning)
     
     WORKPLACE_DIR = current_config.get('work_directory', 'workplace')
+    if not os.path.exists(WORKPLACE_DIR):
+        log.warning(f"工作目录不存在，回退到默认目录: {WORKPLACE_DIR} -> workplace")
+        WORKPLACE_DIR = 'workplace'
+        current_config['work_directory'] = WORKPLACE_DIR
+        config.save_config(current_config)
     if not os.path.exists(WORKPLACE_DIR):
         os.makedirs(WORKPLACE_DIR)
         log.info(f"创建工作目录: {WORKPLACE_DIR}")

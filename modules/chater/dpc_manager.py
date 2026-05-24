@@ -1,12 +1,14 @@
 import os
 import json
 import uuid
+import ctypes
 from datetime import datetime
 from modules.logger import get_logger
 
 log = get_logger("Dolphin.dpc_manager")
 
 DPC_FILENAME = ".dpc"
+FILE_ATTRIBUTE_HIDDEN = 0x2
 
 
 def _read_raw(work_dir):
@@ -21,10 +23,25 @@ def _read_raw(work_dir):
         return None
 
 
+def _set_hidden(path):
+    if os.name == 'nt':
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(path)
+        ctypes.windll.kernel32.SetFileAttributesW(path, attrs | FILE_ATTRIBUTE_HIDDEN)
+
+
+def _remove_hidden(path):
+    if os.name == 'nt' and os.path.exists(path):
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(path)
+        if attrs & FILE_ATTRIBUTE_HIDDEN:
+            ctypes.windll.kernel32.SetFileAttributesW(path, attrs & ~FILE_ATTRIBUTE_HIDDEN)
+
+
 def _write_raw(work_dir, data):
     dpc_path = os.path.join(work_dir, DPC_FILENAME)
+    _remove_hidden(dpc_path)
     with open(dpc_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    _set_hidden(dpc_path)
 
 
 def _migrate_old_format(data):
