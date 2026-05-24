@@ -113,19 +113,19 @@ skill_info = {
             }
         },
         "modify_file": {
-            "description": "修改文件内容。需要提供要修改的起始行、结束行、首行内容、末行内容和新内容。限制：单次修改最多500行，最大文件大小10MB。提示：对于大文件修改，建议分多次进行，每次修改范围不要太大，以确保操作的稳定性和可追溯性。",
+            "description": "修改文件内容。需要提供要替换的起始行号、结束行号、起始行原文、结束行原文和新内容。重要提示：起始行到结束行之间的所有内容（包括首行和末行）都会被 new_lines 完全替换，不是插入。参数 old_str_start 和 old_str_end 仅用于定位校验，它们自身也会被替换掉。限制：单次修改最多500行，最大文件大小10MB。提示：对于大文件修改，建议分多次进行，每次修改范围不要太大，以确保操作的稳定性和可追溯性。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {"type": "string", "description": "文件路径（相对于工作目录）"},
-                    "start_line": {"type": "integer", "description": "要修改的起始行号（从1开始）"},
-                    "end_line": {"type": "integer", "description": "要修改的结束行号"},
-                    "start_line_content": {"type": "string", "description": "起始行的内容，用于校验"},
-                    "end_line_content": {"type": "string", "description": "结束行的内容，用于校验"},
-                    "new_lines": {"type": "array", "items": {"type": "string"}, "description": "新的内容行列表，每行一个元素，不需要包含换行符"},
+                    "start_line": {"type": "integer", "description": "要替换的起始行号（从1开始），该行会被 new_lines 替换"},
+                    "end_line": {"type": "integer", "description": "要替换的结束行号（包含），该行会被 new_lines 替换"},
+                    "old_str_start": {"type": "string", "description": "start_line 行的原始内容，用作定位校验（该校验行本身会被替换）"},
+                    "old_str_end": {"type": "string", "description": "end_line 行的原始内容，用作定位校验（该校验行本身会被替换）"},
+                    "new_lines": {"type": "array", "items": {"type": "string"}, "description": "新的内容行列表，将替换 [start_line, end_line] 范围内的所有行，每行一个元素，不需要包含换行符"},
                     "encoding": {"type": "string", "description": "文件编码，默认为 'utf-8'"}
                 },
-                "required": ["file_path", "start_line", "end_line", "start_line_content", "end_line_content", "new_lines"]
+                "required": ["file_path", "start_line", "end_line", "old_str_start", "old_str_end", "new_lines"]
             }
         },
         "delete_file": {
@@ -166,15 +166,15 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
             else:
                 result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.GREEN}+{line_count}{Style.RESET_ALL} {Fore.RED}-0{Style.RESET_ALL}"}
         else:
-            filename = Path(file_path).name
+            filename = _safe_filename(file_path)
             result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}
         return result
     except Exception as e:
-        filename = Path(file_path).name
+        filename = _safe_filename(file_path)
         return {"error": f"创建文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
 
 
-def modify_file(file_path: str, start_line: int, end_line: int, start_line_content: str, end_line_content: str, new_lines: list, encoding: str = "utf-8") -> Dict[str, Any]:
+def modify_file(file_path: str, start_line: int, end_line: int, old_str_start: str, old_str_end: str, new_lines: list, encoding: str = "utf-8") -> Dict[str, Any]:
     try:
         req_mgr = get_request_manager()
         work_dir = get_work_dir()
@@ -184,8 +184,8 @@ def modify_file(file_path: str, start_line: int, end_line: int, start_line_conte
             file_path=file_path,
             start_line=start_line,
             end_line=end_line,
-            start_line_content=start_line_content,
-            end_line_content=end_line_content,
+            old_str_start=old_str_start,
+            old_str_end=old_str_end,
             new_lines=new_lines,
             encoding=encoding,
             work_directory=work_dir
@@ -203,22 +203,31 @@ def modify_file(file_path: str, start_line: int, end_line: int, start_line_conte
             else:
                 result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.GREEN}+{new_count}{Style.RESET_ALL} {Fore.RED}-{old_count}{Style.RESET_ALL}"}
         else:
-            filename = Path(file_path).name
+            filename = _safe_filename(file_path)
             result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}
         return result
     except Exception as e:
-        filename = Path(file_path).name
+        filename = _safe_filename(file_path)
         return {"error": f"修改文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
+
+
+def _safe_filename(file_path: str) -> str:
+    try:
+        return Path(file_path).name
+    except Exception:
+        return str(file_path) if file_path else "unknown"
 
 
 def delete_file(file_path: str, confirmed: bool = False) -> Dict[str, Any]:
     if not confirmed:
+        filename = _safe_filename(file_path)
         return {
             "requires_confirmation": True,
             "message": f"确认删除文件: {file_path}",
             "action": "delete_file",
             "file_path": file_path,
-            "work_directory": get_work_dir()
+            "work_directory": get_work_dir(),
+            "user_output": {"label": "File Change", "content": f"--{filename} {Fore.YELLOW}?{Style.RESET_ALL}"}
         }
 
     try:
@@ -237,9 +246,9 @@ def delete_file(file_path: str, confirmed: bool = False) -> Dict[str, Any]:
             filename = Path(full_path).name
             result["user_output"] = {"label": "File Change", "content": f"--{filename} {Fore.RED}Delet{Style.RESET_ALL}"}
         else:
-            filename = Path(file_path).name
+            filename = _safe_filename(file_path)
             result["user_output"] = {"label": "File Change", "content": f"--{filename} {Fore.RED}Error{Style.RESET_ALL}"}
         return result
     except Exception as e:
-        filename = Path(file_path).name
+        filename = _safe_filename(file_path)
         return {"error": f"删除文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"--{filename} {Fore.RED}Error{Style.RESET_ALL}"}}

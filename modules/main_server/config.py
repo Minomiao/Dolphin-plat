@@ -122,7 +122,7 @@ def _get_default_config():
         "command_prefix": "/",
         "max_tokens": 8192,
         "reasoning": True,
-        "skills": {},
+        "skills": {"web_search": False},
         "plugins": {},
         "show_thinking": False,
     }

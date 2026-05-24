@@ -252,8 +252,8 @@ class FileOperation:
             file_path = request_data.get('file_path')
             start_line = request_data.get('start_line')
             end_line = request_data.get('end_line')
-            start_line_content = request_data.get('start_line_content')
-            end_line_content = request_data.get('end_line_content')
+            old_str_start = request_data.get('old_str_start')
+            old_str_end = request_data.get('old_str_end')
             new_lines = request_data.get('new_lines')
             encoding = request_data.get('encoding', 'utf-8')
             work_directory = request_data.get('work_directory')
@@ -262,8 +262,8 @@ class FileOperation:
                 return {"error": "缺少 file_path 参数"}
             if start_line is None or end_line is None:
                 return {"error": "缺少 start_line 或 end_line 参数"}
-            if start_line_content is None or end_line_content is None:
-                return {"error": "缺少 start_line_content 或 end_line_content 参数"}
+            if old_str_start is None or old_str_end is None:
+                return {"error": "缺少 old_str_start 或 old_str_end 参数"}
             if new_lines is None:
                 return {"error": "缺少 new_lines 参数"}
             if not work_directory:
@@ -289,10 +289,10 @@ class FileOperation:
                 return text
 
             # 检查是否需要去除行号标记
-            lines_to_check = [start_line_content, end_line_content] + new_lines
+            lines_to_check = [old_str_start, old_str_end] + new_lines
             if has_line_numbers(lines_to_check):
-                start_line_content = strip_line_number(start_line_content)
-                end_line_content = strip_line_number(end_line_content)
+                old_str_start = strip_line_number(old_str_start)
+                old_str_end = strip_line_number(old_str_end)
                 new_lines = [strip_line_number(line) for line in new_lines]
 
             # 构建完整路径
@@ -351,23 +351,26 @@ class FileOperation:
             actual_end_content = all_lines[end_index - 1].strip()
             
             # 如果首末行内容不匹配，进行滚动校验
-            if actual_start_content != start_line_content.strip() or actual_end_content != end_line_content.strip():
+            if actual_start_content != old_str_start.strip() or actual_end_content != old_str_end.strip():
                 # 定义滚动范围（前后10行）
                 scroll_start = max(0, start_index - 10)
                 scroll_end = min(total_lines, end_index + 10)
                 
-                # 搜索匹配的首行
+                # 搜索距离原始位置最近的匹配首行
                 matched_start = None
+                best_distance = float('inf')
                 for i in range(scroll_start, scroll_end):
-                    if all_lines[i].strip() == start_line_content.strip():
-                        matched_start = i
-                        break
+                    if all_lines[i].strip() == old_str_start.strip():
+                        distance = abs(i - start_index)
+                        if distance < best_distance:
+                            best_distance = distance
+                            matched_start = i
                 
                 # 搜索匹配的末行
                 matched_end = None
                 if matched_start is not None:
                     for i in range(matched_start, min(matched_start + 210, total_lines)):  # 最多搜索210行
-                        if all_lines[i].strip() == end_line_content.strip():
+                        if all_lines[i].strip() == old_str_end.strip():
                             matched_end = i + 1  # 转换为行号（从1开始）
                             matched_start_line = matched_start + 1  # 转换为行号（从1开始）
                             # 检查匹配的范围是否在合理范围内
@@ -385,8 +388,8 @@ class FileOperation:
                         "error": "首末行内容不匹配，且在前后10行范围内未找到相同内容",
                         "actual_start_content": actual_start_content,
                         "actual_end_content": actual_end_content,
-                        "expected_start_content": start_line_content.strip(),
-                        "expected_end_content": end_line_content.strip(),
+                        "expected_start_content": old_str_start.strip(),
+                        "expected_end_content": old_str_end.strip(),
                         "start_line": start_line,
                         "end_line": end_line
                     }
