@@ -364,13 +364,19 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
         end_line = min(offset + limit, total_lines)
         selected_lines = all_lines[offset:end_line]
         
-        lines_with_numbers = []
+        show_line_numbers = total_lines > 100
+        lines_out = []
         for i, line in enumerate(selected_lines):
             line_number = offset + i + 1
             line_content = line.rstrip('\n\r') if line else ''
-            lines_with_numbers.append(f"{line_number}|{line_content}")
+            if show_line_numbers and line_number % 20 == 0:
+                lines_out.append(f"{line_number}|{line_content}")
+            elif show_line_numbers and i == 0:
+                lines_out.append(f"{line_number}|{line_content}")
+            else:
+                lines_out.append(line_content)
 
-        content = "\n".join(lines_with_numbers)
+        content = "\n".join(lines_out)
 
         return {
             "success": True,
@@ -385,7 +391,7 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
             "end_line": end_line,
             "has_more": end_line < total_lines,
             "size": file_size,
-            "line_number_format": "N|content (N is the 1-based line number). Numbers and '|' are annotations ONLY, they are NOT part of the actual file content.",
+            "line_number_format": "N|content appears every 20 lines when file > 100 lines (N is the 1-based line number). Numbers and '|' are annotations ONLY, they are NOT part of the actual file content.",
             "message": f"读取第 {offset + 1}-{end_line} 行，共 {total_lines} 行",
             "user_output": {"label": "Read", "content": f"--{str(path.relative_to(Path(get_work_dir())))} {Fore.LIGHTBLACK_EX}{offset + 1}-{end_line}{Style.RESET_ALL}"}
         }
