@@ -416,19 +416,19 @@ def chat_callback(event_type, data):
             print(f"{Fore.LIGHTBLACK_EX}思考过程:{Style.RESET_ALL}")
         else:
             _thinking_start_time = time.time()
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中(0s){Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - 0s{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_chunk':
         if show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}", end="", flush=True)
         else:
             elapsed = int(time.time() - _thinking_start_time)
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中({elapsed}s){Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - {elapsed}s{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_end':
         if show_thinking:
             print(f"\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
         else:
             elapsed = int(time.time() - _thinking_start_time)
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}思考完成({elapsed}s){Style.RESET_ALL}")
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}思考完成{elapsed}s{Style.RESET_ALL}")
     elif event_type == 'response_chunk':
         print(data['content'], end="", flush=True)
     elif event_type == 'response_end':
