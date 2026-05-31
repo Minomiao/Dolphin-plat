@@ -201,6 +201,7 @@ class RequestManager:
             return request
         elif request.get("requires_confirmation"):
             log.info(f"技能确认申请，由主程序处理")
+            self._last_user_output = request.pop("user_output", None)
             return request
         elif request_type == RequestType.PROMPT_REQUEST:
             # 处理提示词请求

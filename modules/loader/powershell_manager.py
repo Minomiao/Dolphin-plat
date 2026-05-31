@@ -18,6 +18,7 @@ DEFAULT_TIMEOUT = 30
 DEFAULT_WAIT_TIME = 10
 
 _running_processes: Dict[str, Dict[str, Any]] = {}
+_completed_outputs: Dict[str, Dict[str, Any]] = {}
 _process_counter = 0
 
 
@@ -140,6 +141,11 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
                 stdout = stdout[:MAX_OUTPUT_LENGTH] + f"\n... (输出已截断)"
 
             _close_transports(proc_info)
+            _completed_outputs[command_id] = {
+                "status": "done",
+                "exit_code": process.returncode,
+                "output": stdout
+            }
             del _running_processes[command_id]
 
             log.info(f"命令完成: command_id={command_id}, returncode={process.returncode}")
@@ -147,7 +153,7 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
             return {
                 "success": True,
                 "return_code": process.returncode,
-                "stdout": stdout,
+                "output": stdout,
                 "completed": True,
                 "command_id": command_id,
                 "message": f"脚本执行完成，返回码: {process.returncode}"
@@ -161,7 +167,7 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
 
             return {
                 "success": True,
-                "stdout": stdout if stdout else "(命令正在运行中...)",
+                "output": stdout if stdout else "(命令正在运行中...)",
                 "completed": False,
                 "command_id": command_id,
                 "wait_time": wait_time,
@@ -173,11 +179,18 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
         if command_id in _running_processes:
             _close_transports(_running_processes[command_id])
             del _running_processes[command_id]
-        return {"error": f"命令执行失败: {str(e)}", "command_id": command_id}
+        _completed_outputs[command_id] = {
+            "status": "done",
+            "exit_code": None,
+            "output": ""
+        }
+        return {"error": f"命令执行失败: {str(e)}", "command_id": command_id, "output": ""}
 
 
 async def check_script(command_id: str, wait_time: int = DEFAULT_WAIT_TIME) -> Dict[str, Any]:
     if command_id not in _running_processes:
+        if command_id in _completed_outputs:
+            return dict(_completed_outputs[command_id])
         return {
             "status": "done",
             "exit_code": None,
@@ -198,6 +211,11 @@ async def check_script(command_id: str, wait_time: int = DEFAULT_WAIT_TIME) -> D
         return_code = process.returncode
 
         _close_transports(proc_info)
+        _completed_outputs[command_id] = {
+            "status": "done",
+            "exit_code": return_code,
+            "output": stdout
+        }
         del _running_processes[command_id]
 
         log.info(f"命令完成: command_id={command_id}, returncode={return_code}")
@@ -230,6 +248,8 @@ async def check_script(command_id: str, wait_time: int = DEFAULT_WAIT_TIME) -> D
 
 def kill_command(command_id: str) -> Dict[str, Any]:
     if command_id not in _running_processes:
+        if command_id in _completed_outputs:
+            return dict(_completed_outputs[command_id])
         return {
             "status": "done",
             "exit_code": None,
@@ -253,6 +273,11 @@ def kill_command(command_id: str) -> Dict[str, Any]:
     if len(lines) > MAX_OUTPUT_LINES:
         stdout = '\n'.join(lines[-MAX_OUTPUT_LINES:]) + f"\n... (输出已截断，共 {len(lines)} 行)"
 
+    _completed_outputs[command_id] = {
+        "status": "done",
+        "exit_code": exit_code,
+        "output": stdout if stdout else "(命令已被强制终止)"
+    }
     del _running_processes[command_id]
 
     log.info(f"命令已强制终止: command_id={command_id}, exit_code={exit_code}")
@@ -274,6 +299,7 @@ def _cleanup_all_processes():
         except Exception:
             pass
     _running_processes.clear()
+    _completed_outputs.clear()
 
 
 def _signal_handler(signum, frame):
