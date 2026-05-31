@@ -1,5 +1,53 @@
 # Change Log
 
+## v1.1.1 (2026-05-31)
+
+PowerShell dangerous command detection with auto-execute/confirm split, conversation repair for interrupted tool calls, smart line numbering in file_reader, and output field unification.
+
+### PowerShell Dangerous Command Detection
+
++ Add `_is_dangerous_script()` with ~60 regex patterns covering 7 threat categories:
+  - Filesystem destruction: `remove-item`, `rm`, `del`, `format c:`, `diskpart`
+  - Process/service control: `stop-process`, `taskkill`, hidden `start-process`
+  - System state changes: `shutdown`, `bcdedit`, `netsh firewall`, `set-executionpolicy`
+  - Registry modification: `reg add/delete`, `regsvr32`, `set-itemproperty` on registry paths
+  - User/permission operations: `new-localuser`, `icacls`, `takeown`, `attrib +h`
+  - Scheduled tasks/persistence: `schtasks`, `wmic startup`, `sc create/delete`
+  - Code execution/download: `invoke-expression`, `iex`, `Net.WebClient`, `mshta`, `certutil`, `rundll32`, Base64 decode-execute chains
++ Split `run_script()` into two paths based on danger detection:
+  - **Safe commands** → `auto_execute: True`, direct execution without user prompt
+  - **Dangerous commands** → `requires_confirmation: True`, full script preview (≤500 chars) shown to user
++ Add `auto_execute` fast path in `_process_tool_confirmation()` bypassing confirmation for safe scripts
++ Safe scripts use compact `short_preview` (first line, ≤80 chars) in user_output
++ All detection patterns are lowercase for case-insensitive matching against lowercased input
+
+### Conversation Repair
+
++ Add `repair_conversation_messages()` to auto-complete missing tool call results after crash/interruption
++ Auto-complete file tools (`create_file`, `read_file`, `modify_file`, `delete_file`) by reading actual disk state
++ Generate interrupt notification for non-file tools indicating result was lost
++ Mark repaired entries with `_recovered: True` so AI can distinguish from real results
++ Conversation loader calls repair on every load with repair count logging
+
+### Smart Line Numbering
+
+/ Change `read_file()` line number display: every-line → only when file exceeds 100 lines
+/ When enabled, annotate first line and every 20th line (20, 40, 60...) with `N|` prefix
+/ Files ≤100 lines: no line numbers at all, clean output
++ Update `line_number_format` description to reflect new behavior
+
+### PowerShell Manager Improvements
+
+/ Rename response field `stdout` → `output` for consistent field naming across all result types
++ Add `_completed_outputs` dict to retain output after process exits (prevent lost output on re-query)
++ `check_script()` and `kill_command()` now return cached output if command already completed
+/ Fix `request_manager` missing `user_output` extraction in `requires_confirmation` request handling
++ Ensure `output` field present in all error results for uniform response shape
+
+### UI
+
+/ Change thinking time display from `思考完成(1s)` to `思考完成1s` (remove parentheses, cleaner look)
+
 ## v1.1.0 (2026-05-24)
 
 File protection via DPC access control, improved work directory switching, hidden DPC files, and build script.
