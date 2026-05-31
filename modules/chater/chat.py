@@ -251,6 +251,12 @@ class QuickAIChat:
         except (json.JSONDecodeError, TypeError):
             return result_raw, False
 
+        if result_dict.get('auto_execute') and result_dict.get('script'):
+            ps_timeout = result_dict.get('timeout', 30)
+            ps_wait = result_dict.get('wait_time', 10)
+            ps_result = await self._execute_powershell_script(result_dict['script'], ps_timeout, ps_wait)
+            return json.dumps(ps_result, ensure_ascii=False), False
+
         if not self.request_manager or not self.request_manager.is_request(result_dict):
             return result_raw, False
 
@@ -733,6 +739,9 @@ class QuickAIChat:
     def load_conversation(self, dir_id, conv_id):
         messages = conversation.load_conversation(dir_id, conv_id)
         if messages:
+            messages = conversation.repair_conversation_messages(
+                messages, work_dir=self.default_work_directory
+            )
             self.messages = messages
             self.reset_work_directory()
             return True

@@ -1,9 +1,76 @@
 import os
+import re
 import sys
 from typing import Dict, Any
 from colorama import Fore, Style
 
 MAX_SCRIPT_LENGTH = 10000
+
+DANGEROUS_PATTERNS = [
+    # ===== 文件系统破坏 =====
+    r'\bremove-item\b', r'\bremove-itemproperty\b',
+    r'\brm\s', r'\bdel\s', r'\bdel\b', r'\brd\s', r'\brmdir\b',
+    r'\bclear-content\b', r'\bclear-item\b',
+    r'\bformat-volume\b', r'\bclear-disk\b', r'\binitialize-disk\b',
+    r'\brename-item\b.*[-/].*path.*(?:system32|windows|boot|etc)\b',
+    r'\bmove-item\b.*[-/].*destination.*(?:system32|windows|boot)\b',
+    r'\bformat\s+[a-z]:', r'\bdiskpart\b',
+
+    # ===== 进程/服务控制 =====
+    r'\bstop-process\b', r'\btaskkill\b', r'\bstop-service\b',
+    r'\bstart-process\b.*[-/].*(?:hidden|windowstyle\s+hidden)',
+
+    # ===== 系统状态变更 =====
+    r'\brestart-computer\b', r'\bstop-computer\b', r'\bshutdown\b',
+    r'\bset-executionpolicy\b', r'\bdisable-psremoting\b', r'\benable-psremoting\b',
+    r'\bset-netfirewallrule\b', r'\bset-netfirewallprofile\b',
+    r'\bbcdedit\b', r'\bnetsh\b.*(?:firewall|interface|winsock)',
+
+    # ===== 注册表修改 =====
+    r'\breg\s+(add|delete|import|load|unload)\b',
+    r'\bset-itemproperty\b.*(?:registry|hklm|hkcu|hkcr|hkey)',
+    r'\bnew-itemproperty\b.*(?:registry|hklm|hkcu|hkcr|hkey)',
+    r'\bregsvr32\b',
+
+    # ===== 用户/权限操作 =====
+    r'\bnew-localuser\b', r'\bremove-localuser\b', r'\bset-localuser\b',
+    r'\badd-localgroupmember\b', r'\badd-adgroupmember\b',
+    r'\bnet\s+(user|localgroup|group)\b',
+    r'\bicacls\b', r'\btakeown\b', r'\battrib\b.*[+-]h',
+
+    # ===== 计划任务/持久化 =====
+    r'\bschtasks\b', r'\bnew-scheduledtask\b', r'\bregister-scheduledtask\b',
+    r'\bwmic\b.*(?:startup|create\s+process)',
+    r'\bsc\s+(create|delete|config|stop)',
+
+    # ===== 代码执行/下载执行 =====
+    r'\binvoke-expression\b', r'\biex\b',
+    r'\binvoke-(?:webrequest|restmethod|wrmethod)\b.*\|.*\b(?:invoke-expression|iex)\b',
+    r'\bwget\b.*\|.*\b(?:invoke-expression|iex|sh|bash|cmd)\b',
+    r'\bcurl\b.*\|.*\b(?:invoke-expression|iex|sh|bash|cmd)\b',
+    r'\bnew-object\b.*\b(?:net\.webclient|system\.net\.webclient)\b',
+    r'\bnew-object\b.*\b(?:net\.sockets\.tcpclient|system\.net\.sockets)\b',
+    r'\bdownloadstring\b', r'\bdownloadfile\b', r'\bdownloaddata\b',
+    r'\bstart-bits transfer\b', r'\bbitsadmin\b',
+    r'\bmshta\b', r'\bcertutil\b.*[-/](?:decode|encode|urlcache)',
+    r'\brundll32\b',
+    r'\bcscript\b', r'\bwscript\b',
+
+    # ===== 编码/混淆执行 =====
+    r'[-/](?:enc|encodedcommand|ec|e)\s+\S{20,}',
+    r'\[system\.text\.encoding\].*frombase64',
+    r'\bfrombase64string\b.*\binvoke-expression\b',
+    r'\bfrombase64string\b.*\biex\b',
+    r'\bfrombase64string\b.*\bstart-process\b',
+]
+
+
+def _is_dangerous_script(script: str) -> bool:
+    script_lower = script.lower()
+    for pattern in DANGEROUS_PATTERNS:
+        if re.search(pattern, script_lower):
+            return True
+    return False
 
 
 def get_logger():
@@ -76,14 +143,12 @@ def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[
         if script_length > MAX_SCRIPT_LENGTH:
             if log:
                 log.warning(f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符")
-            short_preview = script.split('\n')[0][:80]
-            if len(script.split('\n')[0]) > 80:
-                short_preview += "..."
+            preview = script[:500] + "..." if len(script) > 500 else script
             return {
                 "error": f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符",
                 "script_length": script_length,
                 "max_length": MAX_SCRIPT_LENGTH,
-                "user_output": {"label": "Run", "content": f"--{short_preview} {Fore.RED}Error{Style.RESET_ALL}"}
+                "user_output": {"label": "Run", "content": f"--{preview} {Fore.RED}Error{Style.RESET_ALL}"}
             }
 
         actual_timeout = timeout if timeout is not None else 30
@@ -92,26 +157,38 @@ def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[
         if log:
             log.info(f"AI 请求运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s)")
 
-        script_preview = script[:500] + "..." if len(script) > 500 else script
-        short_preview = script.split('\n')[0][:80]
-        if len(script.split('\n')[0]) > 80:
-            short_preview += "..."
-        message = f"确认运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s):\n{script_preview}"
+        if _is_dangerous_script(script):
+            script_preview = script[:500] + "..." if len(script) > 500 else script
+            message = f"确认运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s):\n{script_preview}"
 
-        if rm:
-            result = rm.create_skill_confirmation(
-                message=message,
-                action="run_powershell_script",
-                script=script,
-                timeout=actual_timeout,
-                wait_time=actual_wait
-            )
-            result["user_output"] = {"label": "Run", "content": f"--{short_preview}"}
-            return result
+            if rm:
+                result = rm.create_skill_confirmation(
+                    message=message,
+                    action="run_powershell_script",
+                    script=script,
+                    timeout=actual_timeout,
+                    wait_time=actual_wait
+                )
+                result["user_output"] = {"label": "Run", "content": f"--{script_preview}"}
+                return result
+            else:
+                return {
+                    "requires_confirmation": True,
+                    "message": message,
+                    "action": "run_powershell_script",
+                    "script": script,
+                    "timeout": actual_timeout,
+                    "wait_time": actual_wait,
+                    "user_output": {"label": "Run", "content": f"--{script_preview}"}
+                }
         else:
+            short_preview = script.split('\n')[0][:80]
+            if len(script.split('\n')[0]) > 80:
+                short_preview += "..."
+            if log:
+                log.info(f"安全脚本，自动执行 (长度: {script_length} 字符)")
             return {
-                "requires_confirmation": True,
-                "message": message,
+                "auto_execute": True,
                 "action": "run_powershell_script",
                 "script": script,
                 "timeout": actual_timeout,
@@ -122,10 +199,8 @@ def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[
     except Exception as e:
         if log:
             log.error(f"运行脚本失败: {str(e)}")
-        short_preview = script.split('\n')[0][:80]
-        if len(script.split('\n')[0]) > 80:
-            short_preview += "..."
-        return {"error": f"运行脚本失败: {str(e)}", "user_output": {"label": "Run", "content": f"--{short_preview} {Fore.RED}Error{Style.RESET_ALL}"}}
+        preview = script[:500] + "..." if len(script) > 500 else script
+        return {"error": f"运行脚本失败: {str(e)}", "user_output": {"label": "Run", "content": f"--{preview} {Fore.RED}Error{Style.RESET_ALL}"}}
 
 
 async def check_script(command_id: str, wait_time: int = None) -> Dict[str, Any]:
