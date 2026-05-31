@@ -23,6 +23,7 @@ class RequestManager:
         self.pending_requests = []
         self._prompt_manager = None
         self._file_operation = None
+        self._last_user_output = None
         log.info("RequestManager 初始化完成")
     
     def _get_prompt_manager(self):
@@ -155,6 +156,11 @@ class RequestManager:
         self.pending_requests.clear()
         log.debug("清空待处理申请")
     
+    def pop_last_user_output(self):
+        uo = self._last_user_output
+        self._last_user_output = None
+        return uo
+    
     def is_request(self, data: Any) -> bool:
         """判断是否为申请"""
         if not isinstance(data, dict):
@@ -212,7 +218,8 @@ class RequestManager:
             # 处理技能请求
             return self._handle_skill_request(request)
         elif request.get("user_output"):
-            log.info(f"用户输出: {request.get('user_output', '')}")
+            self._last_user_output = request.pop("user_output")
+            log.info(f"用户输出: {self._last_user_output}")
             return request
         
         return request

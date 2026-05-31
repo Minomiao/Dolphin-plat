@@ -305,7 +305,8 @@ def open_work_directory(path=None, silent=False):
         conv_name = f"{base_name}_{counter}"
         counter += 1
     
-    new_conv_id = dpc_manager.add_conversation(path, conv_name)
+    from modules.chater import conversation
+    dir_id, new_conv_id = conversation.init_conversation(dir_id, None, conv_name, path)
     current_conversation = conv_name
     current_dir_id = dir_id
     current_conv_id = new_conv_id
@@ -549,10 +550,9 @@ async def main():
                         log.info(f"对话已保存: {save_name}")
                         print(f"对话已保存为: {save_name}")
                 chat_instance.clear_history()
-                from modules.chater import dpc_manager
+                from modules.chater import conversation
                 work_dir = current_config.get('work_directory', 'workplace')
-                dir_id = dpc_manager.ensure_dir_id(work_dir)
-                conv_id = dpc_manager.add_conversation(work_dir, new_name)
+                dir_id, conv_id = conversation.init_conversation(None, None, new_name, work_dir)
                 current_conversation = new_name
                 current_dir_id = dir_id
                 current_conv_id = conv_id
@@ -662,11 +662,8 @@ async def main():
             continue
 
         log.info(f"用户输入: {user_input}")
+        chat_instance.set_save_target(current_dir_id, current_conv_id)
         await chat_instance.chat_stream(user_input)
-        
-        if current_dir_id and current_conv_id:
-            chat_instance.save_conversation(current_dir_id, current_conv_id)
-            log.debug(f"对话实时保存: {current_conversation} ({current_conv_id})")
         
         # 每次对话结束后检查是否有待确认的文件更改
         handle_pending_changes()

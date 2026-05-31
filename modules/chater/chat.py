@@ -92,6 +92,8 @@ class QuickAIChat:
         
         self.tools = []
         self._update_tools()
+        self._save_dir_id = None
+        self._save_conv_id = None
         
         # 从配置读取默认工作目录
         self.default_work_directory = config.load_config().get('work_directory', 'workplace')
@@ -109,6 +111,17 @@ class QuickAIChat:
             message["reasoning_content"] = reasoning_content
         self.messages.append(message)
         log.debug(f"添加消息: role={role}, content_length={len(content)}, tool_calls={len(tool_calls) if tool_calls else 0}")
+        self._auto_save()
+
+    def set_save_target(self, dir_id, conv_id):
+        self._save_dir_id = dir_id
+        self._save_conv_id = conv_id
+        log.debug(f"设置保存目标: dir={dir_id}, conv={conv_id}")
+
+    def _auto_save(self):
+        if self._save_dir_id and self._save_conv_id:
+            conversation.save_conversation(self.messages, self._save_dir_id, self._save_conv_id)
+            log.debug(f"实时保存: {len(self.messages)} 条消息")
     
     def _update_tools(self):
         self.tools = []
@@ -193,15 +206,18 @@ class QuickAIChat:
                     log.debug(f"检测到申请: {result.get('type', 'unknown')}")
                     self.request_manager.handle_request(result, self.callback)
             
-            # 处理面向用户的输出
+            # 从请求管理器获取 user_output 并转发
             self._last_tool_had_user_output = False
-            if isinstance(result, dict) and "user_output" in result:
-                user_out = result.pop("user_output")
-                if isinstance(user_out, dict):
-                    await self._call_callback('user_output', user_out)
-                else:
-                    await self._call_callback('user_output', {'content': str(user_out)})
-                self._last_tool_had_user_output = True
+            self._last_user_output_data = None
+            if self.request_manager:
+                uo = self.request_manager.pop_last_user_output()
+                if uo:
+                    if isinstance(uo, dict):
+                        await self._call_callback('user_output', uo)
+                    else:
+                        await self._call_callback('user_output', {'content': str(uo)})
+                    self._last_tool_had_user_output = True
+                    self._last_user_output_data = uo
             
             if isinstance(result, dict):
                 # 拦截 set_work_directory 成功结果，同步更新 AI 临时工作目录
@@ -229,6 +245,7 @@ class QuickAIChat:
 
     async def _process_tool_confirmation(self, result_raw: str, tool_name: str, arguments: dict):
         """处理工具返回的确认申请，返回 (result_str, should_skip)"""
+        self._last_confirmation_output_data = None
         try:
             result_dict = json.loads(result_raw)
         except (json.JSONDecodeError, TypeError):
@@ -247,8 +264,10 @@ class QuickAIChat:
             }
             user_input = await self._call_callback('user_input_required', input_data)
             user_out_content = f"{result_dict.get('prompt', '')} {Fore.LIGHTBLACK_EX}{user_input}{Style.RESET_ALL}"
-            await self._call_callback('user_output', {'label': 'Input', 'content': user_out_content})
+            user_out_data = {'label': 'Input', 'content': user_out_content}
+            await self._call_callback('user_output', user_out_data)
             self._last_tool_had_user_output = True
+            self._last_confirmation_output_data = user_out_data
             return json.dumps({"success": True, "input": user_input}, ensure_ascii=False), False
 
         elif request_type == request_manager.RequestType.CONFIRMATION:
@@ -258,8 +277,10 @@ class QuickAIChat:
             }
             confirm = await self._call_callback('confirmation_required', confirmation_data)
             status = Fore.GREEN + "已确认" + Style.RESET_ALL if confirm == 'y' else Fore.RED + "已取消" + Style.RESET_ALL
-            await self._call_callback('user_output', {'label': 'Confirm', 'content': f"{result_dict.get('action', 'unknown')} {status}"})
+            user_out_data = {'label': 'Confirm', 'content': f"{result_dict.get('action', 'unknown')} {status}"}
+            await self._call_callback('user_output', user_out_data)
             self._last_tool_had_user_output = True
+            self._last_confirmation_output_data = user_out_data
             return json.dumps({"success": True, "confirmed": confirm == 'y'}, ensure_ascii=False), False
 
         elif result_dict.get("requires_confirmation"):
@@ -310,6 +331,7 @@ class QuickAIChat:
         # 如果没有系统消息，添加到开头
         if not has_system_message:
             self.messages.insert(0, system_message)
+            self._auto_save()
         
         self.add_message("user", user_input)
         
@@ -383,18 +405,26 @@ class QuickAIChat:
                 
                 result = await self._execute_tool_sync(tool_name, arguments)
                 has_user_output = self._last_tool_had_user_output
+                uo_data = self._last_user_output_data
                 
                 result, skip = await self._process_tool_confirmation(result, tool_name, arguments)
                 has_user_output = has_user_output or self._last_tool_had_user_output
+                uo_data = uo_data or self._last_confirmation_output_data
                 if skip:
-                    tool_responses.append({"tool_call_id": tc.id, "role": "tool", "content": result})
+                    entry = {"tool_call_id": tc.id, "role": "tool", "content": result}
+                    if uo_data:
+                        entry["user_output"] = uo_data
+                    tool_responses.append(entry)
+                    self._last_user_output_data = None
+                    self._last_confirmation_output_data = None
                     continue
                 
-                tool_responses.append({
-                    "tool_call_id": tc.id,
-                    "role": "tool",
-                    "content": result
-                })
+                entry = {"tool_call_id": tc.id, "role": "tool", "content": result}
+                if uo_data:
+                    entry["user_output"] = uo_data
+                tool_responses.append(entry)
+                self._last_user_output_data = None
+                self._last_confirmation_output_data = None
                 
                 if not has_user_output:
                     displayed_calls.append(tc)
@@ -417,6 +447,7 @@ class QuickAIChat:
                     })
             
             self.messages.extend(tool_responses)
+            self._auto_save()
             
             kwargs["messages"] = self.messages
             response = self.client.chat.completions.create(**kwargs)
@@ -539,18 +570,26 @@ class QuickAIChat:
                 
                 result = await self._execute_tool_sync(tool_name, arguments)
                 has_user_output = self._last_tool_had_user_output
+                uo_data = self._last_user_output_data
                 
                 result, skip = await self._process_tool_confirmation(result, tool_name, arguments)
                 has_user_output = has_user_output or self._last_tool_had_user_output
+                uo_data = uo_data or self._last_confirmation_output_data
                 if skip:
-                    tool_responses.append({"tool_call_id": tc['id'], "role": "tool", "content": result})
+                    entry = {"tool_call_id": tc['id'], "role": "tool", "content": result}
+                    if uo_data:
+                        entry["user_output"] = uo_data
+                    tool_responses.append(entry)
+                    self._last_user_output_data = None
+                    self._last_confirmation_output_data = None
                     continue
                 
-                tool_responses.append({
-                    "tool_call_id": tc['id'],
-                    "role": "tool",
-                    "content": result
-                })
+                entry = {"tool_call_id": tc['id'], "role": "tool", "content": result}
+                if uo_data:
+                    entry["user_output"] = uo_data
+                tool_responses.append(entry)
+                self._last_user_output_data = None
+                self._last_confirmation_output_data = None
                 
                 if not has_user_output:
                     displayed_calls.append(tc)
@@ -573,6 +612,7 @@ class QuickAIChat:
                     })
             
             self.messages.extend(tool_responses)
+            self._auto_save()
             
             MAX_HARD_LIMIT = 100
             INITIAL_MAX = 30
@@ -610,18 +650,26 @@ class QuickAIChat:
 
                         result = await self._execute_tool_sync(tool_name, arguments)
                         has_user_output = self._last_tool_had_user_output
+                        uo_data = self._last_user_output_data
 
                         result, skip = await self._process_tool_confirmation(result, tool_name, arguments)
                         has_user_output = has_user_output or self._last_tool_had_user_output
+                        uo_data = uo_data or self._last_confirmation_output_data
                         if skip:
-                            tool_responses.append({"tool_call_id": tc['id'], "role": "tool", "content": result})
+                            entry = {"tool_call_id": tc['id'], "role": "tool", "content": result}
+                            if uo_data:
+                                entry["user_output"] = uo_data
+                            tool_responses.append(entry)
+                            self._last_user_output_data = None
+                            self._last_confirmation_output_data = None
                             continue
 
-                        tool_responses.append({
-                            "tool_call_id": tc['id'],
-                            "role": "tool",
-                            "content": result
-                        })
+                        entry = {"tool_call_id": tc['id'], "role": "tool", "content": result}
+                        if uo_data:
+                            entry["user_output"] = uo_data
+                        tool_responses.append(entry)
+                        self._last_user_output_data = None
+                        self._last_confirmation_output_data = None
 
                         if not has_user_output:
                             displayed_calls.append(tc)
@@ -644,6 +692,7 @@ class QuickAIChat:
                             })
 
                     self.messages.extend(tool_responses)
+                    self._auto_save()
 
                     if iteration >= max_iterations:
                         if iteration >= MAX_HARD_LIMIT:
@@ -663,6 +712,7 @@ class QuickAIChat:
                             break
                     continue
                 else:
+                    self.add_message("assistant", full_response, reasoning_content=full_reasoning)
                     break
         
         # 结束对话备份

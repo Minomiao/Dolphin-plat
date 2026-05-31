@@ -1,4 +1,5 @@
 import json
+from modules.chater import conversation
 from modules.chater import dpc_manager
 from modules.logger import get_logger
 from colorama import Fore, Style
@@ -10,7 +11,7 @@ def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):
     loaded = chat_instance.load_conversation(dir_id, conv_id)
     if not loaded:
         chat_instance.clear_history()
-        chat_instance.save_conversation(dir_id, conv_id)
+        conversation.init_conversation(dir_id, conv_id, conv_name, work_dir)
         log.info(f"初始化空对话文件: {conv_name} ({conv_id})")
 
     dpc_manager.set_current_by_id(work_dir, conv_id)
@@ -27,6 +28,11 @@ def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):
 def format_conversation_history(messages, show_thinking):
     if not messages:
         return ""
+
+    tool_ids_have_uo = set()
+    for msg in messages:
+        if msg.get('role') == 'tool' and msg.get('user_output'):
+            tool_ids_have_uo.add(msg.get('tool_call_id'))
 
     lines = []
     for msg in messages:
@@ -47,6 +53,9 @@ def format_conversation_history(messages, show_thinking):
             if content:
                 lines.append(f"AI: {content}")
             if msg.get('tool_calls'):
+                all_have_uo = all(tc['id'] in tool_ids_have_uo for tc in msg['tool_calls'] if tc.get('id'))
+                if all_have_uo:
+                    continue
                 lines.append(f"{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
                 for tc in msg['tool_calls']:
                     fn = tc['function']
@@ -59,9 +68,18 @@ def format_conversation_history(messages, show_thinking):
                         except (json.JSONDecodeError, TypeError):
                             lines.append(f"{Fore.BLUE}    参数: {args}{Style.RESET_ALL}")
         elif role == 'tool':
-            tool_content = msg.get('content', '')
-            if tool_content:
-                lines.append(f"{Fore.GREEN}--结果:{Style.RESET_ALL}")
-                lines.append(f"{Fore.GREEN}{tool_content}{Style.RESET_ALL}")
+            user_output = msg.get('user_output')
+            if user_output:
+                label = user_output.get('label', '')
+                content_uo = user_output.get('content', '')
+                if label:
+                    lines.append(f"{Fore.CYAN}[{label}]{Style.RESET_ALL} {content_uo}")
+                else:
+                    lines.append(f"{Fore.CYAN}{content_uo}{Style.RESET_ALL}")
+            else:
+                tool_content = msg.get('content', '')
+                if tool_content:
+                    lines.append(f"{Fore.GREEN}--结果:{Style.RESET_ALL}")
+                    lines.append(f"{Fore.GREEN}{tool_content}{Style.RESET_ALL}")
 
     return "\n".join(lines)
