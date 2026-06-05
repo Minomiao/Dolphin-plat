@@ -101,31 +101,28 @@ skill_info = {
             }
         },
         "create_file": {
-            "description": "创建文件并写入内容。限制：最大文件大小10MB，最大行数500行。提示：创建文件时不要一次性写入过多内容，先创建基本框架，然后使用 modify_file 函数分多次进行修改。",
+            "description": "创建文件并写入内容。限制：最大文件大小10MB，最大行数1000行。提示：创建文件时不要一次性写入过多内容，先创建基本框架，然后使用 modify_file 函数分多次进行修改。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {"type": "string", "description": "文件路径（相对于工作目录），AI 可以决定文件名和后缀"},
-                    "content": {"type": "string", "description": "文件内容，单次不要超过500行"},
+                    "content": {"type": "string", "description": "文件内容，单次不要超过1000行"},
                     "encoding": {"type": "string", "description": "文件编码，默认为 'utf-8'"}
                 },
                 "required": ["file_path", "content"]
             }
         },
         "modify_file": {
-            "description": "修改文件内容。需要提供要替换的起始行号、结束行号、起始行原文、结束行原文和新内容。重要提示：起始行到结束行之间的所有内容（包括首行和末行）都会被 new_lines 完全替换，不是插入。参数 old_str_start 和 old_str_end 仅用于定位校验，它们自身也会被替换掉。限制：单次修改最多500行，最大文件大小10MB。提示：对于大文件修改，建议分多次进行，每次修改范围不要太大，以确保操作的稳定性和可追溯性。",
+            "description": "修改文件内容。提供要替换的原始字符串和新的字符串，将在文件中查找第一个完全匹配的 old_str 并替换为 new_str。提示：old_str 必须在文件中是唯一的，建议提供足够的上下文行以确保唯一匹配。限制：最大文件大小10MB。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {"type": "string", "description": "文件路径（相对于工作目录）"},
-                    "start_line": {"type": "integer", "description": "要替换的起始行号（从1开始），该行会被 new_lines 替换"},
-                    "end_line": {"type": "integer", "description": "要替换的结束行号（包含），该行会被 new_lines 替换"},
-                    "old_str_start": {"type": "string", "description": "start_line 行的原始内容，用作定位校验（该校验行本身会被替换）"},
-                    "old_str_end": {"type": "string", "description": "end_line 行的原始内容，用作定位校验（该校验行本身会被替换）"},
-                    "new_lines": {"type": "array", "items": {"type": "string"}, "description": "新的内容行列表，将替换 [start_line, end_line] 范围内的所有行，每行一个元素，不需要包含换行符"},
+                    "old_str": {"type": "string", "description": "文件中要替换的原始字符串（包含完整上下文以确保唯一匹配）"},
+                    "new_str": {"type": "string", "description": "用于替换的新字符串"},
                     "encoding": {"type": "string", "description": "文件编码，默认为 'utf-8'"}
                 },
-                "required": ["file_path", "start_line", "end_line", "old_str_start", "old_str_end", "new_lines"]
+                "required": ["file_path", "old_str", "new_str"]
             }
         },
         "delete_file": {
@@ -174,7 +171,7 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
         return {"error": f"创建文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
 
 
-def modify_file(file_path: str, start_line: int, end_line: int, old_str_start: str, old_str_end: str, new_lines: list, encoding: str = "utf-8") -> Dict[str, Any]:
+def modify_file(file_path: str, old_str: str, new_str: str, encoding: str = "utf-8") -> Dict[str, Any]:
     try:
         req_mgr = get_request_manager()
         work_dir = get_work_dir()
@@ -182,11 +179,8 @@ def modify_file(file_path: str, start_line: int, end_line: int, old_str_start: s
         modify_request = req_mgr.create_file_operation_request(
             "modify_file",
             file_path=file_path,
-            start_line=start_line,
-            end_line=end_line,
-            old_str_start=old_str_start,
-            old_str_end=old_str_end,
-            new_lines=new_lines,
+            old_str=old_str,
+            new_str=new_str,
             encoding=encoding,
             work_directory=work_dir
         )
@@ -196,12 +190,12 @@ def modify_file(file_path: str, start_line: int, end_line: int, old_str_start: s
             full_path = result.get("file_path", file_path)
             parent = str(Path(full_path).parent)
             filename = Path(full_path).name
-            new_count = result.get("new_lines_count", 0)
-            old_count = result.get("modified_lines", 0)
+            old_lines = result.get("old_lines", 0)
+            new_lines = result.get("new_lines", 0)
             if parent and parent != ".":
-                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.LIGHTBLACK_EX}--{parent}{Style.RESET_ALL} {Fore.GREEN}+{new_count}{Style.RESET_ALL} {Fore.RED}-{old_count}{Style.RESET_ALL}"}
+                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.LIGHTBLACK_EX}--{parent}{Style.RESET_ALL} {Fore.GREEN}+{new_lines}{Style.RESET_ALL} {Fore.RED}-{old_lines}{Style.RESET_ALL}"}
             else:
-                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.GREEN}+{new_count}{Style.RESET_ALL} {Fore.RED}-{old_count}{Style.RESET_ALL}"}
+                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.GREEN}+{new_lines}{Style.RESET_ALL} {Fore.RED}-{old_lines}{Style.RESET_ALL}"}
         else:
             filename = _safe_filename(file_path)
             result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}

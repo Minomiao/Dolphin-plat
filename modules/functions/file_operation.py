@@ -6,7 +6,9 @@ from modules.logger import get_logger
 log = get_logger("Dolphin.file_operation")
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-MAX_LINE_COUNT = 600
+# MAX_LINE_COUNT 采用 100 行冗余设计：对外声明 1000 行，实际限制 1100 行
+# 冗余用于避免创建文件再追加内容时行数统计误差导致的拒绝
+MAX_LINE_COUNT = 1100
 
 
 def _check_dpc_restriction(absolute_path):
@@ -167,7 +169,8 @@ class FileOperation:
             file_path = request_data.get('file_path')
             encoding = request_data.get('encoding', 'utf-8')
             offset = request_data.get('offset', 0)
-            limit = request_data.get('limit', 400)
+            # limit 采用 100 行冗余设计：对外声明 1000 行，实际默认 1100 行
+            limit = request_data.get('limit', 1100)
             work_directory = request_data.get('work_directory')
             
             if not file_path:
@@ -240,14 +243,9 @@ class FileOperation:
             # 计算读取范围
             end_line = min(offset + limit, total_lines)
             selected_lines = all_lines[offset:end_line]
-            
-            lines_with_numbers = []
-            for i, line in enumerate(selected_lines):
-                line_number = offset + i + 1
-                line_content = line.rstrip('\n\r') if line else ''
-                lines_with_numbers.append(f"{line_number}|{line_content}")
 
-            content = "\n".join(lines_with_numbers)
+            lines_out = [line.rstrip('\n\r') if line else '' for line in selected_lines]
+            content = "\n".join(lines_out)
 
             return {
                 "success": True,
@@ -271,62 +269,101 @@ class FileOperation:
                 "error": f"读取文件失败: {str(e)}"
             }
     
+    @staticmethod
+    def _strip_whitespace(s: str) -> str:
+        """去除所有空白字符（空格、制表符、换行等）"""
+        return ''.join(s.split())
+
+    def _find_str_match(self, content: str, target: str):
+        """
+        三级匹配策略查找 target 在 content 中的位置。
+        返回 (index, method) 或 (-1, None)。
+        1. 原始格式精确匹配
+        2. 去除所有空白后匹配
+        3. 模糊匹配（阈值 95%）
+        """
+        # 第一级：原始格式精确匹配
+        idx = content.find(target)
+        if idx != -1:
+            return idx, "exact"
+
+        # 第二级：去除所有空白后匹配
+        stripped_content = self._strip_whitespace(content)
+        stripped_target = self._strip_whitespace(target)
+        if stripped_target:
+            stripped_idx = stripped_content.find(stripped_target)
+            if stripped_idx != -1:
+                # 将去空白后的位置映射回原始内容的位置
+                count = 0
+                for i, ch in enumerate(content):
+                    if not ch.isspace():
+                        if count == stripped_idx:
+                            return i, "whitespace_stripped"
+                        count += 1
+                return -1, None
+
+        # 第三级：模糊匹配（95% 以上相似度）
+        if len(target) < 10:
+            return -1, None
+
+        from difflib import SequenceMatcher
+
+        target_len = len(target)
+        content_len = len(content)
+        window_margin = max(int(target_len * 0.2), 20)
+        window_size = target_len + window_margin
+        step = max(window_size // 4, 1)
+
+        best_ratio = 0
+        best_start = -1
+
+        pos = 0
+        while pos < content_len:
+            end = min(pos + window_size, content_len)
+            chunk = content[pos:end]
+            matcher = SequenceMatcher(None, chunk, target)
+            match_blocks = matcher.get_matching_blocks()
+            total_match = sum(block.size for block in match_blocks)
+            ratio = (2.0 * total_match) / (len(chunk) + len(target) + 0.001)
+            ratio = min(ratio, 1.0)
+
+            if ratio > best_ratio:
+                best_ratio = ratio
+                if match_blocks:
+                    longest = max(match_blocks[:-1], key=lambda b: b.size)
+                    best_start = pos + longest.a
+
+            pos += step
+
+        if best_ratio >= 0.95:
+            return best_start, f"fuzzy({best_ratio:.1%})"
+
+        return -1, None
+
     def modify_file(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-        """修改文件"""
+        """修改文件 - 基于字符串查找替换"""
         try:
             # 获取参数
             file_path = request_data.get('file_path')
-            start_line = request_data.get('start_line')
-            end_line = request_data.get('end_line')
-            old_str_start = request_data.get('old_str_start')
-            old_str_end = request_data.get('old_str_end')
-            new_lines = request_data.get('new_lines')
+            old_str = request_data.get('old_str')
+            new_str = request_data.get('new_str')
             encoding = request_data.get('encoding', 'utf-8')
             work_directory = request_data.get('work_directory')
             
             if not file_path:
                 return {"error": "缺少 file_path 参数"}
-            if start_line is None or end_line is None:
-                return {"error": "缺少 start_line 或 end_line 参数"}
-            if old_str_start is None or old_str_end is None:
-                return {"error": "缺少 old_str_start 或 old_str_end 参数"}
-            if new_lines is None:
-                return {"error": "缺少 new_lines 参数"}
+            if old_str is None:
+                return {"error": "缺少 old_str 参数"}
+            if new_str is None:
+                return {"error": "缺少 new_str 参数"}
             if not work_directory:
                 return {"error": "缺少 work_directory 参数"}
-
-            # 去除行号标记（只有在检测到每行都具有特定格式的行号时才去除）
-            import re
-            line_number_pattern = re.compile(r'^\d+\|\s*')
-
-            # 检测是否所有行都具有行号标记
-            def has_line_numbers(lines):
-                if not lines:
-                    return False
-                for line in lines:
-                    if line and not line_number_pattern.match(line):
-                        return False
-                return True
-
-            # 去除行号标记
-            def strip_line_number(text):
-                if text:
-                    return line_number_pattern.sub('', text)
-                return text
-
-            # 检查是否需要去除行号标记
-            lines_to_check = [old_str_start, old_str_end] + new_lines
-            if has_line_numbers(lines_to_check):
-                old_str_start = strip_line_number(old_str_start)
-                old_str_end = strip_line_number(old_str_end)
-                new_lines = [strip_line_number(line) for line in new_lines]
 
             # 构建完整路径
             work_path = Path(work_directory).resolve()
             file_path_obj = Path(file_path)
             
             if file_path_obj.is_absolute():
-                # 绝对路径必须在工作目录内
                 try:
                     resolved_path = file_path_obj.resolve()
                     resolved_path.relative_to(work_path)
@@ -335,7 +372,6 @@ class FileOperation:
                         "error": f"路径必须是工作目录的子目录: {work_directory}"
                     }
             else:
-                # 相对路径相对于工作目录
                 resolved_path = (work_path / file_path_obj).resolve()
                 try:
                     resolved_path.relative_to(work_path)
@@ -354,79 +390,31 @@ class FileOperation:
             if not resolved_path.is_file():
                 return {"error": f"路径不是文件: {file_path}"}
             
-            # 读取文件所有行
+            file_size = resolved_path.stat().st_size
+            if file_size > MAX_FILE_SIZE:
+                return {"error": f"文件超过最大限制 ({MAX_FILE_SIZE / 1024 / 1024:.0f}MB)"}
+            
+            # 读取文件内容
             with open(resolved_path, 'r', encoding=encoding, errors='ignore') as f:
-                all_lines = f.readlines()
+                original_content = f.read()
             
-            total_lines = len(all_lines)
+            # 三级匹配策略查找 old_str
+            index, match_method = self._find_str_match(original_content, old_str)
+            if index == -1:
+                return {
+                    "error": "未在文件中找到匹配的原始字符串",
+                    "hint": "请确认 old_str 的内容与文件中的内容完全一致，或调整使其更准确"
+                }
             
-            # 验证行号范围
-            if start_line < 1 or start_line > total_lines:
-                return {"error": f"起始行号无效，文件共 {total_lines} 行"}
+            # 构建新内容（只替换第一次出现）
+            new_content = original_content[:index] + new_str + original_content[index + len(old_str):]
             
-            if end_line < start_line or end_line > total_lines:
-                return {"error": f"结束行号无效，文件共 {total_lines} 行"}
-            
-            # 检查修改范围是否超过600行
-            line_count = end_line - start_line + 1
-            if line_count > 600:
-                return {"error": f"修改范围过大，单次修改最多支持600行，当前请求 {line_count} 行"}
-            
-            # 计算数组索引（从0开始）
-            start_index = start_line - 1
-            end_index = end_line
-            
-            # 检查首末行内容是否匹配
-            actual_start_content = all_lines[start_index].strip()
-            actual_end_content = all_lines[end_index - 1].strip()
-            
-            # 如果首末行内容不匹配，进行滚动校验
-            if actual_start_content != old_str_start.strip() or actual_end_content != old_str_end.strip():
-                # 定义滚动范围（前后10行）
-                scroll_start = max(0, start_index - 10)
-                scroll_end = min(total_lines, end_index + 10)
-                
-                # 搜索距离原始位置最近的匹配首行
-                matched_start = None
-                best_distance = float('inf')
-                for i in range(scroll_start, scroll_end):
-                    if all_lines[i].strip() == old_str_start.strip():
-                        distance = abs(i - start_index)
-                        if distance < best_distance:
-                            best_distance = distance
-                            matched_start = i
-                
-                # 搜索匹配的末行
-                matched_end = None
-                if matched_start is not None:
-                    for i in range(matched_start, min(matched_start + 210, total_lines)):  # 最多搜索210行
-                        if all_lines[i].strip() == old_str_end.strip():
-                            matched_end = i + 1  # 转换为行号（从1开始）
-                            matched_start_line = matched_start + 1  # 转换为行号（从1开始）
-                            # 检查匹配的范围是否在合理范围内
-                            if matched_end - matched_start_line + 1 == line_count:
-                                # 更新行号和索引
-                                start_line = matched_start_line
-                                end_line = matched_end
-                                start_index = matched_start
-                                end_index = matched_end
-                                break
-                
-                # 如果没有找到匹配的首末行
-                if matched_start is None or matched_end is None:
-                    return {
-                        "error": "首末行内容不匹配，且在前后10行范围内未找到相同内容",
-                        "actual_start_content": actual_start_content,
-                        "actual_end_content": actual_end_content,
-                        "expected_start_content": old_str_start.strip(),
-                        "expected_end_content": old_str_end.strip(),
-                        "start_line": start_line,
-                        "end_line": end_line
-                    }
+            # 计算行数变化
+            old_line_count = old_str.count('\n')
+            new_line_count = new_str.count('\n')
             
             # 备份文件
             backup_path = None
-            pending_count = 0
             try:
                 from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
@@ -435,17 +423,12 @@ class FileOperation:
             except Exception as e:
                 log.warning(f"备份操作失败: {e}")
             
-            # 构建新的文件内容
-            new_content = []
-            new_content.extend(all_lines[:start_index])
-            new_content.extend([line + '\n' if not line.endswith('\n') else line for line in new_lines])
-            new_content.extend(all_lines[end_index:])
-            
             # 写入新内容
             with open(resolved_path, 'w', encoding=encoding, errors='ignore') as f:
-                f.writelines(new_content)
+                f.write(new_content)
             
             # 记录变更
+            pending_count = 0
             try:
                 from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
@@ -459,23 +442,18 @@ class FileOperation:
             except Exception as e:
                 log.warning(f"记录变更失败: {e}")
             
-            # 计算内容大小
-            new_content_str = ''.join(new_content)
-            new_content_size = len(new_content_str.encode(encoding))
+            new_content_size = len(new_content.encode(encoding))
             
             return {
                 "success": True,
                 "file_path": str(resolved_path.relative_to(work_path)),
                 "encoding": encoding,
-                "start_line": start_line,
-                "end_line": end_line,
-                "modified_lines": line_count,
-                "new_lines_count": len(new_lines),
-                "total_lines": total_lines,
+                "old_lines": old_line_count,
+                "new_lines": new_line_count,
                 "new_content_size": new_content_size,
                 "backup_path": backup_path,
                 "pending_changes": pending_count,
-                "message": f"文件已修改: {file_path}，修改范围第 {start_line}-{end_line} 行"
+                "message": f"文件已修改: {file_path}"
             }
         except Exception as e:
             log.error(f"修改文件失败: {e}")

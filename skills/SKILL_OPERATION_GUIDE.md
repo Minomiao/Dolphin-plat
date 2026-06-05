@@ -323,16 +323,26 @@ def create_file(file_path: str, content: str, work_dir: str = "workplace") -> Di
 #### 文件修改示例
 
 ```python
-def modify_file(file_path: str, content: str, work_dir: str = "workplace") -> Dict[str, Any]:
-    """修改文件"""
+def modify_file(file_path: str, old_str: str, new_str: str, work_dir: str = "workplace") -> Dict[str, Any]:
+    """修改文件 - 基于字符串查找替换"""
     # 调用备份管理器备份原始文件
     backup_path = backup_mgr.backup_file(file_path, work_dir, action="modify")
     
     try:
         # 执行文件修改
         full_path = Path(work_dir) / file_path
+        with open(full_path, 'r', encoding='utf-8') as f:
+            original_content = f.read()
+        
+        # 查找并替换原始字符串
+        index = original_content.find(old_str)
+        if index == -1:
+            return {"success": False, "message": "未找到匹配的原始字符串"}
+        
+        new_content = original_content[:index] + new_str + original_content[index + len(old_str):]
+        
         with open(full_path, 'w', encoding='utf-8') as f:
-            f.write(content)
+            f.write(new_content)
         
         # 记录更改
         backup_mgr.record_change(

@@ -129,13 +129,13 @@ skill_info = {
             }
         },
         "read_file": {
-            "description": "读取文件内容。每次最多读取400行，支持分页读取。限制：最大文件大小10MB。",
+            "description": "读取文件内容。每次最多读取1000行，支持分页读取。限制：最大文件大小10MB。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {"type": "string", "description": "文件路径（相对于工作目录）"},
                     "offset": {"type": "integer", "description": "起始行号（从0开始），默认为0"},
-                    "limit": {"type": "integer", "description": "读取行数，默认为400，最大为400"},
+                    "limit": {"type": "integer", "description": "读取行数，默认为1000，最大为1000"},
                     "encoding": {"type": "string", "description": "文件编码，默认为 'utf-8'"}
                 },
                 "required": ["file_path"]
@@ -315,7 +315,7 @@ def list_directory(directory: str = ".", max_depth: int = 10, show_hidden: bool 
         return {"error": f"列出目录失败: {str(e)}", "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件信息后再进行操作", "user_output": {"label": "Read", "content": f"-- {Fore.RED}Error{Style.RESET_ALL}"}}
 
 
-def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str = "utf-8") -> Dict[str, Any]:
+def read_file(file_path: str, offset: int = 0, limit: int = 1000, encoding: str = "utf-8") -> Dict[str, Any]:
     try:
         path_check = _is_path_allowed(file_path)
         if not path_check["allowed"]:
@@ -363,19 +363,8 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
         
         end_line = min(offset + limit, total_lines)
         selected_lines = all_lines[offset:end_line]
-        
-        show_line_numbers = total_lines > 100
-        lines_out = []
-        for i, line in enumerate(selected_lines):
-            line_number = offset + i + 1
-            line_content = line.rstrip('\n\r') if line else ''
-            if show_line_numbers and line_number % 20 == 0:
-                lines_out.append(f"{line_number}|{line_content}")
-            elif show_line_numbers and i == 0:
-                lines_out.append(f"{line_number}|{line_content}")
-            else:
-                lines_out.append(line_content)
 
+        lines_out = [line.rstrip('\n\r') if line else '' for line in selected_lines]
         content = "\n".join(lines_out)
 
         return {
@@ -391,7 +380,6 @@ def read_file(file_path: str, offset: int = 0, limit: int = 400, encoding: str =
             "end_line": end_line,
             "has_more": end_line < total_lines,
             "size": file_size,
-            "line_number_format": "N|content appears every 20 lines when file > 100 lines (N is the 1-based line number). Numbers and '|' are annotations ONLY, they are NOT part of the actual file content.",
             "message": f"读取第 {offset + 1}-{end_line} 行，共 {total_lines} 行",
             "user_output": {"label": "Read", "content": f"--{str(path.relative_to(Path(get_work_dir())))} {Fore.LIGHTBLACK_EX}{offset + 1}-{end_line}{Style.RESET_ALL}"}
         }
