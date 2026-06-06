@@ -2,6 +2,7 @@ from openai import OpenAI
 from colorama import Fore, Style
 from modules.main_server import config
 from modules.chater import conversation
+from modules.chater.context import ContextManager
 from modules.loader import mcp_manager
 from modules.loader import skill_manager
 from modules.loader import plugin_skill_loader
@@ -67,6 +68,7 @@ class QuickAIChat:
         
         self.max_tokens = max_tokens
         self.messages = []
+        self.context = ContextManager(self.get_system_prompt)
         self.enable_tools = enable_tools
         self.callback = callback or (lambda *args, **kwargs: None)
         self.client = OpenAI(
@@ -174,6 +176,13 @@ class QuickAIChat:
         except Exception as e:
             log.error(f"获取目录结构失败: {e}")
             return "无法获取目录结构"
+    
+    async def _check_context_usage(self):
+        """在每轮对话结束后检查上下文用量，接近窗口上限时通过回调通知。"""
+        context_window = config.get_context_window(self.model)
+        usage = self.context.check_context_usage(self.messages, context_window)
+        if usage:
+            await self._call_callback("context_usage", usage)
     
     async def _call_callback(self, event_type, data):
         """调用回调函数，支持同步和异步回调"""
@@ -325,25 +334,11 @@ class QuickAIChat:
     async def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
         
-        # 使用包含工作目录信息的系统提示
-        system_message = {
-            "role": "system",
-            "content": self.get_system_prompt()
-        }
-        
-        # 检查是否已有系统消息
-        has_system_message = any(msg.get("role") == "system" for msg in self.messages)
-        
-        # 如果没有系统消息，添加到开头
-        if not has_system_message:
-            self.messages.insert(0, system_message)
-            self._auto_save()
-        
         self.add_message("user", user_input)
         
         kwargs = {
             "model": self.model,
-            "messages": self.messages,
+            "messages": self.context.prepare_messages(self.messages),
             "temperature": self.temperature,
             "max_tokens": self.max_tokens
         }
@@ -455,7 +450,7 @@ class QuickAIChat:
             self.messages.extend(tool_responses)
             self._auto_save()
             
-            kwargs["messages"] = self.messages
+            kwargs["messages"] = self.context.prepare_messages(self.messages)
             response = self.client.chat.completions.create(**kwargs)
             assistant_message = response.choices[0].message
         
@@ -467,7 +462,9 @@ class QuickAIChat:
         if self.backup_mgr:
             self.backup_mgr.end_dialog_backup()
             log.info("对话备份已结束")
-            
+        
+        await self._check_context_usage()
+        
         return final_content
     
     async def _process_stream(self, stream):
@@ -536,12 +533,9 @@ class QuickAIChat:
         
         self.add_message("user", user_input)
         
-        # 使用包含工作目录信息的系统提示
-        system_message = self.get_system_prompt()
-        
         kwargs = {
             "model": self.model,
-            "messages": [{"role": "system", "content": system_message}] + self.messages,
+            "messages": self.context.prepare_messages(self.messages),
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "stream": True
@@ -631,7 +625,7 @@ class QuickAIChat:
                 iteration += 1
                 log.debug(f"工具调用迭代 {iteration}/{max_iterations} (hard limit: {MAX_HARD_LIMIT})")
 
-                kwargs["messages"] = [{"role": "system", "content": system_message}] + self.messages
+                kwargs["messages"] = self.context.prepare_messages(self.messages)
                 kwargs["stream"] = True
                 stream = self.client.chat.completions.create(**kwargs)
 
@@ -725,7 +719,9 @@ class QuickAIChat:
         if self.backup_mgr:
             self.backup_mgr.end_dialog_backup()
             log.info("对话备份已结束")
-            
+        
+        await self._check_context_usage()
+        
         log.info(f"流式聊天完成: 响应长度={len(full_response)}")
         return full_response
     

@@ -49,24 +49,28 @@ _ensure_env_file()
 MODEL_REGISTRY = {
     "deepseek-v4-flash": {
         "name": "deepseek-v4-flash",
-        "description": "DeepSeek V4 Flash (快速模型)",
+        "description": "DeepSeek V4 Flash",
+        "context_window": 1000000,
         "deprecated": False,
     },
     "deepseek-v4-pro": {
         "name": "deepseek-v4-pro",
-        "description": "DeepSeek V4 Pro (高性能模型)",
+        "description": "DeepSeek V4 Pro",
+        "context_window": 1000000,
         "deprecated": False,
     },
     "deepseek-chat": {
         "name": "deepseek-chat",
-        "description": "DeepSeek Chat (已废弃，对应 deepseek-v4-flash 非思考模式)",
+        "description": "DeepSeek Chat (已废弃)",
+        "context_window": 128000,
         "deprecated": True,
         "deprecation_date": "2026-07-24",
         "replacement": "deepseek-v4-flash",
     },
     "deepseek-reasoner": {
         "name": "deepseek-reasoner",
-        "description": "DeepSeek Reasoner (已废弃，对应 deepseek-v4-flash 思考模式)",
+        "description": "DeepSeek Reasoner(已废弃)",
+        "context_window": 128000,
         "deprecated": True,
         "deprecation_date": "2026-07-24",
         "replacement": "deepseek-v4-flash",
@@ -74,6 +78,7 @@ MODEL_REGISTRY = {
     "deepseek-coder": {
         "name": "deepseek-coder",
         "description": "DeepSeek Coder (已废弃)",
+        "context_window": 128000,
         "deprecated": True,
         "deprecation_date": "2026-07-24",
         "replacement": "deepseek-v4-flash",
@@ -86,6 +91,11 @@ def get_available_models():
     for model_name, model_info in MODEL_REGISTRY.items():
         models.append(model_info)
     return models
+
+def get_context_window(model_name: str) -> int:
+    """获取指定模型的上下文窗口大小。"""
+    model_info = MODEL_REGISTRY.get(model_name, {})
+    return model_info.get("context_window", 128000)
 
 def check_model_deprecation(model_name):
     """检查模型是否已废弃或即将废弃，返回警告信息"""

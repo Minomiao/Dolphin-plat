@@ -50,7 +50,7 @@ def _supports_ansi():
 def _enter_screen():
     global _using_alt_screen
     if _supports_ansi():
-        print(_SCREEN_ALT_ENTER, end='', flush=True)
+        print(_SCREEN_ALT_ENTER + '\033[H\033[2J', end='', flush=True)
         _using_alt_screen = True
 
 
@@ -322,7 +322,7 @@ def open_work_directory(path=None, silent=False):
 def model_settings():
     global current_config, chat_instance
     log.info("进入模型设置")
-    print("\n=== 模型设置 ===")
+    print("=== 模型设置 ===")
     print(f"输入 '{cmd.get_command('back')}' 返回主界面")
     print(f"当前 API 密钥: {'***' if current_config.get('api_key') else '未设置'}")
     print(f"当前模型: {current_config.get('model', 'deepseek-v4-flash')}")
@@ -493,6 +493,18 @@ def chat_callback(event_type, data):
         remaining = hard_limit - current_iterations
         print(f"\n{Fore.YELLOW}工具调用已达 {current_iterations} 次 (上限 {hard_limit} 次，剩余 {remaining} 次){Style.RESET_ALL}")
         return input("是否继续对话? (y/n): ").lower()
+    elif event_type == 'context_usage':
+        ratio = data.get('usage_ratio', 0)
+        est_tokens = data.get('estimated_tokens', 0)
+        window = data.get('context_window', 0)
+        level = data.get('level', 'warn')
+        pct = f"{ratio:.0%}"
+        if level == 'critical':
+            print(f"\n{Fore.RED}上下文即将耗尽 ({pct}, 约 {est_tokens}/{window} tokens)，强烈建议 /clear 清空历史{Style.RESET_ALL}")
+        elif level == 'high':
+            print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct}, 约 {est_tokens}/{window} tokens)，建议 /clear 清空历史{Style.RESET_ALL}")
+        else:
+            print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct} (约 {est_tokens}/{window} tokens){Style.RESET_ALL}")
 
 async def main():
     global current_config, chat_instance, current_conversation, current_dir_id, current_conv_id, show_thinking
