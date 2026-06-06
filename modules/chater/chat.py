@@ -431,6 +431,9 @@ class QuickAIChat:
                     displayed_calls.append(tc)
                     displayed_results.append((result, format_tool_result(result)))
             
+            self.messages.extend(tool_responses)
+            self._auto_save()
+            
             if displayed_calls:
                 await self._call_callback('tool_calls', {
                     'calls': [
@@ -446,9 +449,6 @@ class QuickAIChat:
                         'raw': raw,
                         'formatted': formatted
                     })
-            
-            self.messages.extend(tool_responses)
-            self._auto_save()
             
             kwargs["messages"] = self.context.prepare_messages(self.messages)
             response = self.client.chat.completions.create(**kwargs)
@@ -595,6 +595,9 @@ class QuickAIChat:
                     displayed_calls.append(tc)
                     displayed_results.append((result, format_tool_result(result)))
             
+            self.messages.extend(tool_responses)
+            self._auto_save()
+            
             if displayed_calls:
                 await self._call_callback('tool_calls', {
                     'calls': [
@@ -610,9 +613,6 @@ class QuickAIChat:
                         'raw': raw,
                         'formatted': formatted
                     })
-            
-            self.messages.extend(tool_responses)
-            self._auto_save()
             
             MAX_HARD_LIMIT = 100
             INITIAL_MAX = 30
@@ -675,6 +675,9 @@ class QuickAIChat:
                             displayed_calls.append(tc)
                             displayed_results.append((result, format_tool_result(result)))
 
+                    self.messages.extend(tool_responses)
+                    self._auto_save()
+
                     if displayed_calls:
                         await self._call_callback('tool_calls', {
                             'calls': [
@@ -690,9 +693,6 @@ class QuickAIChat:
                                 'raw': raw,
                                 'formatted': formatted
                             })
-
-                    self.messages.extend(tool_responses)
-                    self._auto_save()
 
                     if iteration >= max_iterations:
                         if iteration >= MAX_HARD_LIMIT:
