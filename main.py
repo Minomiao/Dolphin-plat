@@ -59,6 +59,16 @@ def _exit_screen():
     if _using_alt_screen:
         print(_SCREEN_ALT_EXIT, end='', flush=True)
 
+def _rollback_last_message():
+    if chat_instance and chat_instance.messages:
+        last = chat_instance.messages[-1]
+        if last.get("role") == "user":
+            chat_instance.messages.pop()
+            if current_dir_id and current_conv_id:
+                from modules.chater import conversation
+                conversation.save_conversation(chat_instance.messages, current_dir_id, current_conv_id)
+            log.debug("API 错误后已回退未发送的用户消息")
+
 def settings_mode():
     global current_config, chat_instance
     log.info("进入设置模式")
@@ -680,18 +690,23 @@ async def main():
         except AuthenticationError:
             print(f"{Fore.RED}错误: API 密钥无效或已过期。输入 '{cmd.get_command('model')}' 重新配置 API 密钥{Style.RESET_ALL}")
             log.error("API 认证失败: 密钥无效或已过期")
+            _rollback_last_message()
         except RateLimitError:
             print(f"{Fore.RED}错误: API 调用频率过高或余额不足，请稍后重试或检查账户余额{Style.RESET_ALL}")
             log.error("API 限流: 频率过高或余额不足")
+            _rollback_last_message()
         except APIConnectionError:
             print(f"{Fore.RED}错误: 无法连接到 API 服务器，请检查网络连接或稍后重试{Style.RESET_ALL}")
             log.error("API 连接失败: 网络问题或服务器不可达")
+            _rollback_last_message()
         except APIError as e:
             print(f"{Fore.RED}错误: API 服务异常 ({e.status_code if hasattr(e, 'status_code') else 'unknown'})，请稍后重试{Style.RESET_ALL}")
             log.error(f"API 错误: {e}")
+            _rollback_last_message()
         except Exception as e:
             print(f"{Fore.RED}错误: 请求失败，请稍后重试{Style.RESET_ALL}")
             log.error(f"未知错误: {e}")
+            _rollback_last_message()
         
         # 每次对话结束后检查是否有待确认的文件更改
         handle_pending_changes()
