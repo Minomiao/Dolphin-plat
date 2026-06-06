@@ -1,4 +1,4 @@
-from openai import OpenAI
+from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
 from modules.main_server import config
 from modules.CLIserver import commands as cmd
 from modules.chater import chat, conversation_loader
@@ -675,7 +675,23 @@ async def main():
 
         log.info(f"用户输入: {user_input}")
         chat_instance.set_save_target(current_dir_id, current_conv_id)
-        await chat_instance.chat_stream(user_input)
+        try:
+            await chat_instance.chat_stream(user_input)
+        except AuthenticationError:
+            print(f"{Fore.RED}错误: API 密钥无效或已过期。输入 '{cmd.get_command('model')}' 重新配置 API 密钥{Style.RESET_ALL}")
+            log.error("API 认证失败: 密钥无效或已过期")
+        except RateLimitError:
+            print(f"{Fore.RED}错误: API 调用频率过高或余额不足，请稍后重试或检查账户余额{Style.RESET_ALL}")
+            log.error("API 限流: 频率过高或余额不足")
+        except APIConnectionError:
+            print(f"{Fore.RED}错误: 无法连接到 API 服务器，请检查网络连接或稍后重试{Style.RESET_ALL}")
+            log.error("API 连接失败: 网络问题或服务器不可达")
+        except APIError as e:
+            print(f"{Fore.RED}错误: API 服务异常 ({e.status_code if hasattr(e, 'status_code') else 'unknown'})，请稍后重试{Style.RESET_ALL}")
+            log.error(f"API 错误: {e}")
+        except Exception as e:
+            print(f"{Fore.RED}错误: 请求失败，请稍后重试{Style.RESET_ALL}")
+            log.error(f"未知错误: {e}")
         
         # 每次对话结束后检查是否有待确认的文件更改
         handle_pending_changes()
