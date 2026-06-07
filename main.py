@@ -557,8 +557,11 @@ async def main():
         elif user_input == cmd.get_command('help'):
             show_help()
             continue
-        elif user_input == cmd.get_command('new'):
-            new_name = input("请输入新对话名称: ")
+        elif user_input.startswith(cmd.get_command('new')):
+            new_cmd = cmd.get_command('new')
+            new_name = user_input[len(new_cmd):].strip()
+            if not new_name:
+                new_name = input("请输入新对话名称: ")
             if new_name:
                 if current_conversation == "main" and chat_instance.messages:
                     save_choice = input("是否保存当前main对话? (y/n): ").lower()
@@ -579,6 +582,8 @@ async def main():
                 current_dir_id = dir_id
                 current_conv_id = conv_id
                 log.info(f"切换到新对话: {new_name} ({conv_id})")
+                os.system('cls' if os.name == 'nt' else 'clear')
+                _print_header()
                 print(f"已切换到新对话: {new_name}")
             continue
         elif user_input.startswith(cmd.get_command('load')):
