@@ -36,11 +36,11 @@ python main.py
 
 | 模型 | 状态 |
 |------|------|
-| deepseek-v4-flash | ✅ 默认模型（快速） |
-| deepseek-v4-pro | ✅ 高性能模型 |
-| deepseek-chat | ⚠️ 2026-07-24 废弃 |
-| deepseek-reasoner | ⚠️ 2026-07-24 废弃 |
-| deepseek-coder | ⚠️ 2026-07-24 废弃 |
+| deepseek-v4-flash | 快速|
+| deepseek-v4-pro |  |
+| deepseek-chat | 废弃 |
+| deepseek-reasoner | 废弃 |
+| deepseek-coder | 废弃 |
 
 已配置的模型若即将废弃，启动时会显示警告及剩余天数。可通过 `/model` 切换模型。
 
@@ -55,7 +55,7 @@ python main.py
 | `/model` | 切换模型和配置 API 密钥 |
 | `/open [path]` | 打开/切换工作目录，不传路径时交互式输入 |
 | `/clear` | 清空对话历史并重置工作目录 |
-| `/new` | 创建新对话 |
+| `/new [name]` | 创建新对话，可选指定对话名称 |
 | `/load [name]` | 加载已保存的对话 |
 | `/saveas [name]` | 保存当前对话 |
 | `/list` | 列出所有已保存的对话 |

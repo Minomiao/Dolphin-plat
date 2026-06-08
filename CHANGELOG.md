@@ -1,5 +1,36 @@
 # Change Log
 
+## v1.1.2 (2026-06-07)
+
+Context manager with token budget monitoring, API error resilience, string-based file modify, and /new improvements.
+
+### Context Manager — Token Budget Monitoring
+
++ Add `ContextManager` (`modules/chater/context.py`) for message assembly and token estimation
++ Three warning thresholds: 70% (info), 85% (warning), 95% (critical) of context window
++ Unify 4 message splicing points in chat.py into `context.prepare_messages()`
++ Add `_check_context_usage()` callback after each chat round for real-time budget awareness
++ Add `context_window` field to `MODEL_REGISTRY` (1M for v4 models, 128K for legacy)
++ Add `config.get_context_window()` as single source of truth
+
+### API Error Resilience
+
++ Catch API errors (invalid key, rate limit, server error) to prevent crash
++ Rollback unsent user message on API error to prevent chat history loss
++ Save tool results to conversation data before displaying to user (prevents lost context on crash)
+
+### File Operations Refactor
+
+/ `modify_file`: changed from start/end line range to `old_str`/`new_str` string replace
+/ Add 3-level matching for `modify_file`: exact → whitespace-stripped → fuzzy (95% threshold)
+/ Remove line number annotations from `read_file` output completely
+/ Increase limits: `read_file` 400→1000 lines, `create_file` 500→1000 lines (100-line redundancy)
+
+### /new Command Improvements
+
++ Support `/new <name>` with inline name argument to create named conversation directly
++ Add screen clear on new conversation creation for cleaner UX
+
 ## v1.1.1 (2026-05-31)
 
 PowerShell dangerous command detection with auto-execute/confirm split, conversation repair for interrupted tool calls, smart line numbering in file_reader, and output field unification.

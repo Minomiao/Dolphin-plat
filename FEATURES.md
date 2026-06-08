@@ -31,6 +31,8 @@
   - 工具调用迭代循环（初始 30 轮，用户确认后每次续期 +20，硬上限 100）
 - [x] Configurable max_tokens, temperature
   - 可配置的 max_tokens、temperature
+- [x] Context manager with token budget monitoring (70%/85%/95% thresholds)
+  - 上下文管理器，带 token 预算监控（70%/85%/95% 三级阈值）
 
 ## Tool System
 
@@ -100,18 +102,18 @@
   - 按名称或内容搜索（最多 500 条结果，跳过 >10MB 的文件）
 - [x] `list_directory` — tree view (max 1000 files, depth 10)
   - 树状视图（最多 1000 个文件，深度 10）
-- [x] `read_file` — paginated read (max 400 lines/page, max 10MB)
-  - 分页读取（每页最多 400 行，最大 10MB）
+- [x] `read_file` — paginated read (max 1000 lines, max 10MB)
+  - 分页读取（每次最多 1000 行，最大 10MB）
 - [x] Relative path validation with `_is_path_allowed`
   - 使用 `_is_path_allowed` 验证相对路径
 
 ### file_manager
 - [x] `set_work_directory` — change dir (subdirs only, `..` supported, out-of-bounds → reset)
   - 更改目录（仅子目录，支持 `..`，越界 → 重置）
-- [x] `create_file` — create with content (max 10MB, 600 lines)
-  - 创建文件并写入内容（最大 10MB，600 行）
-- [x] `modify_file` — modify by line range with content verification (max 600 lines, scroll search)
-  - 按行范围修改并验证内容（最多 600 行，滚动搜索）
+- [x] `create_file` — create with content (max 10MB, 1000 lines)
+  - 创建文件并写入内容（最大 10MB，1000 行）
+- [x] `modify_file` — modify by string replace (old_str → new_str, 3-level matching)
+  - 按字符串查找替换修改（old_str → new_str，三级匹配）
 - [x] `delete_file` — delete with system confirmation protection
   - 删除文件，带系统确认保护
 - [x] Auto-strip line numbers from AI pasted content
@@ -181,8 +183,6 @@
   - 路径安全：所有操作限制在工作目录内
 - [x] Auto-create parent directories on file creation
   - 创建文件时自动创建父目录
-- [x] Scroll search for modified lines (10-line window)
-  - 修改行的滚动搜索（10 行窗口）
 - [x] Confirm dead code removed from file_manager skill
   - 确认死代码已从 file_manager 技能中移除
 
@@ -275,6 +275,10 @@
   - 工具执行错误包装（错误工具不会导致崩溃）
 - [x] Max iteration guard (30 rounds, extendable to 100)
   - 最大迭代保护（30 轮，可续期至 100）
+- [x] API error handling (invalid key, rate limit, server error — graceful degradation)
+  - API 错误处理（无效 key、限流、服务器错误 — 优雅降级）
+- [x] Unsent message rollback on API error (prevent chat history loss)
+  - API 错误时回滚未发送消息（防止对话历史丢失）
 - [x] PowerShell timeout and output truncation
   - PowerShell 超时和输出截断
 - [x] PowerShell async subprocess transport cleanup (_DummySock pattern)
