@@ -22,28 +22,29 @@ def format_tool_result(result_str):
         
         def format_value(key, value, indent=0):
             prefix = "  " * indent
-            if isinstance(value, dict):
-                formatted_lines.append(f"{prefix}{key}:")
-                for k, v in value.items():
-                    format_value(k, v, indent + 1)
-            elif isinstance(value, list):
-                formatted_lines.append(f"{prefix}{key}: [{len(value)} 项]")
-                for i, v in enumerate(value):
-                    format_value(f"[{i}]", v, indent + 1)
-            elif isinstance(value, str):
-                if '\n' in value:
-                    lines = value.strip().split('\n')
+            match value:
+                case dict():
                     formatted_lines.append(f"{prefix}{key}:")
-                    for line in lines:
-                        formatted_lines.append(f"{prefix}  {line}")
-                else:
+                    for k, v in value.items():
+                        format_value(k, v, indent + 1)
+                case list():
+                    formatted_lines.append(f"{prefix}{key}: [{len(value)} 项]")
+                    for i, v in enumerate(value):
+                        format_value(f"[{i}]", v, indent + 1)
+                case str():
+                    if '\n' in value:
+                        lines = value.strip().split('\n')
+                        formatted_lines.append(f"{prefix}{key}:")
+                        for line in lines:
+                            formatted_lines.append(f"{prefix}  {line}")
+                    else:
+                        formatted_lines.append(f"{prefix}{key}: {value}")
+                case bool():
+                    formatted_lines.append(f"{prefix}{key}: {'是' if value else '否'}")
+                case None:
+                    formatted_lines.append(f"{prefix}{key}: (空)")
+                case _:
                     formatted_lines.append(f"{prefix}{key}: {value}")
-            elif isinstance(value, bool):
-                formatted_lines.append(f"{prefix}{key}: {'是' if value else '否'}")
-            elif value is None:
-                formatted_lines.append(f"{prefix}{key}: (空)")
-            else:
-                formatted_lines.append(f"{prefix}{key}: {value}")
         
         if isinstance(result, dict):
             for key, value in result.items():
@@ -96,6 +97,21 @@ class QuickAIChat:
         self._update_tools()
         self._save_dir_id = None
         self._save_conv_id = None
+        
+        # 工具分发链: (谓词, 处理器) 对
+        self._tool_dispatch = [
+            (lambda n: n.startswith("skill_"), self.skill_mgr.call_tool),
+            (lambda n: n.startswith("plugin_"), self.plugin_loader.call_tool),
+            (lambda n: "_" in n, self.mcp_mgr.call_tool),
+        ]
+
+        # 确认请求分发链: (谓词, 处理器) 对
+        rm_type = request_manager.RequestType
+        self._confirmation_dispatch = [
+            (lambda d, t: t == rm_type.USER_INPUT, self._handle_user_input_request),
+            (lambda d, t: t == rm_type.CONFIRMATION, self._handle_confirmation_request),
+            (lambda d, t: d.get("requires_confirmation"), self._handle_requires_confirmation_request),
+        ]
         
         # 从配置读取默认工作目录
         self.default_work_directory = config.load_config().get('work_directory', 'workplace')
@@ -200,12 +216,10 @@ class QuickAIChat:
     async def _execute_tool(self, tool_name: str, arguments: dict) -> str:
         log.info(f"执行工具: {tool_name}, 参数: {arguments}")
         try:
-            if tool_name.startswith("skill_"):
-                result = await self.skill_mgr.call_tool(tool_name, arguments)
-            elif tool_name.startswith("plugin_"):
-                result = await self.plugin_loader.call_tool(tool_name, arguments)
-            elif "_" in tool_name:
-                result = await self.mcp_mgr.call_tool(tool_name, arguments)
+            for check, handler in self._tool_dispatch:
+                if check(tool_name):
+                    result = await handler(tool_name, arguments)
+                    break
             else:
                 result = {"error": f"未知的工具: {tool_name}"}
             
@@ -252,6 +266,74 @@ class QuickAIChat:
         from modules.loader import powershell_manager
         return await powershell_manager.execute_script(script, timeout, wait_time)
 
+    async def _handle_auto_execute(self, result_dict: dict) -> tuple:
+        """处理 auto_execute 请求，直接执行 PowerShell 脚本"""
+        ps_timeout = result_dict.get('timeout', 30)
+        ps_wait = result_dict.get('wait_time', 10)
+        ps_result = await self._execute_powershell_script(result_dict['script'], ps_timeout, ps_wait)
+        return json.dumps(ps_result, ensure_ascii=False), False
+
+    async def _handle_user_input_request(self, result_dict: dict, tool_name: str, arguments: dict) -> tuple:
+        """处理 USER_INPUT 类型的请求"""
+        input_data = {
+            'prompt': result_dict.get('prompt'),
+            'input_type': result_dict.get('input_type'),
+            'default_value': result_dict.get('default_value')
+        }
+        user_input = await self._call_callback('user_input_required', input_data)
+        user_out_content = f"{result_dict.get('prompt', '')} {Fore.LIGHTBLACK_EX}{user_input}{Style.RESET_ALL}"
+        user_out_data = {'label': 'Input', 'content': user_out_content}
+        await self._call_callback('user_output', user_out_data)
+        self._last_tool_had_user_output = True
+        self._last_confirmation_output_data = user_out_data
+        return json.dumps({"success": True, "input": user_input}, ensure_ascii=False), False
+
+    async def _handle_confirmation_request(self, result_dict: dict, tool_name: str, arguments: dict) -> tuple:
+        """处理 CONFIRMATION 类型的请求"""
+        confirmation_data = {
+            'action': result_dict.get('action'),
+            'default': result_dict.get('default')
+        }
+        confirm = await self._call_callback('confirmation_required', confirmation_data)
+        status = Fore.GREEN + "已确认" + Style.RESET_ALL if confirm == 'y' else Fore.RED + "已取消" + Style.RESET_ALL
+        user_out_data = {'label': 'Confirm', 'content': f"{result_dict.get('action', 'unknown')} {status}"}
+        await self._call_callback('user_output', user_out_data)
+        self._last_tool_had_user_output = True
+        self._last_confirmation_output_data = user_out_data
+        return json.dumps({"success": True, "confirmed": confirm == 'y'}, ensure_ascii=False), False
+
+    async def _handle_requires_confirmation_request(self, result_dict: dict, tool_name: str, arguments: dict) -> tuple:
+        """处理 requires_confirmation 类型的请求"""
+        confirmation_data = {
+            'action': result_dict.get('action', 'unknown'),
+            'script_preview': result_dict.get('script_preview'),
+            'file_path': result_dict.get('file_path'),
+            'work_directory': result_dict.get('work_directory'),
+            'error': result_dict.get('error')
+        }
+        confirm = await self._call_callback('confirmation_required', confirmation_data)
+
+        if confirm != 'y':
+            log.info(f"用户取消操作: {tool_name}")
+            await self._call_callback('operation_canceled', {})
+            return json.dumps({"error": "用户取消操作"}, ensure_ascii=False), True
+
+        log.info(f"用户确认操作: {tool_name}")
+        await self._call_callback('operation_confirmed', {})
+
+        if result_dict.get('action') == 'run_powershell_script' and result_dict.get('script'):
+            ps_timeout = result_dict.get('timeout', 30)
+            ps_wait = result_dict.get('wait_time', 10)
+            ps_result = await self._execute_powershell_script(result_dict['script'], ps_timeout, ps_wait)
+            return json.dumps(ps_result, ensure_ascii=False), False
+
+        if isinstance(arguments, dict):
+            arguments['confirmed'] = True
+        else:
+            arguments = {'confirmed': True}
+        result = await self._execute_tool_sync(tool_name, arguments)
+        return result, False
+
     async def _process_tool_confirmation(self, result_raw: str, tool_name: str, arguments: dict):
         """处理工具返回的确认申请，返回 (result_str, should_skip)"""
         self._last_confirmation_output_data = None
@@ -261,73 +343,16 @@ class QuickAIChat:
             return result_raw, False
 
         if result_dict.get('auto_execute') and result_dict.get('script'):
-            ps_timeout = result_dict.get('timeout', 30)
-            ps_wait = result_dict.get('wait_time', 10)
-            ps_result = await self._execute_powershell_script(result_dict['script'], ps_timeout, ps_wait)
-            return json.dumps(ps_result, ensure_ascii=False), False
+            return await self._handle_auto_execute(result_dict)
 
         if not self.request_manager or not self.request_manager.is_request(result_dict):
             return result_raw, False
 
         request_type = result_dict.get('type')
 
-        if request_type == request_manager.RequestType.USER_INPUT:
-            input_data = {
-                'prompt': result_dict.get('prompt'),
-                'input_type': result_dict.get('input_type'),
-                'default_value': result_dict.get('default_value')
-            }
-            user_input = await self._call_callback('user_input_required', input_data)
-            user_out_content = f"{result_dict.get('prompt', '')} {Fore.LIGHTBLACK_EX}{user_input}{Style.RESET_ALL}"
-            user_out_data = {'label': 'Input', 'content': user_out_content}
-            await self._call_callback('user_output', user_out_data)
-            self._last_tool_had_user_output = True
-            self._last_confirmation_output_data = user_out_data
-            return json.dumps({"success": True, "input": user_input}, ensure_ascii=False), False
-
-        elif request_type == request_manager.RequestType.CONFIRMATION:
-            confirmation_data = {
-                'action': result_dict.get('action'),
-                'default': result_dict.get('default')
-            }
-            confirm = await self._call_callback('confirmation_required', confirmation_data)
-            status = Fore.GREEN + "已确认" + Style.RESET_ALL if confirm == 'y' else Fore.RED + "已取消" + Style.RESET_ALL
-            user_out_data = {'label': 'Confirm', 'content': f"{result_dict.get('action', 'unknown')} {status}"}
-            await self._call_callback('user_output', user_out_data)
-            self._last_tool_had_user_output = True
-            self._last_confirmation_output_data = user_out_data
-            return json.dumps({"success": True, "confirmed": confirm == 'y'}, ensure_ascii=False), False
-
-        elif result_dict.get("requires_confirmation"):
-            confirmation_data = {
-                'action': result_dict.get('action', 'unknown'),
-                'script_preview': result_dict.get('script_preview'),
-                'file_path': result_dict.get('file_path'),
-                'work_directory': result_dict.get('work_directory'),
-                'error': result_dict.get('error')
-            }
-            confirm = await self._call_callback('confirmation_required', confirmation_data)
-
-            if confirm != 'y':
-                log.info(f"用户取消操作: {tool_name}")
-                await self._call_callback('operation_canceled', {})
-                return json.dumps({"error": "用户取消操作"}, ensure_ascii=False), True
-
-            log.info(f"用户确认操作: {tool_name}")
-            await self._call_callback('operation_confirmed', {})
-
-            if result_dict.get('action') == 'run_powershell_script' and result_dict.get('script'):
-                ps_timeout = result_dict.get('timeout', 30)
-                ps_wait = result_dict.get('wait_time', 10)
-                ps_result = await self._execute_powershell_script(result_dict['script'], ps_timeout, ps_wait)
-                return json.dumps(ps_result, ensure_ascii=False), False
-
-            if isinstance(arguments, dict):
-                arguments['confirmed'] = True
-            else:
-                arguments = {'confirmed': True}
-            result = await self._execute_tool_sync(tool_name, arguments)
-            return result, False
+        for check, handler in self._confirmation_dispatch:
+            if check(result_dict, request_type):
+                return await handler(result_dict, tool_name, arguments)
 
         return result_raw, False
 
