@@ -296,8 +296,6 @@ def open_work_directory(path=None, silent=False):
                 _print_header()
                 print(f"已自动加载对话: {conv_name}")
                 _print_conversation_history()
-            if not silent:
-                print(f"工作目录已设置为: {path}")
             return
     
     if conv_id:
@@ -325,9 +323,6 @@ def open_work_directory(path=None, silent=False):
         os.system('cls' if os.name == 'nt' else 'clear')
         _print_header()
         print(f"已创建新对话: {conv_name}")
-    
-    if not silent:
-        print(f"工作目录已设置为: {path}")
 
 def model_settings():
     global current_config, chat_instance
