@@ -1,5 +1,31 @@
 # Change Log
 
+## v1.1.3 (2026-06-14)
+
+Rich CLI styling, showthinking history rerender, model settings UX, and code refactoring.
+
+### Rich CLI Integration
+
++ Add `rich` library dependency for modern terminal formatting
++ Replace plain-text header with `Panel` (rounded border, dim text, bright-blue dolphin art)
++ Replace `_progress_bar()` with live-updating `Progress` bar (dim unfilled, cyan filled)
++ Remove emojis from CLI output per project convention
+
+### Show Thinking Improvements
+
++ Toggling `/showthinking on|off` now clears screen and rerenders full conversation history
++ Existing thinking blocks in history are immediately shown or hidden based on new setting
+
+### Model Settings UX
+
++ Reorder model selection before API key input for more intuitive flow
++ Simplify model settings UI by removing redundant prompts
+
+### Code Refactoring
+
+/ Replace lengthy if-else chains with `match`/`case` and dispatch tables in `chat.py`
+/ Remove redundant work directory status messages in `open_work_directory`
+
 ## v1.1.2 (2026-06-07)
 
 Context manager with token budget monitoring, API error resilience, string-based file modify, and /new improvements.
