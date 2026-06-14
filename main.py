@@ -329,15 +329,7 @@ def model_settings():
     log.info("进入模型设置")
     print("=== 模型设置 ===")
     print(f"输入 '{cmd.get_command('back')}' 返回主界面")
-    print(f"当前 API 密钥: {'***' if current_config.get('api_key') else '未设置'}")
     print(f"当前模型: {current_config.get('model', 'deepseek-v4-flash')}")
-    
-    new_api_key = input("\nAPI 密钥 (留空保持当前值): ")
-    if new_api_key == cmd.get_command('back'):
-        log.info("用户取消模型设置，返回主界面")
-        print("返回主界面")
-        return
-    new_api_key = new_api_key or current_config.get('api_key')
     
     print("\n可用模型:")
     from modules.main_server.config import get_available_models
@@ -350,45 +342,39 @@ def model_settings():
     choice_map = {}
     
     for model_info in new_models:
-        print(f"{idx}. {model_info['name']} - {model_info['description']}")
+        print(f"{idx}. {model_info['name']}")
         choice_map[str(idx)] = model_info["name"]
         idx += 1
     
     if deprecated_models:
-        from modules.main_server.config import check_model_deprecation
-        deprecation_msg = check_model_deprecation(deprecated_models[0]["name"])
-        warning = ""
-        if deprecation_msg:
-            warning = f" ({deprecation_msg})"
-        print(f"\n--- 以下模型即将/已废弃{warning} ---")
+        print(f"\n--- 已废弃模型 ---")
         for model_info in deprecated_models:
-            print(f"{idx}. {model_info['name']} - {model_info['description']}")
+            date = model_info.get("deprecation_date", "")
+            date_str = f" (废弃: {date})" if date else ""
+            print(f"{idx}. {model_info['name']}{date_str}")
             choice_map[str(idx)] = model_info["name"]
             idx += 1
     
-    print(f"{idx}. 自定义模型")
-    choice_map[str(idx)] = "__custom__"
-    
-    model_choice = input(f"\n请选择模型 (1-{idx}): ")
+    model_choice = input(f"\n请选择模型 (1-{idx - 1}): ")
     if model_choice == cmd.get_command('back'):
         log.info("用户取消模型设置，返回主界面")
         print("返回主界面")
         return
     
     if model_choice in choice_map:
-        if choice_map[model_choice] == "__custom__":
-            new_model = input("请输入自定义模型名称: ")
-            if new_model == cmd.get_command('back'):
-                log.info("用户取消模型设置，返回主界面")
-                print("返回主界面")
-                return
-            new_model = new_model or current_config.get('model', 'deepseek-v4-flash')
-        else:
-            new_model = choice_map[model_choice]
+        new_model = choice_map[model_choice]
     else:
         log.warning(f"无效的模型选择: {model_choice}")
         print("无效选择，保持当前模型")
         new_model = current_config.get('model', 'deepseek-v4-flash')
+    
+    print(f"\n当前 API 密钥: {'***' if current_config.get('api_key') else '未设置'}")
+    new_api_key = input("API 密钥 (留空保持当前值): ")
+    if new_api_key == cmd.get_command('back'):
+        log.info("用户取消模型设置，返回主界面")
+        print("返回主界面")
+        return
+    new_api_key = new_api_key or current_config.get('api_key')
     
     current_config['api_key'] = new_api_key
     current_config['model'] = new_model
