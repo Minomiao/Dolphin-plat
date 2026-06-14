@@ -13,6 +13,15 @@ from colorama import init, Fore, Back, Style
 # 初始化 colorama
 init()
 
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.text import Text
+from rich.align import Align
+from rich.progress import Progress, BarColumn, TextColumn
+from rich import box
+
+_console = Console()
+
 log = setup_logger("Dolphin")
 
 _SCREEN_ALT_ENTER = '\033[?1049h'
@@ -171,13 +180,25 @@ def _print_header():
     deprecation_warning = config.check_model_deprecation(
         current_config.get('model', 'deepseek-v4-flash'))
     work_dir = current_config.get('work_directory', 'workplace')
-    _print_dolphin()
-    print("=" * 50)
+
+    dolphin = Align.center(Text(_DOLPHIN_ART, style="bright_blue"))
+
+    info = Text()
     if deprecation_warning:
-        print(f"{Fore.YELLOW}警告: {deprecation_warning}{Style.RESET_ALL}")
-    print(f"输入 '{cmd.get_command('help')}' 获取命令帮助")
-    print(f"工作目录: {work_dir}")
-    print("=" * 50)
+        info.append(f"{deprecation_warning}\n", style="yellow")
+    info.append("输入 ", style="dim")
+    info.append(f"'{cmd.get_command('help')}'", style="bold white")
+    info.append(" 获取命令帮助\n", style="dim")
+    info.append("工作目录: ", style="dim")
+    info.append(work_dir, style="white")
+
+    panel = Panel(
+        Group(dolphin, "", info),
+        border_style="cyan",
+        box=box.ROUNDED,
+        padding=(1, 2),
+    )
+    _console.print(panel)
 
 def _print_conversation_history():
     output = conversation_loader.format_conversation_history(
@@ -622,30 +643,36 @@ async def main():
         elif user_input.startswith(cmd.get_command('showthinking')):
             showthink_cmd = cmd.get_command('showthinking')
             parts = user_input[len(showthink_cmd):].strip()
+            changed = False
             if parts == 'on':
                 show_thinking = True
                 current_config['show_thinking'] = True
                 config.save_config(current_config)
-                print("思考过程显示: 开启")
+                changed = True
             elif parts == 'off':
                 show_thinking = False
                 current_config['show_thinking'] = False
                 config.save_config(current_config)
-                print("思考过程显示: 关闭")
+                changed = True
             else:
                 choice = input("开启思考过程显示? (on/off): ").strip().lower()
                 if choice == 'on':
                     show_thinking = True
                     current_config['show_thinking'] = True
                     config.save_config(current_config)
-                    print("思考过程显示: 开启")
+                    changed = True
                 elif choice == 'off':
                     show_thinking = False
                     current_config['show_thinking'] = False
                     config.save_config(current_config)
-                    print("思考过程显示: 关闭")
+                    changed = True
                 else:
                     print(f"{Fore.RED}无效输入，请输入 on 或 off{Style.RESET_ALL}")
+            if changed:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                _print_header()
+                print(f"思考过程显示: {'开启' if show_thinking else '关闭'}")
+                _print_conversation_history()
             continue
         
         prefix = cmd._get_prefix()
@@ -697,13 +724,25 @@ async def main():
         # 每次对话结束后检查是否有待确认的文件更改
         handle_pending_changes()
 
+_progress = None
+
 def _progress_bar(percent, label):
-    bar_width = 25
-    filled = int(bar_width * percent / 100)
-    bar = "#" * filled + "-" * (bar_width - filled)
-    print(f"\r  [{bar}] {percent:3d}%  {label}", end="", flush=True)
+    global _progress
+    if _progress is None:
+        _progress = Progress(
+            BarColumn(bar_width=25, style="dim", complete_style="cyan", finished_style="cyan"),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("{task.description}"),
+        )
+        _progress.start()
+        _progress.add_task("", total=100)
+        _progress.console.print()
+    _progress.tasks[0].completed = percent
+    _progress.tasks[0].description = label
+    _progress.refresh()
     if percent >= 100:
-        print()
+        _progress.stop()
+        _progress = None
 
 _DEEPSLEEPING = "d-e-e-p-s-l-e-e-p-i-n-g"
 
@@ -766,7 +805,7 @@ def _build_dolphin_art():
 _DOLPHIN_ART = _build_dolphin_art()
 
 def _print_dolphin():
-    print(Fore.LIGHTBLUE_EX + _DOLPHIN_ART + Style.RESET_ALL)
+    _console.print(Text(_DOLPHIN_ART, style="bright_blue"), justify="center")
 
 def _show_splash():
     _print_dolphin()

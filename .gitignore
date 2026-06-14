@@ -32,6 +32,7 @@ env/
 skills/*/__init__.py
 beta/
 modules/old_version/
+.gitignore
 
 # Build files
 build/
@@ -62,3 +63,9 @@ Thumbs.db
 # Web files
 web/
 main_server.py
+
+# Test GUI/CLI entries (beta)
+main_cli.py
+main_gui.py
+models/web/
+modules/main_server/app_engine.py
