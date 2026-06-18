@@ -18,8 +18,16 @@ class SkillManager:
         self.skills_dir = Path(skills_dir)
         self.skills: Dict[str, Dict[str, Any]] = {}
         self.failed_skills: Dict[str, str] = {}
-        self._current_work_dir: Optional[str] = None
+        self._current_work_dir: Optional[str] = self._get_default_work_dir()
         self._load_skills()
+
+    @staticmethod
+    def _get_default_work_dir() -> str:
+        try:
+            from modules.main_server import config
+            return config.load_config().get('work_directory', 'workplace')
+        except Exception:
+            return 'workplace'
         log.info(f"SkillManager 初始化完成: {len(self.skills)} 个技能加载成功, {len(self.failed_skills)} 个失败")
         if self.failed_skills:
             log.warning(f"加载失败的技能: {list(self.failed_skills.keys())}")
@@ -174,7 +182,7 @@ class SkillManager:
             sig = inspect.signature(func)
             if 'context' in sig.parameters:
                 from .skill_context import create_default_context
-                ctx = create_default_context(self._current_work_dir or os.getcwd())
+                ctx = create_default_context(self._current_work_dir or self._get_default_work_dir())
                 result = func(context=ctx, **arguments)
             else:
                 result = func(**arguments)

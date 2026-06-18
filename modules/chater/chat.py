@@ -248,6 +248,7 @@ class QuickAIChat:
                     self.current_work_directory = result["work_directory"]
                     from modules.main_server.middleware import request_manager as rm
                     rm.set_ai_work_directory(result["work_directory"])
+                    self.skill_mgr.set_work_dir(result["work_directory"])
                     log.info(f"AI 临时工作目录已更新: {self.current_work_directory}")
                 result_str = json.dumps(result, ensure_ascii=False)
             else:
@@ -307,6 +308,7 @@ class QuickAIChat:
         confirmation_data = {
             'action': result_dict.get('action', 'unknown'),
             'script_preview': result_dict.get('script_preview'),
+            'script': result_dict.get('script'),
             'file_path': result_dict.get('file_path'),
             'work_directory': result_dict.get('work_directory'),
             'error': result_dict.get('error')
