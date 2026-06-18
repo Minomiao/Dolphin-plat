@@ -8,7 +8,6 @@
 
 ```
 skills/
-├── __pycache__/           # Python 缓存目录
 ├── calculator/           # 计算器技能
 │   └── skill.py          # 技能实现文件
 ├── file_manager/         # 文件管理器技能
@@ -31,10 +30,12 @@ skills/
 
 ### 2. 创建 skill.py 文件
 
-在技能文件夹中创建 `skill.py` 文件，包含技能的实现：
+在技能文件夹中创建 `skill.py` 文件，包含技能的实现。
+
+所有技能函数可以通过声明 `context` 参数来获取统一的程序能力接口（`SkillContext`），无需手动 import 内部模块：
 
 ```python
-import datetime
+from typing import Dict, Any
 
 skill_info = {
     "name": "my_skill",
@@ -46,7 +47,6 @@ skill_info = {
                 "type": "object",
                 "properties": {
                     "param1": {"type": "string", "description": "参数1"},
-                    "param2": {"type": "number", "description": "参数2"}
                 },
                 "required": ["param1"]
             }
@@ -54,86 +54,80 @@ skill_info = {
     }
 }
 
-def my_function(param1: str, param2: float = 0.0) -> str:
-    return f"结果: {param1}, {param2}"
+def my_function(context, param1: str) -> Dict[str, Any]:
+    # context.work_directory — 当前工作目录
+    # context.logger — 日志对象
+    # context.log_info(msg) / log_warning(msg) / log_error(msg)
+    # context.file_operation("create_file", file_path=..., content=...)
+    # context.require_confirmation(message=..., action=...)
+    # context.backup_manager — 备份管理器
+    # context.execute_script(script, timeout, wait_time) — PowerShell 执行
+    context.log_info(f"my_function called with {param1}")
+    return {"success": True, "result": param1}
 ```
 
-**注意：** 不需要创建 `__init__.py` 文件，技能管理器会自动加载 `skill.py` 文件。
+### SkillContext 提供的能力
 
-## 技能命名规则
+| 方法/属性 | 说明 |
+|---|---|
+| `context.work_directory` | 当前工作目录绝对路径 |
+| `context.logger` | 日志对象 |
+| `context.log_info(msg)` | 写入 info 日志 |
+| `context.log_warning(msg)` | 写入 warning 日志 |
+| `context.log_error(msg)` | 写入 error 日志 |
+| `context.resolve_path(path)` | 相对路径 → 绝对路径 |
+| `context.is_path_allowed(path)` | 检查路径是否在允许范围内 |
+| `context.file_operation(op, **kw)` | 通过 request_manager 执行文件操作 |
+| `context.require_confirmation(msg, action, **kw)` | 请求用户确认 |
+| `context.require_user_input(prompt, default)` | 请求用户输入 |
+| `context.backup_manager` | 备份管理器（仅 file_manager） |
+| `context.execute_script(script, timeout, wait_time)` | 执行 PowerShell 脚本（异步） |
+| `context.check_script(command_id, wait_time)` | 查询后台命令状态 |
+| `context.kill_command(command_id)` | 强制终止后台命令 |
 
-- 技能文件夹名称即为技能名称
-- 只能包含小写字母、数字和下划线
-- 不能以数字或下划线开头
-- 建议使用有意义的名称，如 `calculator`、`web_search` 等
+**向后兼容**：如果函数不声明 `context` 参数，则按旧的 `func(**arguments)` 方式调用（与之前行为一致）。
 
 ## 工具命名规则
 
 工具名称格式为：`skill_<技能名>_<函数名>`
 
 例如：
-- `skill_calculator_add` - 计算器技能的加法函数
-- `skill_web_search_search` - 网络搜索技能的搜索函数
-- `skill_random_generator_random_int` - 随机数生成器技能的随机整数函数
+- `skill_calculator_calculate` - 计算器技能的计算函数
+- `skill_file_reader_read_file` - 文件阅读器技能的读取函数
+- `skill_file_manager_create_file` - 文件管理器技能的创建文件函数
 
 ## 现有技能
 
 ### 1. calculator（计算器）
 提供基本的数学计算功能：
-- `add` - 加法运算
-- `subtract` - 减法运算
-- `multiply` - 乘法运算
-- `divide` - 除法运算
+- `calculate` - 使用 sympy 求值数学表达式
 - `get_current_time` - 获取当前时间
 
 ### 2. file_reader（文件阅读器）
 提供文件搜索、目录结构查看和文件阅读功能：
 - `get_work_directory` - 获取当前工作目录
-- `set_work_directory` - 设置工作目录（所有文件操作将限制在此目录内）
-- `set_confirmation_required` - 设置是否需要用户确认（启用后，操作工作目录外的文件需要确认）
 - `search_files` - 在指定目录下搜索文件（支持文件名和内容搜索）
 - `list_directory` - 列出目录结构（树形结构显示）
 - `read_file` - 读取文件内容（每次最多 1000 行，支持分页）
 
 **安全特性：**
-- 所有文件操作默认限制在工作目录内（默认为当前目录 `.`）
-- 可以通过 `set_work_directory` 修改工作目录
-- 可以通过 `set_confirmation_required` 启用确认机制
-- 当启用确认机制时，操作工作目录外的文件会提示用户确认
-- 确认操作由程序执行，而非 AI 自动执行
-
-**功能特点：**
-- 支持按文件名搜索
-- 支持在文件内容中搜索关键词
-- 支持按文件扩展名过滤
-- 支持树形结构显示目录
-- 支持设置最大递归深度
+- 所有文件操作限制在工作目录内，通过 dpc 机制校验
+- 跳过大于 10MB 的文件
+- 内置路径越界检查
 
 ### 3. file_manager（文件管理器）
 提供文件创建、修改和删除功能：
-- `get_work_directory` - 获取当前工作目录
-- `set_work_directory` - 设置工作目录（所有文件操作将限制在此目录内）
-- `set_confirmation_required` - 设置是否需要用户确认（启用后，操作工作目录外的文件需要确认）
-- `create_file` - 创建文件并写入内容（每次最多 1000 行，AI 可以决定文件名和后缀）
-- `modify_file` - 修改文件内容（提供完整原始字符串和新字符串进行替换）
-- `delete_file` - 删除文件（需要用户确认）
+- `set_work_directory` - 临时切换工作目录（子目录，支持 `..`，越界回退）
+- `create_file` - 创建文件并写入内容
+- `modify_file` - 修改文件内容（字符串查找替换）
+- `delete_file` - 删除文件（需用户确认）
 
 **安全特性：**
-- 所有文件操作默认限制在工作目录内（默认为当前目录 `.`）
-- 可以通过 `set_work_directory` 修改工作目录
-- 可以通过 `set_confirmation_required` 启用确认机制
-- 当启用确认机制时，操作工作目录外的文件会提示用户确认
-- 确认操作由程序执行，而非 AI 自动执行
-- 限制文件大小（最大 10MB）
-- 修改文件采用三级匹配策略（精确匹配 → 去空白匹配 → 95% 模糊匹配），提升容错能力
-- 删除文件时需要用户确认
-
-**功能特点：**
-- AI 可以自动决定文件名和后缀
-- 自动创建不存在的父目录
-- 支持自定义文件编码（默认为 UTF-8）
-- 返回文件大小和行数统计
-- 修改文件时基于字符串查找替换，建议提供足够的上下文确保唯一匹配
+- 所有文件操作限制在工作目录内
+- 限制文件大小（最大 10MB）、行数（最大 1100 行）
+- 删除文件需用户确认
+- 自动去重行号标记
+- 修改文件采用三级匹配策略（精确 → 去空白 → 95% 模糊）
 
 ### 4. powershell_executor（PowerShell 执行器）
 提供 PowerShell 脚本异步执行功能：
@@ -142,17 +136,11 @@ def my_function(param1: str, param2: float = 0.0) -> str:
 - `kill_command(command_id)` — 强制终止后台命令
 
 **安全特性：**
-- 运行脚本前必须用户确认
+- 危险脚本检测（DANGEROUS_PATTERNS 正则匹配）
+- 危险脚本需用户确认后才能执行
 - 限制脚本长度（最大 10000 字符）
 - 限制输出长度（最大 50000 字符 / 500 行）
-- 超时后命令继续运行不杀死，通过 atexit/signal 兜底清理
-- 子进程生命周期由 `modules/powershell_manager.py` 集中管理
-
-**功能特点：**
-- 显示脚本预览（前 500 字符）
-- 命令完成则立即返回，不白等
-- 未完成返回 command_id 供后续轮询
-- 异步不阻塞聊天
+- 超时后命令继续后台运行，通过 atexit/signal 兜底清理
 
 ### 5. random_generator（随机数生成器）
 提供各种随机数生成功能：
@@ -170,10 +158,10 @@ def my_function(param1: str, param2: float = 0.0) -> str:
 1. 每个技能文件夹必须包含 `skill.py` 文件
 2. `skill.py` 必须定义 `skill_info` 字典
 3. 函数参数必须与 JSON Schema 兼容
-4. 确保技能文件没有语法错误
+4. 如需获取程序能力，声明 `context` 参数即可，无需 import 内部模块
 5. 技能会在程序启动时自动加载
 6. 不需要创建 `__init__.py` 文件
 
 ## 更多信息
 
-详细的使用说明请参考 [MCP_SKILL_GUIDE.md](../MCP_SKILL_GUIDE.md)
+详细的使用说明请参考 [SKILL_OPERATION_GUIDE.md](SKILL_OPERATION_GUIDE.md)

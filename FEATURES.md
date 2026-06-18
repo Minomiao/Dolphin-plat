@@ -243,6 +243,28 @@
 - [x] Tool prefix: `<server>.<tool>`
   - 工具前缀：`<服务器>.<工具>`
 
+## Architecture
+
+### Bootstrap Module (`modules/bootstrap/`)
+- [x] `paths.py` — unified absolute path resolution for all data directories (date/, log/, conversations/, etc.)
+  - `paths.py` — 统一绝对路径解析，覆盖所有数据目录（date/、log/、conversations/ 等）
+- [x] `constants.py` — centralized global constants (file limits, thresholds, MODEL_REGISTRY, etc.)
+  - `constants.py` — 集中管理全局固定常量（文件限制、阈值、MODEL_REGISTRY 等）
+- [x] `__init__.py` — `bootstrap.init(root)` called by main.py at startup
+  - `__init__.py` — `bootstrap.init(root)` 由 main.py 启动时调用
+- [x] PyInstaller-compatible: `sys.frozen` detection for package root resolution
+  - 兼容 PyInstaller：检测 `sys.frozen` 以解析打包后的根目录
+
+### Skill Context (`modules/loader/skill_context.py`)
+- [x] `SkillContext` — unified interface for skill functions (work_dir, logger, file_ops, backup, powershell)
+  - `SkillContext` — 技能函数统一接口（工作目录、日志、文件操作、备份、PowerShell）
+- [x] `create_default_context(work_dir)` — factory with all default dependencies wired
+  - `create_default_context(work_dir)` — 工厂函数，注入所有默认依赖
+- [x] Injection via `inspect.signature` — skills declare `context` param to opt-in; backward compatible
+  - 通过 `inspect.signature` 注入 — 技能声明 `context` 参数即可接入；向后兼容旧式签名
+- [x] Eliminates `sys.path.insert` hacks and duplicated `get_logger()`/`get_work_dir()` helpers in skills
+  - 消除 skills 中的 `sys.path.insert` hack 和重复的 `get_logger()`/`get_work_dir()` 辅助函数
+
 ## Config
 
 - [x] `date/config.json` — non-sensitive (model, max_tokens, skills, plugins, prefix)

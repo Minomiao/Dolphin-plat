@@ -2,7 +2,30 @@
 
 ## v1.1.3 (2026-06-14)
 
-Rich CLI styling, showthinking history rerender, model settings UX, and code refactoring.
+Rich CLI styling, showthinking history rerender, model settings UX, code refactoring, and architecture improvements.
+
+### Architecture: Bootstrap Module
+
++ Add `modules/bootstrap/` with `paths.py` and `constants.py` for centralized path and constant management
++ `paths.py` — compute absolute paths from project root (PyInstaller-compatible)
++ `constants.py` — unify all global constants (file limits, thresholds, MODEL_REGISTRY, etc.)
++ `__init__.py` — `bootstrap.init(root)` called by `main.py` at startup
++ Eliminate hardcoded relative paths (`"date/"`, `"workplace"`) — all paths now resolved from `PROJECT_ROOT`
++ `BACKUP_DIR` upgraded from relative `"date/backup"` to absolute path via bootstrap
++ `powershell_manager` moved from `modules/loader/` to `modules/functions/`
+
+### Architecture: SkillContext
+
++ Add `SkillContext` (`modules/loader/skill_context.py`) — unified injection interface for skill functions
++ `create_default_context(work_dir)` factory with all dependencies wired (logger, request_manager, backup, powershell)
++ Skill functions declare `context` parameter to receive context; backward-compatible (`inspect.signature` detection)
++ Rewrite 3 core skills to use `context`:
+  - `powershell_executor` — `context.require_confirmation()`, `context.execute_script()`, etc.
+  - `file_reader` — `context.work_directory` replaces `get_work_dir()`, `_is_path_allowed` now receives work_dir as param
+  - `file_manager` — `context.file_operation(...)` replaces manual `req_mgr.create_file_operation_request()` chain
++ Remove 11 duplicated helper functions across skills (`get_logger`, `get_work_dir`, `get_request_manager`, `get_backup_manager`)
++ Remove 9 `sys.path.insert` hacks from skills
++ `SkillManager` and `PluginSkillLoader` `call_tool` now inject `SkillContext`
 
 ### Rich CLI Integration
 

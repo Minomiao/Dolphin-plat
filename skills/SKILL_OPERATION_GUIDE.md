@@ -2,420 +2,182 @@
 
 ## 概述
 
-本文档详细说明 Skill 如何向主程序发出确认申请，以及如何调用备份管理器进行文件备份的完整流程。
+本文档详细说明 Skill 如何使用 `SkillContext` 统一接口进行文件操作、备份、确认和 PowerShell 执行。
 
-## 确认操作流程
+## SkillContext 接口
 
-### 1. Skill 发起确认申请
+`SkillContext` 是程序注入到 skill 函数的统一上下文对象。在函数签名中声明 `context` 参数即可获取所有程序能力，无需手动 import 内部模块。
 
-当 Skill 需要用户确认才能执行操作时，应返回特定格式的结果，标记该操作需要确认。
-
-### 2. 主程序处理确认
-
-主程序检测到确认申请后，向用户显示确认提示，获取用户的确认或取消输入。
-
-### 3. 执行确认后的操作
-
-用户确认后，主程序重新调用 Skill 执行实际操作。
-
-## 确认申请格式
-
-### 基本格式
+### 获取 context
 
 ```python
-{
-    "requires_confirmation": True,  # 必须字段：标记需要确认
-    "message": "确认操作的详细信息"  # 必须字段：显示给用户的确认信息
-}
+def my_skill_fn(context, param1: str) -> Dict[str, Any]:
+    wd = context.work_directory
+    context.log_info(f"working in {wd}")
+    ...
 ```
 
-### 可选字段
+### 完整能力清单
+
+| 方法/属性 | 说明 |
+|---|---|
+| `context.work_directory` | 当前工作目录绝对路径 |
+| `context.logger` | 日志对象 |
+| `context.log_info(msg)` | info 日志 |
+| `context.log_warning(msg)` | warning 日志 |
+| `context.log_error(msg)` | error 日志 |
+| `context.resolve_path(path)` | 相对路径 → 绝对路径 |
+| `context.is_path_allowed(path)` | 检查路径是否在允许范围内 |
+| `context.file_operation(op, **kw)` | 执行文件操作（create/modify/delete） |
+| `context.require_confirmation(msg, action, **kw)` | 请求用户确认 |
+| `context.require_user_input(prompt, default)` | 请求用户输入 |
+| `context.backup_manager` | 备份管理器 |
+| `context.execute_script(script, timeout, wait_time)` | 执行 PowerShell 脚本 |
+| `context.check_script(command_id, wait_time)` | 查询后台命令 |
+| `context.kill_command(command_id)` | 终止后台命令 |
+
+### 向后兼容
+
+不声明 `context` 参数的函数按旧方式 `func(**arguments)` 调用。
+
+## 确认机制
+
+### 发式确认
+
+通过 `context.require_confirmation` 请求用户确认：
 
 ```python
-{
-    "requires_confirmation": True,
-    "message": "确认操作的详细信息",
-    "confirmed": False,  # 可选：标记操作是否已经确认
-    "additional_data": {  # 可选：其他业务相关数据
-        "key": "value"
-    }
-}
+def delete_file(context, file_path: str) -> Dict[str, Any]:
+    if not should_delete_directly:
+        return context.require_confirmation(
+            message=f"确认删除文件: {file_path}",
+            action="delete_file",
+            file_path=file_path,
+        )
+
+    # 执行删除
+    result = context.file_operation("delete_file", file_path=file_path)
+    result["user_output"] = {"label": "File Change", "content": f"--{file_path} Delet"}
+    return result
 ```
 
-## 代码示例
+### 主程序处理
 
-### 示例 1：文件删除确认
+`SkillManager` 通过 `context.require_confirmation` 调用 `request_manager.create_skill_confirmation()`，主程序检测到后显示确认提示，用户确认后重新调用 skill 函数。
 
-**Skill 端代码**：
+## 文件操作
+
+### 创建文件
 
 ```python
-def delete_file(file_path: str) -> Dict[str, Any]:
-    """删除文件"""
-    # 检查是否需要确认
-    if CONFIRMATION_REQUIRED and not is_in_work_dir(file_path):
-        file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-        return {
-            "requires_confirmation": True,
-            "message": f"确认删除文件: {file_path} (大小: {file_size} 字节)"
-        }
-    
-    # 直接执行删除操作
-    try:
-        os.remove(file_path)
-        return {
-            "success": True,
-            "message": f"文件删除成功: {file_path}"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"删除文件失败: {e}"
-        }
+def create_file(context, file_path: str, content: str, encoding: str = "utf-8") -> Dict[str, Any]:
+    result = context.file_operation(
+        "create_file",
+        file_path=file_path,
+        content=content,
+        encoding=encoding,
+    )
+    # context.file_operation 已自动填充 work_directory
+    if result.get("success"):
+        result["user_output"] = {"label": "File Change", "content": f"{Path(file_path).name} +{result.get('line_count', 0)}"}
+    return result
 ```
 
-### 示例 2：工作目录外文件操作确认
-
-**Skill 端代码**：
+### 修改文件
 
 ```python
-def read_file(file_path: str) -> Dict[str, Any]:
-    """读取文件"""
-    # 检查是否需要确认
-    if CONFIRMATION_REQUIRED and not is_in_work_dir(file_path):
-        return {
-            "requires_confirmation": True,
-            "message": f"确认读取工作目录外的文件: {file_path}"
-        }
-    
-    # 直接执行读取操作
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        return {
-            "success": True,
-            "content": content,
-            "message": f"文件读取成功: {file_path}"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"读取文件失败: {e}"
-        }
+def modify_file(context, file_path: str, old_str: str, new_str: str, encoding: str = "utf-8") -> Dict[str, Any]:
+    result = context.file_operation(
+        "modify_file",
+        file_path=file_path,
+        old_str=old_str,
+        new_str=new_str,
+        encoding=encoding,
+    )
+    if result.get("success"):
+        result["user_output"] = {"label": "File Change", "content": f"{Path(file_path).name}"}
+    return result
 ```
 
-## 主程序处理流程
-
-### 确认处理代码
-
-**modules/chat.py** 中的处理逻辑：
+### 删除文件
 
 ```python
-# 处理工具调用结果
-if result_dict.get("requires_confirmation"):
-    # 检查是否已经处理过确认
-    if not result_dict.get("confirmed"):
-        print(f"\n⚠️  需要确认:")
-        # 显示确认信息
-        print(f"  {result_dict.get('message', '此操作需要确认')}")
-        # 获取用户输入
-        confirm = input("\n是否确认此操作? (y/n): ").lower()
-        if confirm != 'y':
-            # 取消操作
-            log.info(f"用户取消操作: {tool_name}")
-            print("操作已取消")
-            tool_response = {
-                "role": "tool",
-                "name": tool_name,
-                "content": json.dumps({
-                    "success": False,
-                    "message": "操作已取消"
-                }, ensure_ascii=False)
-            }
-            tool_responses.append(tool_response)
-        else:
-            # 确认操作，重新调用 Skill
-            log.info(f"用户确认操作: {tool_name}")
-            print("操作已确认")
-            # 重新执行工具调用
-            # ...
+def delete_file(context, file_path: str, confirmed: bool = False) -> Dict[str, Any]:
+    if not confirmed:
+        return context.require_confirmation(
+            message=f"确认删除文件: {file_path}",
+            action="delete_file",
+            file_path=file_path,
+        )
+    result = context.file_operation("delete_file", file_path=file_path)
+    result["user_output"] = {"label": "File Change", "content": f"--{Path(file_path).name} Delet"}
+    return result
 ```
 
-## 确认机制的实践
-
-### 1. 何时需要确认
-
-- **操作工作目录外的文件**：防止意外修改系统文件
-- **删除操作**：防止意外删除重要文件
-- **执行脚本**：防止执行恶意代码
-- **网络操作**：防止未授权的网络访问
-- **其他危险操作**：可能造成系统影响的操作
-
-### 2. 确认信息的编写
-
-- **清晰明确**：准确描述操作内容和影响
-- **包含必要信息**：如文件路径、大小、操作类型等
-- **简洁明了**：避免过长的确认信息
-- **使用一致的格式**：保持确认信息的风格一致
-
-### 3. 实现建议
-
-- **使用常量**：定义 `CONFIRMATION_REQUIRED` 常量控制确认机制
-- **统一检查**：创建 `is_in_work_dir()` 函数检查文件是否在工作目录内
-- **异常处理**：妥善处理确认过程中的异常情况
-- **日志记录**：记录确认操作的详细信息
-
-## 确认机制的配置
-
-### 启用/禁用确认机制
-
-Skill 应提供 `set_confirmation_required` 函数来启用或禁用确认机制：
+## PowerShell 执行
 
 ```python
-def set_confirmation_required(required: bool) -> Dict[str, Any]:
-    """设置是否需要用户确认"""
-    global CONFIRMATION_REQUIRED
-    CONFIRMATION_REQUIRED = required
+def run_command(context, script: str, timeout: int = 30, wait_time: int = 10) -> Dict[str, Any]:
+    context.log_info(f"执行脚本: {len(script)} 字符")
+
+    # 危险脚本确认
+    if is_dangerous(script):
+        return context.require_confirmation(
+            message=f"确认执行脚本: {script[:500]}",
+            action="run_script",
+            script=script,
+            timeout=timeout,
+            wait_time=wait_time,
+        )
+
+    # 安全脚本自动执行，返回 auto_execute 标记
     return {
-        "success": True,
-        "confirmation_required": CONFIRMATION_REQUIRED,
-        "message": f"确认机制已{'启用' if CONFIRMATION_REQUIRED else '禁用'}"
+        "auto_execute": True,
+        "action": "run_script",
+        "script": script,
+        "timeout": timeout,
+        "wait_time": wait_time,
     }
+
+
+async def check_status(context, command_id: str, wait_time: int = 10) -> Dict[str, Any]:
+    result = await context.check_script(command_id, wait_time)
+    result["user_output"] = {"label": "Read", "content": f"--{command_id}"}
+    return result
+
+
+def stop_command(context, command_id: str) -> Dict[str, Any]:
+    result = context.kill_command(command_id)
+    result["user_output"] = {"label": "Stop", "content": f"--{command_id}"}
+    return result
 ```
 
-## 常见问题
+## 备份管理
 
-### 1. 确认后如何重新执行操作？
+`context.file_operation()` 内部已集成备份管理，文件操作前自动备份，skill 无需手动调用 backup_manager。
 
-主程序会在用户确认后，使用相同的参数重新调用 Skill 函数。Skill 应检查 `confirmed` 字段或直接执行操作。
-
-### 2. Web 版本如何处理确认？
-
-Web 版本不支持交互式确认，会显示提示信息并建议用户使用命令行版本或确保操作在工作目录内。
-
-### 3. 如何处理批量操作的确认？
-
-对于批量操作，应在开始前进行统一确认，或为每个操作单独确认，取决于操作的风险程度。
-
-## 示例：完整的确认流程
-
-1. **用户请求**：删除文件 `C:\important\data.txt`
-2. **Skill 响应**：返回确认申请
-   ```python
-   {
-       "requires_confirmation": True,
-       "message": "确认删除文件: C:\important\data.txt (大小: 1024 字节)"
-   }
-   ```
-3. **主程序**：显示确认提示
-   ```
-   ⚠️  需要确认:
-     确认删除文件: C:\important\data.txt (大小: 1024 字节)
-   
-   是否确认此操作? (y/n): 
-   ```
-4. **用户输入**：`y`
-5. **主程序**：重新调用 Skill 执行删除
-6. **Skill**：执行删除操作并返回结果
-   ```python
-   {
-       "success": True,
-       "message": "文件删除成功: C:\important\data.txt"
-   }
-   ```
-
-## 备份管理器调用
-
-### 概述
-
-备份管理器用于在文件操作前创建备份，确保操作可以被撤销。Skill 应在执行文件操作前调用备份管理器进行备份。
-
-### 备份管理器初始化
-
-Skill 应在模块顶部初始化备份管理器：
+如需手动操作：
 
 ```python
-from modules import backup_manager
-
-backup_mgr = backup_manager
+def my_operation(context):
+    if context.backup_manager:
+        context.backup_manager.backup_file(file_path, context.work_directory, action="modify")
+        context.backup_manager.record_change(action="modify", file_path=file_path, work_dir=context.work_directory)
 ```
 
-### 调用时机
+## 确认机制的最佳实践
 
-Skill 应在以下操作前调用备份管理器：
-- **创建文件**：记录创建操作
-- **修改文件**：备份原始文件
-- **删除文件**：备份要删除的文件
+1. **命中即确认**：删除、危险命令、工作目录外操作
+2. **清晰明确**：确认消息包含操作内容和影响
+3. **使用 `user_output`**：提供紧凑的终端显示
 
-### 调用格式
+## 旧式与 context 式对比
 
-#### 1. 备份文件
-
-```python
-# 创建操作
-backup_path = backup_mgr.backup_file(file_path, work_dir, action="create")
-
-# 修改操作
-backup_path = backup_mgr.backup_file(file_path, work_dir, action="modify")
-
-# 删除操作
-backup_path = backup_mgr.backup_file(file_path, work_dir, action="delete")
-```
-
-**参数说明**：
-- `file_path`：文件路径
-- `work_dir`：工作目录
-- `action`：操作类型（"create"、"modify"、"delete"）
-
-**返回值**：
-- 成功：返回备份文件路径
-- 失败：返回 None
-
-#### 2. 记录更改
-
-```python
-backup_mgr.record_change(
-    action="create",  # 操作类型
-    file_path=file_path,  # 文件路径
-    work_dir=work_dir  # 工作目录
-)
-```
-
-**参数说明**：
-- `action`：操作类型（"create"、"modify"、"delete"）
-- `file_path`：文件路径
-- `work_dir`：工作目录（可选）
-
-### 完整示例
-
-#### 文件创建示例
-
-```python
-def create_file(file_path: str, content: str, work_dir: str = "workplace") -> Dict[str, Any]:
-    """创建文件"""
-    # 调用备份管理器记录创建操作
-    backup_path = backup_mgr.backup_file(file_path, work_dir, action="create")
-    
-    try:
-        # 执行文件创建
-        full_path = Path(work_dir) / file_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(full_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        # 记录更改
-        backup_mgr.record_change(
-            action="create",
-            file_path=file_path,
-            work_dir=work_dir
-        )
-        
-        return {
-            "success": True,
-            "message": f"文件创建成功: {file_path}"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"创建文件失败: {e}"
-        }
-```
-
-#### 文件修改示例
-
-```python
-def modify_file(file_path: str, old_str: str, new_str: str, work_dir: str = "workplace") -> Dict[str, Any]:
-    """修改文件 - 基于字符串查找替换"""
-    # 调用备份管理器备份原始文件
-    backup_path = backup_mgr.backup_file(file_path, work_dir, action="modify")
-    
-    try:
-        # 执行文件修改
-        full_path = Path(work_dir) / file_path
-        with open(full_path, 'r', encoding='utf-8') as f:
-            original_content = f.read()
-        
-        # 查找并替换原始字符串
-        index = original_content.find(old_str)
-        if index == -1:
-            return {"success": False, "message": "未找到匹配的原始字符串"}
-        
-        new_content = original_content[:index] + new_str + original_content[index + len(old_str):]
-        
-        with open(full_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        
-        # 记录更改
-        backup_mgr.record_change(
-            action="modify",
-            file_path=file_path,
-            work_dir=work_dir
-        )
-        
-        return {
-            "success": True,
-            "message": f"文件修改成功: {file_path}"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"修改文件失败: {e}"
-        }
-```
-
-#### 文件删除示例
-
-```python
-def delete_file(file_path: str, work_dir: str = "workplace") -> Dict[str, Any]:
-    """删除文件"""
-    # 调用备份管理器备份要删除的文件
-    backup_path = backup_mgr.backup_file(file_path, work_dir, action="delete")
-    
-    try:
-        # 执行文件删除
-        full_path = Path(work_dir) / file_path
-        if full_path.exists():
-            full_path.unlink()
-        
-        # 记录更改
-        backup_mgr.record_change(
-            action="delete",
-            file_path=file_path,
-            work_dir=work_dir
-        )
-        
-        return {
-            "success": True,
-            "message": f"文件删除成功: {file_path}"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"删除文件失败: {e}"
-        }
-```
-
-### 备份管理流程
-
-1. **Skill 调用备份**：在执行文件操作前调用 `backup_file`
-2. **执行文件操作**：执行实际的文件创建、修改或删除
-3. **记录更改**：调用 `record_change` 记录操作
-4. **用户选择**：用户可以选择应用或撤销更改
-5. **应用/撤销**：系统执行应用或撤销操作
-
-### 注意事项
-
-1. **必须调用**：所有文件操作都应调用备份管理器
-2. **正确的操作类型**：确保传递正确的 `action` 参数
-3. **异常处理**：妥善处理备份过程中的异常
-4. **日志记录**：备份管理器会自动记录备份操作
-
-## 总结
-
-确认机制和备份机制是保障系统安全的重要组成部分。Skill 开发者应：
-
-1. **遵循确认申请格式**：使用统一的确认申请格式
-2. **调用备份管理器**：在文件操作前进行备份
-3. **实现安全操作**：确保操作的安全性和可追溯性
-4. **提供清晰的用户反馈**：向用户提供明确的操作状态信息
-
-通过遵循本文档的规范，Skill 可以实现安全、可靠的文件操作，同时为用户提供完整的操作控制和恢复能力。
+| | 旧式 | context 式 |
+|---|---|---|
+| 获取工作目录 | `get_work_dir()` 自实现 | `context.work_directory` |
+| 日志 | `get_logger()` via request_manager | `context.log_info(...)` |
+| 文件操作 | `req_mgr.create_file_operation_request()` + `handle_request()` | `context.file_operation("create_file", ...)` |
+| 确认 | `self-code` 或 `rm.create_skill_confirmation()` | `context.require_confirmation(...)` |
+| PowerShell | `from modules.functions import powershell_manager` | `context.execute_script(...)` |
+| 模块导入 | `sys.path.insert` + import | 零 import |
