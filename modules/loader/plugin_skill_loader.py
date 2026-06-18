@@ -1,5 +1,6 @@
 import os
 import json
+import inspect
 import importlib.util
 import traceback
 import zipfile
@@ -237,7 +238,14 @@ class PluginSkillLoader:
             return {"error": error_msg, "missing_parameters": missing_params}
         
         try:
-            result = func(**arguments)
+            # 检测函数是否声明了 context 参数，若有则注入 SkillContext
+            sig = inspect.signature(func)
+            if 'context' in sig.parameters:
+                from .skill_context import create_default_context
+                ctx = create_default_context(self._current_work_dir or os.getcwd())
+                result = func(context=ctx, **arguments)
+            else:
+                result = func(**arguments)
             
             if asyncio.iscoroutine(result):
                 result = await result
@@ -272,6 +280,10 @@ class PluginSkillLoader:
     
     def list_failed_skills(self) -> Dict[str, str]:
         return self.failed_skills.copy()
+
+    def set_work_dir(self, work_dir: str):
+        """设置当前工作目录，供 SkillContext 注入使用。"""
+        self._current_work_dir = work_dir
     
     def reload_skills(self) -> Dict[str, Any]:
         self.skills.clear()

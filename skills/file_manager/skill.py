@@ -1,90 +1,16 @@
 from typing import Dict, Any
-import sys
-import os
 from pathlib import Path
 from colorama import Fore, Style
 from modules.bootstrap import constants
 
 MAX_FILE_SIZE = constants.MAX_FILE_SIZE
 
-def get_request_manager():
+
+def _safe_filename(file_path: str) -> str:
     try:
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        from modules.main_server.middleware import request_manager
-        return request_manager.get_request_manager()
-    except Exception as e:
-        print(f"获取 request_manager 失败: {e}")
-        return None
-
-def get_work_dir():
-    try:
-        req_mgr = get_request_manager()
-        if req_mgr:
-            config_request = req_mgr.create_config_request('load')
-            config_data = req_mgr.handle_request(config_request, None)
-            return config_data.get('work_directory', 'workplace')
-        return 'workplace'
-    except Exception as e:
-        print(f"获取工作目录失败: {e}")
-        return 'workplace'
-
-def get_backup_manager():
-    try:
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        from modules.functions import backup_manager
-        return backup_manager
-    except Exception as e:
-        print(f"获取 backup_manager 失败: {e}")
-        return None
-
-
-def set_work_directory(directory: str) -> Dict[str, Any]:
-    try:
-        from modules.main_server.middleware.request_manager import get_persisted_work_directory, get_ai_work_directory
-        base_work_dir = get_persisted_work_directory()
-        base_path = Path(base_work_dir).resolve()
-
-        # 获取 AI 当前所在目录，用于解析相对路径
-        ai_current_dir = get_ai_work_directory()
-        if ai_current_dir:
-            current_path = Path(ai_current_dir).resolve()
-        else:
-            current_path = base_path
-
-        input_path = Path(directory)
-
-        if input_path.is_absolute():
-            resolved_path = input_path.resolve()
-        else:
-            resolved_path = (current_path / input_path).resolve()
-
-        # 验证解析后的路径仍在持久化工作目录下，越界则回退到根目录
-        try:
-            resolved_path.relative_to(base_path)
-        except ValueError:
-            resolved_path = base_path
-
-        if not resolved_path.exists():
-            return {"error": f"目录不存在: {resolved_path}", "user_output": {"label": "Work Place", "content": f"--{directory} {Fore.RED}Error{Style.RESET_ALL}"}}
-        if not resolved_path.is_dir():
-            return {"error": f"路径不是目录: {resolved_path}", "user_output": {"label": "Work Place", "content": f"--{directory} {Fore.RED}Error{Style.RESET_ALL}"}}
-
-        relative_path = str(resolved_path.relative_to(base_path))
-        if relative_path == ".":
-            relative_path = ""
-        temp_work_dir = str(resolved_path)
-
-        return {
-            "success": True,
-            "work_directory": temp_work_dir,
-            "relative_path": relative_path if relative_path else ".",
-            "message": f"临时工作目录已切换为: {temp_work_dir}",
-            "format_hint": "建议使用相对路径格式，例如: 'subdir' 或 'subdir1/subdir2'，使用 '..' 返回上级目录",
-            "warning": "注意：此设置为临时切换，下次对话开始时将恢复为默认工作目录",
-            "user_output": {"label": "Work Place", "content": f"--{relative_path or '.'}"}
-        }
-    except Exception as e:
-        return {"error": f"设置工作目录失败: {str(e)}", "user_output": {"label": "Work Place", "content": f"-- {Fore.RED}Error{Style.RESET_ALL}"}}
+        return Path(file_path).name
+    except Exception:
+        return str(file_path) if file_path else "unknown"
 
 
 skill_info = {
@@ -140,20 +66,61 @@ skill_info = {
 }
 
 
-def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[str, Any]:
+def set_work_directory(context, directory: str) -> Dict[str, Any]:
     try:
-        req_mgr = get_request_manager()
-        work_dir = get_work_dir()
-        
-        create_request = req_mgr.create_file_operation_request(
+        from modules.main_server.middleware.request_manager import get_persisted_work_directory, get_ai_work_directory
+        base_work_dir = get_persisted_work_directory()
+        base_path = Path(base_work_dir).resolve()
+
+        ai_current_dir = get_ai_work_directory()
+        if ai_current_dir:
+            current_path = Path(ai_current_dir).resolve()
+        else:
+            current_path = base_path
+
+        input_path = Path(directory)
+
+        if input_path.is_absolute():
+            resolved_path = input_path.resolve()
+        else:
+            resolved_path = (current_path / input_path).resolve()
+
+        try:
+            resolved_path.relative_to(base_path)
+        except ValueError:
+            resolved_path = base_path
+
+        if not resolved_path.exists():
+            return {"error": f"目录不存在: {resolved_path}", "user_output": {"label": "Work Place", "content": f"--{directory} {Fore.RED}Error{Style.RESET_ALL}"}}
+        if not resolved_path.is_dir():
+            return {"error": f"路径不是目录: {resolved_path}", "user_output": {"label": "Work Place", "content": f"--{directory} {Fore.RED}Error{Style.RESET_ALL}"}}
+
+        relative_path = str(resolved_path.relative_to(base_path))
+        if relative_path == ".":
+            relative_path = ""
+        temp_work_dir = str(resolved_path)
+
+        return {
+            "success": True,
+            "work_directory": temp_work_dir,
+            "relative_path": relative_path if relative_path else ".",
+            "message": f"临时工作目录已切换为: {temp_work_dir}",
+            "format_hint": "建议使用相对路径格式，例如: 'subdir' 或 'subdir1/subdir2'，使用 '..' 返回上级目录",
+            "warning": "注意：此设置为临时切换，下次对话开始时将恢复为默认工作目录",
+            "user_output": {"label": "Work Place", "content": f"--{relative_path or '.'}"}
+        }
+    except Exception as e:
+        return {"error": f"设置工作目录失败: {str(e)}", "user_output": {"label": "Work Place", "content": f"-- {Fore.RED}Error{Style.RESET_ALL}"}}
+
+
+def create_file(context, file_path: str, content: str, encoding: str = "utf-8") -> Dict[str, Any]:
+    try:
+        result = context.file_operation(
             "create_file",
             file_path=file_path,
             content=content,
             encoding=encoding,
-            work_directory=work_dir
         )
-        
-        result = req_mgr.handle_request(create_request, None)
         if result.get("success"):
             full_path = result.get("file_path", file_path)
             parent = str(Path(full_path).parent)
@@ -172,21 +139,15 @@ def create_file(file_path: str, content: str, encoding: str = "utf-8") -> Dict[s
         return {"error": f"创建文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
 
 
-def modify_file(file_path: str, old_str: str, new_str: str, encoding: str = "utf-8") -> Dict[str, Any]:
+def modify_file(context, file_path: str, old_str: str, new_str: str, encoding: str = "utf-8") -> Dict[str, Any]:
     try:
-        req_mgr = get_request_manager()
-        work_dir = get_work_dir()
-        
-        modify_request = req_mgr.create_file_operation_request(
+        result = context.file_operation(
             "modify_file",
             file_path=file_path,
             old_str=old_str,
             new_str=new_str,
             encoding=encoding,
-            work_directory=work_dir
         )
-        
-        result = req_mgr.handle_request(modify_request, None)
         if result.get("success"):
             full_path = result.get("file_path", file_path)
             parent = str(Path(full_path).parent)
@@ -206,14 +167,7 @@ def modify_file(file_path: str, old_str: str, new_str: str, encoding: str = "utf
         return {"error": f"修改文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
 
 
-def _safe_filename(file_path: str) -> str:
-    try:
-        return Path(file_path).name
-    except Exception:
-        return str(file_path) if file_path else "unknown"
-
-
-def delete_file(file_path: str, confirmed: bool = False) -> Dict[str, Any]:
+def delete_file(context, file_path: str, confirmed: bool = False) -> Dict[str, Any]:
     if not confirmed:
         filename = _safe_filename(file_path)
         return {
@@ -221,21 +175,15 @@ def delete_file(file_path: str, confirmed: bool = False) -> Dict[str, Any]:
             "message": f"确认删除文件: {file_path}",
             "action": "delete_file",
             "file_path": file_path,
-            "work_directory": get_work_dir(),
+            "work_directory": context.work_directory,
             "user_output": {"label": "File Change", "content": f"--{filename} {Fore.YELLOW}?{Style.RESET_ALL}"}
         }
 
     try:
-        req_mgr = get_request_manager()
-        work_dir = get_work_dir()
-        
-        delete_request = req_mgr.create_file_operation_request(
+        result = context.file_operation(
             "delete_file",
             file_path=file_path,
-            work_directory=work_dir
         )
-        
-        result = req_mgr.handle_request(delete_request, None)
         if result.get("success"):
             full_path = result.get("file_path", file_path)
             filename = Path(full_path).name

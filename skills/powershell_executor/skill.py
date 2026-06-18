@@ -1,12 +1,9 @@
-import os
 import re
-import sys
 from typing import Dict, Any
 from colorama import Fore, Style
 from modules.bootstrap import constants
 
 MAX_SCRIPT_LENGTH = constants.MAX_SCRIPT_LENGTH
-
 DANGEROUS_PATTERNS = constants.DANGEROUS_PATTERNS
 
 
@@ -16,25 +13,6 @@ def _is_dangerous_script(script: str) -> bool:
         if re.search(pattern, script_lower):
             return True
     return False
-
-
-def get_logger():
-    try:
-        from modules.main_server.middleware import request_manager
-        req_mgr = request_manager.get_request_manager()
-        logger_request = req_mgr.create_logger_request('get', name="QuickAI.powershell_executor")
-        logger_result = req_mgr.handle_request(logger_request, None)
-        return logger_result.get('logger')
-    except:
-        return None
-
-
-def get_request_manager():
-    try:
-        from modules.main_server.middleware import request_manager
-        return request_manager.get_request_manager()
-    except:
-        return None
 
 
 skill_info = {
@@ -78,16 +56,12 @@ skill_info = {
 }
 
 
-def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[str, Any]:
-    log = get_logger()
-    rm = get_request_manager()
-
+def run_script(context, script: str, timeout: int = None, wait_time: int = None) -> Dict[str, Any]:
     try:
         script_length = len(script)
 
         if script_length > MAX_SCRIPT_LENGTH:
-            if log:
-                log.warning(f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符")
+            context.log_warning(f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符")
             preview = script[:500] + "..." if len(script) > 500 else script
             return {
                 "error": f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符",
@@ -99,39 +73,26 @@ def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[
         actual_timeout = timeout if timeout is not None else 30
         actual_wait = wait_time if wait_time is not None else 10
 
-        if log:
-            log.info(f"AI 请求运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s)")
+        context.log_info(f"AI 请求运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s)")
 
         if _is_dangerous_script(script):
             script_preview = script[:500] + "..." if len(script) > 500 else script
             message = f"确认运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s):\n{script_preview}"
 
-            if rm:
-                result = rm.create_skill_confirmation(
-                    message=message,
-                    action="run_powershell_script",
-                    script=script,
-                    timeout=actual_timeout,
-                    wait_time=actual_wait
-                )
-                result["user_output"] = {"label": "Run", "content": f"--{script_preview}"}
-                return result
-            else:
-                return {
-                    "requires_confirmation": True,
-                    "message": message,
-                    "action": "run_powershell_script",
-                    "script": script,
-                    "timeout": actual_timeout,
-                    "wait_time": actual_wait,
-                    "user_output": {"label": "Run", "content": f"--{script_preview}"}
-                }
+            result = context.require_confirmation(
+                message=message,
+                action="run_powershell_script",
+                script=script,
+                timeout=actual_timeout,
+                wait_time=actual_wait
+            )
+            result["user_output"] = {"label": "Run", "content": f"--{script_preview}"}
+            return result
         else:
             short_preview = script.split('\n')[0][:80]
             if len(script.split('\n')[0]) > 80:
                 short_preview += "..."
-            if log:
-                log.info(f"安全脚本，自动执行 (长度: {script_length} 字符)")
+            context.log_info(f"安全脚本，自动执行 (长度: {script_length} 字符)")
             return {
                 "auto_execute": True,
                 "action": "run_powershell_script",
@@ -142,17 +103,14 @@ def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[
             }
 
     except Exception as e:
-        if log:
-            log.error(f"运行脚本失败: {str(e)}")
+        context.log_error(f"运行脚本失败: {str(e)}")
         preview = script[:500] + "..." if len(script) > 500 else script
         return {"error": f"运行脚本失败: {str(e)}", "user_output": {"label": "Run", "content": f"--{preview} {Fore.RED}Error{Style.RESET_ALL}"}}
 
 
-async def check_script(command_id: str, wait_time: int = None) -> Dict[str, Any]:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from modules.functions import powershell_manager
+async def check_script(context, command_id: str, wait_time: int = None) -> Dict[str, Any]:
     actual_wait = wait_time if wait_time is not None else 10
-    result = await powershell_manager.check_script(command_id, actual_wait)
+    result = await context.check_script(command_id, actual_wait)
     output = result.get("output", "")
     display = _truncate_output(output)
     result["user_output"] = {
@@ -172,10 +130,8 @@ def _truncate_output(output: str) -> str:
     return '\n'.join(lines[:3]) + "\n..." + '\n'.join(lines[-3:])
 
 
-def kill_command(command_id: str) -> Dict[str, Any]:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from modules.functions import powershell_manager
-    result = powershell_manager.kill_command(command_id)
+def kill_command(context, command_id: str) -> Dict[str, Any]:
+    result = context.kill_command(command_id)
     result["user_output"] = {
         "label": "Stop",
         "content": f"--{Fore.LIGHTBLACK_EX}{command_id}{Style.RESET_ALL}"

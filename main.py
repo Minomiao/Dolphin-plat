@@ -307,7 +307,10 @@ def open_work_directory(path=None, silent=False):
         importlib.reload(sm)
         global skill_mgr
         skill_mgr = sm.get_skill_manager()
+        skill_mgr.set_work_dir(path)
         chat_instance.skill_mgr = skill_mgr
+        if chat_instance.plugin_loader:
+            chat_instance.plugin_loader.set_work_dir(path)
         chat_instance._update_tools()
         print("技能模块已重新加载")
     
