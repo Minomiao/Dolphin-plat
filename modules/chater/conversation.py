@@ -1,12 +1,14 @@
 import os
 import json
 from modules.logger import get_logger
+from modules import bootstrap as app_paths
+from modules.bootstrap import constants
 
 log = get_logger("Dolphin.conversation")
 
-CONVERSATIONS_DIR = os.path.join("date", "conversations")
+CONVERSATIONS_DIR = app_paths.CONVERSATIONS_DIR
 
-_FILE_AUTOCOMPLETE_TOOLS = {"create_file", "write_file", "read_file", "modify_file", "delete_file"}
+_FILE_AUTOCOMPLETE_TOOLS = constants.FILE_AUTOCOMPLETE_TOOLS
 
 
 def _is_file_tool(tool_name):

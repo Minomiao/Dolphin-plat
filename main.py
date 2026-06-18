@@ -1,11 +1,21 @@
+import os
+import sys
+import time
+
+from modules import bootstrap
+
+# 入口文件确定项目根目录（兼容 PyInstaller 打包）
+if getattr(sys, 'frozen', False):
+    bootstrap.init(os.path.dirname(os.path.abspath(sys.executable)))
+else:
+    bootstrap.init(os.path.dirname(os.path.abspath(__file__)))
+
 from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
 from modules.main_server import config
 from modules.CLIserver import commands as cmd
 from modules.chater import chat, conversation_loader
 from modules.logger import setup_logger, get_logger
 from modules.functions import backup_manager
-import os
-import time
 
 # 导入 colorama 库
 from colorama import init, Fore, Back, Style
@@ -274,11 +284,16 @@ def toggle_tools():
 def open_work_directory(path=None, silent=False):
     global current_config, chat_instance, skill_mgr, current_conversation, current_dir_id, current_conv_id
     if not path:
-        print(f"\n当前工作目录: {current_config.get('work_directory', 'workplace')}")
+        cur = current_config.get('work_directory', 'workplace')
+        print(f"\n当前工作目录: {cur}")
         path = input("输入要打开的工作目录: ")
         if not path:
             print("取消操作")
             return
+    
+    # 相对路径基于项目根目录解析为绝对路径
+    if not os.path.isabs(path):
+        path = os.path.normpath(os.path.join(bootstrap.PROJECT_ROOT, path))
     
     old_work_directory = current_config.get('work_directory', 'workplace')
     current_config['work_directory'] = path
@@ -833,9 +848,12 @@ if __name__ == "__main__":
         log.warning(deprecation_warning)
     
     WORKPLACE_DIR = current_config.get('work_directory', 'workplace')
+    # 相对路径基于项目根目录解析为绝对路径
+    if not os.path.isabs(WORKPLACE_DIR):
+        WORKPLACE_DIR = os.path.join(bootstrap.PROJECT_ROOT, WORKPLACE_DIR)
     if not os.path.exists(WORKPLACE_DIR):
-        log.warning(f"工作目录不存在，回退到默认目录: {WORKPLACE_DIR} -> workplace")
-        WORKPLACE_DIR = 'workplace'
+        WORKPLACE_DIR = os.path.join(bootstrap.PROJECT_ROOT, 'workplace')
+        log.warning(f"工作目录不存在，回退到默认目录: {WORKPLACE_DIR}")
         current_config['work_directory'] = WORKPLACE_DIR
         config.save_config(current_config)
     if not os.path.exists(WORKPLACE_DIR):

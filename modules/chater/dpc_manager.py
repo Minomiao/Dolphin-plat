@@ -4,11 +4,12 @@ import uuid
 import ctypes
 from datetime import datetime
 from modules.logger import get_logger
+from modules.bootstrap import constants
 
 log = get_logger("Dolphin.dpc_manager")
 
-DPC_FILENAME = ".dpc"
-FILE_ATTRIBUTE_HIDDEN = 0x2
+DPC_FILENAME = constants.DPC_FILENAME
+FILE_ATTRIBUTE_HIDDEN = constants.FILE_ATTRIBUTE_HIDDEN
 
 
 def _read_raw(work_dir):

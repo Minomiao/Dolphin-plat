@@ -1,12 +1,9 @@
 import os
 import json
 from modules.logger import get_logger
+from modules import bootstrap as app_paths
 
 log = get_logger("Dolphin.commands")
-
-DATE_DIR = "date"
-COMMANDS_FILE = os.path.join(DATE_DIR, "commands.json")
-CONFIG_FILE = os.path.join(DATE_DIR, "config.json")
 
 
 def _get_default_commands():
@@ -73,7 +70,7 @@ def _get_default_commands():
 
 
 def _get_prefix():
-    config_path = CONFIG_FILE
+    config_path = app_paths.CONFIG_FILE
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -85,11 +82,11 @@ def _get_prefix():
 
 
 def _validate_commands():
-    if not os.path.exists(COMMANDS_FILE):
+    if not os.path.exists(app_paths.COMMANDS_FILE):
         return
 
     try:
-        with open(COMMANDS_FILE, 'r', encoding='utf-8') as f:
+        with open(app_paths.COMMANDS_FILE, 'r', encoding='utf-8') as f:
             file_data = json.load(f)
     except Exception as e:
         log.warning(f"读取命令文件失败，跳过校验: {e}")
@@ -120,7 +117,7 @@ def _validate_commands():
             changed = True
 
     if changed:
-        with open(COMMANDS_FILE, 'w', encoding='utf-8') as f:
+        with open(app_paths.COMMANDS_FILE, 'w', encoding='utf-8') as f:
             json.dump({"commands": file_commands}, f, ensure_ascii=False, indent=2)
         log.info("命令文件校验完成，已修复异常项")
 
@@ -133,9 +130,9 @@ def load_commands():
     resolved = {"commands": {}}
 
     keywords = {}
-    if os.path.exists(COMMANDS_FILE):
+    if os.path.exists(app_paths.COMMANDS_FILE):
         try:
-            with open(COMMANDS_FILE, 'r', encoding='utf-8') as f:
+            with open(app_paths.COMMANDS_FILE, 'r', encoding='utf-8') as f:
                 file_data = json.load(f)
             for key, info in file_data.get("commands", {}).items():
                 keywords[key] = info.get("input", key)
@@ -154,9 +151,9 @@ def load_commands():
 
 def save_commands(prefix=None):
     if prefix is not None:
-        if os.path.exists(CONFIG_FILE):
+        if os.path.exists(app_paths.CONFIG_FILE):
             try:
-                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                with open(app_paths.CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config_data = json.load(f)
             except Exception as e:
                 log.warning(f"读取配置文件失败: {e}")
@@ -164,16 +161,16 @@ def save_commands(prefix=None):
         else:
             config_data = {}
         config_data["command_prefix"] = prefix
-        if not os.path.exists(DATE_DIR):
-            os.makedirs(DATE_DIR)
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        if not os.path.exists(app_paths.DATE_DIR):
+            os.makedirs(app_paths.DATE_DIR)
+        with open(app_paths.CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config_data, f, ensure_ascii=False, indent=2)
         log.info(f"命令前缀已保存: {prefix}")
 
     existing_commands = {}
-    if os.path.exists(COMMANDS_FILE):
+    if os.path.exists(app_paths.COMMANDS_FILE):
         try:
-            with open(COMMANDS_FILE, 'r', encoding='utf-8') as f:
+            with open(app_paths.COMMANDS_FILE, 'r', encoding='utf-8') as f:
                 existing_data = json.load(f)
             existing_commands = existing_data.get("commands", {})
         except Exception as e:
@@ -192,11 +189,11 @@ def save_commands(prefix=None):
         if key not in resolved["commands"]:
             resolved["commands"][key] = info
 
-    if not os.path.exists(DATE_DIR):
-        os.makedirs(DATE_DIR)
-    with open(COMMANDS_FILE, 'w', encoding='utf-8') as f:
+    if not os.path.exists(app_paths.DATE_DIR):
+        os.makedirs(app_paths.DATE_DIR)
+    with open(app_paths.COMMANDS_FILE, 'w', encoding='utf-8') as f:
         json.dump(resolved, f, ensure_ascii=False, indent=2)
-    log.debug(f"已生成帮助文件: {COMMANDS_FILE}")
+    log.debug(f"已生成帮助文件: {app_paths.COMMANDS_FILE}")
 
 
 def get_command(cmd_key):

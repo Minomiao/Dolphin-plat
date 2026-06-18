@@ -263,7 +263,7 @@ class QuickAIChat:
         return await self._execute_tool(tool_name, arguments)
 
     async def _execute_powershell_script(self, script: str, timeout: int = 30, wait_time: int = 10) -> dict:
-        from modules.loader import powershell_manager
+        from modules.functions import powershell_manager
         return await powershell_manager.execute_script(script, timeout, wait_time)
 
     async def _handle_auto_execute(self, result_dict: dict) -> tuple:

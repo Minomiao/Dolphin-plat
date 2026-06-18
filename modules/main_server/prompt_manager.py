@@ -1,12 +1,9 @@
 import os
 import json
 from modules.logger import get_logger
+from modules import bootstrap as app_paths
 
 log = get_logger("Dolphin.prompt_manager")
-
-DATE_DIR = "date"
-PROMPT_DIR = os.path.join(DATE_DIR, "prompts")
-PROMPT_FILE = os.path.join(PROMPT_DIR, "system_prompts.json")
 
 class PromptManager:
     _instance = None
@@ -20,12 +17,12 @@ class PromptManager:
     def _initialize(self):
         """初始化提示词管理器"""
         # 创建提示词目录
-        if not os.path.exists(PROMPT_DIR):
-            os.makedirs(PROMPT_DIR)
-            log.info(f"创建提示词目录: {PROMPT_DIR}")
+        if not os.path.exists(app_paths.PROMPT_DIR):
+            os.makedirs(app_paths.PROMPT_DIR)
+            log.info(f"创建提示词目录: {app_paths.PROMPT_DIR}")
         
         # 初始化默认提示词
-        if not os.path.exists(PROMPT_FILE):
+        if not os.path.exists(app_paths.PROMPT_FILE):
             self._create_default_prompts()
         
         # 加载提示词
@@ -41,15 +38,15 @@ class PromptManager:
             "directory_structure": "当前工作目录的文件结构：\n{directory_structure}"
         }
         
-        with open(PROMPT_FILE, 'w', encoding='utf-8') as f:
+        with open(app_paths.PROMPT_FILE, 'w', encoding='utf-8') as f:
             json.dump(default_prompts, f, ensure_ascii=False, indent=2)
         
-        log.info(f"创建默认提示词文件: {PROMPT_FILE}")
+        log.info(f"创建默认提示词文件: {app_paths.PROMPT_FILE}")
     
     def _load_prompts(self):
         """加载提示词"""
         try:
-            with open(PROMPT_FILE, 'r', encoding='utf-8') as f:
+            with open(app_paths.PROMPT_FILE, 'r', encoding='utf-8') as f:
                 prompts = json.load(f)
             return prompts
         except Exception as e:
@@ -75,9 +72,9 @@ class PromptManager:
     def _save_prompts(self):
         """保存提示词"""
         try:
-            with open(PROMPT_FILE, 'w', encoding='utf-8') as f:
+            with open(app_paths.PROMPT_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.prompts, f, ensure_ascii=False, indent=2)
-            log.debug(f"保存提示词到: {PROMPT_FILE}")
+            log.debug(f"保存提示词到: {app_paths.PROMPT_FILE}")
         except Exception as e:
             log.error(f"保存提示词失败: {e}")
     

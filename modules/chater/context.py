@@ -7,13 +7,14 @@
 """
 
 from modules.logger import get_logger
+from modules.bootstrap import constants
 
 log = get_logger("Dolphin.context")
 
 # 上下文窗口告警阈值
-_WARN_THRESHOLD = 0.70   # 70%: 提醒用户
-_HIGH_THRESHOLD = 0.85   # 85%: 建议清理
-_CRITICAL_THRESHOLD = 0.95  # 95%: 强烈建议清理
+_WARN_THRESHOLD = constants.WARN_THRESHOLD
+_HIGH_THRESHOLD = constants.HIGH_THRESHOLD
+_CRITICAL_THRESHOLD = constants.CRITICAL_THRESHOLD
 
 
 

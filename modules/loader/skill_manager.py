@@ -5,12 +5,15 @@ import traceback
 from typing import Dict, List, Any, Callable, Optional
 from pathlib import Path
 from modules.logger import get_logger
+from modules import bootstrap as app_paths
 
 log = get_logger("Dolphin.skill_manager")
 
 
 class SkillManager:
-    def __init__(self, skills_dir: str = "skills"):
+    def __init__(self, skills_dir: str = None):
+        if skills_dir is None:
+            skills_dir = os.path.join(app_paths.PROJECT_ROOT, "skills")
         self.skills_dir = Path(skills_dir)
         self.skills: Dict[str, Dict[str, Any]] = {}
         self.failed_skills: Dict[str, str] = {}

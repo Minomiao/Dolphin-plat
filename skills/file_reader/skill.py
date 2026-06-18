@@ -3,11 +3,12 @@ from typing import Dict, Any, List
 from pathlib import Path
 import sys
 from colorama import Fore, Style
+from modules.bootstrap import constants
 
-MAX_FILES_TO_READ = 1000
-MAX_FILE_SIZE = 10 * 1024 * 1024
-MAX_SEARCH_RESULTS = 500
-MAX_FILES_TO_SEARCH_IN_CONTENT = 100
+MAX_FILES_TO_READ = constants.MAX_FILES_TO_READ
+MAX_FILE_SIZE = constants.MAX_FILE_SIZE
+MAX_SEARCH_RESULTS = constants.MAX_SEARCH_RESULTS
+MAX_FILES_TO_SEARCH_IN_CONTENT = constants.MAX_FILES_TO_SEARCH_IN_CONTENT
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

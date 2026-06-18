@@ -7,12 +7,15 @@ import tempfile
 from typing import Dict, List, Any, Callable, Optional
 from pathlib import Path
 from modules.logger import get_logger
+from modules import bootstrap as app_paths
 
 log = get_logger("Dolphin.plugin_skill_loader")
 
 
 class PluginSkillLoader:
-    def __init__(self, plugins_dir: str = "plugins"):
+    def __init__(self, plugins_dir: str = None):
+        if plugins_dir is None:
+            plugins_dir = os.path.join(app_paths.PROJECT_ROOT, "plugins")
         self.plugins_dir = Path(plugins_dir)
         self.skills: Dict[str, Dict[str, Any]] = {}
         self.failed_skills: Dict[str, str] = {}

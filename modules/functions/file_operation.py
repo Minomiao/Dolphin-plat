@@ -2,13 +2,12 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from modules.logger import get_logger
+from modules.bootstrap import constants
 
 log = get_logger("Dolphin.file_operation")
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-# MAX_LINE_COUNT 采用 100 行冗余设计：对外声明 1000 行，实际限制 1100 行
-# 冗余用于避免创建文件再追加内容时行数统计误差导致的拒绝
-MAX_LINE_COUNT = 1100
+MAX_FILE_SIZE = constants.MAX_FILE_SIZE
+MAX_LINE_COUNT = constants.MAX_LINE_COUNT
 
 
 def _check_dpc_restriction(absolute_path):

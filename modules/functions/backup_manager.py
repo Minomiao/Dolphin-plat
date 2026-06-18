@@ -5,10 +5,11 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 import json
 from modules.logger import get_logger
+from modules import bootstrap as app_paths
 
 log = get_logger("Dolphin.backup_manager")
 
-BACKUP_DIR = "date/backup"
+BACKUP_DIR = app_paths.BACKUP_DIR
 
 # 对话级别的备份管理
 dialog_backups = {}

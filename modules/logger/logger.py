@@ -1,9 +1,7 @@
 import logging
 import os
 from datetime import datetime
-
-DATE_DIR = "date"
-LOG_DIR = os.path.join(DATE_DIR, "log")
+from modules import bootstrap as app_paths
 
 _dpc_initialized = False
 
@@ -15,14 +13,14 @@ def _init_date_dpc():
     _dpc_initialized = True
     try:
         from modules.chater import dpc_manager
-        dpc_manager.ensure_restriction(DATE_DIR, ["*"])
+        dpc_manager.ensure_restriction(app_paths.DATE_DIR, ["*"])
     except Exception as e:
         pass
 
 
 def setup_logger(name="Dolphin", level=logging.DEBUG):
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
+    if not os.path.exists(app_paths.LOG_DIR):
+        os.makedirs(app_paths.LOG_DIR)
     
     _init_date_dpc()
     
@@ -33,7 +31,7 @@ def setup_logger(name="Dolphin", level=logging.DEBUG):
         return logger
     
     log_filename = datetime.now().strftime("%Y-%m-%d") + ".log"
-    log_filepath = os.path.join(LOG_DIR, log_filename)
+    log_filepath = os.path.join(app_paths.LOG_DIR, log_filename)
     
     file_handler = logging.FileHandler(log_filepath, encoding='utf-8')
     file_handler.setLevel(level)
@@ -56,11 +54,11 @@ def log_thinking(content: str):
     if not content:
         return
 
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
+    if not os.path.exists(app_paths.LOG_DIR):
+        os.makedirs(app_paths.LOG_DIR)
 
     think_log_filename = "think_" + datetime.now().strftime("%Y-%m-%d") + ".log"
-    think_log_filepath = os.path.join(LOG_DIR, think_log_filename)
+    think_log_filepath = os.path.join(app_paths.LOG_DIR, think_log_filename)
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

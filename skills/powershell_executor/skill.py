@@ -3,66 +3,11 @@ import re
 import sys
 from typing import Dict, Any
 from colorama import Fore, Style
+from modules.bootstrap import constants
 
-MAX_SCRIPT_LENGTH = 10000
+MAX_SCRIPT_LENGTH = constants.MAX_SCRIPT_LENGTH
 
-DANGEROUS_PATTERNS = [
-    # ===== 文件系统破坏 =====
-    r'\bremove-item\b', r'\bremove-itemproperty\b',
-    r'\brm\s', r'\bdel\s', r'\bdel\b', r'\brd\s', r'\brmdir\b',
-    r'\bclear-content\b', r'\bclear-item\b',
-    r'\bformat-volume\b', r'\bclear-disk\b', r'\binitialize-disk\b',
-    r'\brename-item\b.*[-/].*path.*(?:system32|windows|boot|etc)\b',
-    r'\bmove-item\b.*[-/].*destination.*(?:system32|windows|boot)\b',
-    r'\bformat\s+[a-z]:', r'\bdiskpart\b',
-
-    # ===== 进程/服务控制 =====
-    r'\bstop-process\b', r'\btaskkill\b', r'\bstop-service\b',
-    r'\bstart-process\b.*[-/].*(?:hidden|windowstyle\s+hidden)',
-
-    # ===== 系统状态变更 =====
-    r'\brestart-computer\b', r'\bstop-computer\b', r'\bshutdown\b',
-    r'\bset-executionpolicy\b', r'\bdisable-psremoting\b', r'\benable-psremoting\b',
-    r'\bset-netfirewallrule\b', r'\bset-netfirewallprofile\b',
-    r'\bbcdedit\b', r'\bnetsh\b.*(?:firewall|interface|winsock)',
-
-    # ===== 注册表修改 =====
-    r'\breg\s+(add|delete|import|load|unload)\b',
-    r'\bset-itemproperty\b.*(?:registry|hklm|hkcu|hkcr|hkey)',
-    r'\bnew-itemproperty\b.*(?:registry|hklm|hkcu|hkcr|hkey)',
-    r'\bregsvr32\b',
-
-    # ===== 用户/权限操作 =====
-    r'\bnew-localuser\b', r'\bremove-localuser\b', r'\bset-localuser\b',
-    r'\badd-localgroupmember\b', r'\badd-adgroupmember\b',
-    r'\bnet\s+(user|localgroup|group)\b',
-    r'\bicacls\b', r'\btakeown\b', r'\battrib\b.*[+-]h',
-
-    # ===== 计划任务/持久化 =====
-    r'\bschtasks\b', r'\bnew-scheduledtask\b', r'\bregister-scheduledtask\b',
-    r'\bwmic\b.*(?:startup|create\s+process)',
-    r'\bsc\s+(create|delete|config|stop)',
-
-    # ===== 代码执行/下载执行 =====
-    r'\binvoke-expression\b', r'\biex\b',
-    r'\binvoke-(?:webrequest|restmethod|wrmethod)\b.*\|.*\b(?:invoke-expression|iex)\b',
-    r'\bwget\b.*\|.*\b(?:invoke-expression|iex|sh|bash|cmd)\b',
-    r'\bcurl\b.*\|.*\b(?:invoke-expression|iex|sh|bash|cmd)\b',
-    r'\bnew-object\b.*\b(?:net\.webclient|system\.net\.webclient)\b',
-    r'\bnew-object\b.*\b(?:net\.sockets\.tcpclient|system\.net\.sockets)\b',
-    r'\bdownloadstring\b', r'\bdownloadfile\b', r'\bdownloaddata\b',
-    r'\bstart-bits transfer\b', r'\bbitsadmin\b',
-    r'\bmshta\b', r'\bcertutil\b.*[-/](?:decode|encode|urlcache)',
-    r'\brundll32\b',
-    r'\bcscript\b', r'\bwscript\b',
-
-    # ===== 编码/混淆执行 =====
-    r'[-/](?:enc|encodedcommand|ec|e)\s+\S{20,}',
-    r'\[system\.text\.encoding\].*frombase64',
-    r'\bfrombase64string\b.*\binvoke-expression\b',
-    r'\bfrombase64string\b.*\biex\b',
-    r'\bfrombase64string\b.*\bstart-process\b',
-]
+DANGEROUS_PATTERNS = constants.DANGEROUS_PATTERNS
 
 
 def _is_dangerous_script(script: str) -> bool:
@@ -205,7 +150,7 @@ def run_script(script: str, timeout: int = None, wait_time: int = None) -> Dict[
 
 async def check_script(command_id: str, wait_time: int = None) -> Dict[str, Any]:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from modules.loader import powershell_manager
+    from modules.functions import powershell_manager
     actual_wait = wait_time if wait_time is not None else 10
     result = await powershell_manager.check_script(command_id, actual_wait)
     output = result.get("output", "")
@@ -229,7 +174,7 @@ def _truncate_output(output: str) -> str:
 
 def kill_command(command_id: str) -> Dict[str, Any]:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from modules.loader import powershell_manager
+    from modules.functions import powershell_manager
     result = powershell_manager.kill_command(command_id)
     result["user_output"] = {
         "label": "Stop",

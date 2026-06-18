@@ -8,14 +8,15 @@ from typing import Dict, Any
 from pathlib import Path
 
 from modules.logger import get_logger
+from modules.bootstrap import constants
 
 log = get_logger("Dolphin.powershell_manager")
 
-MAX_SCRIPT_LENGTH = 10000
-MAX_OUTPUT_LENGTH = 50000
-MAX_OUTPUT_LINES = 500
-DEFAULT_TIMEOUT = 30
-DEFAULT_WAIT_TIME = 10
+MAX_SCRIPT_LENGTH = constants.MAX_SCRIPT_LENGTH
+MAX_OUTPUT_LENGTH = constants.MAX_OUTPUT_LENGTH
+MAX_OUTPUT_LINES = constants.MAX_OUTPUT_LINES
+DEFAULT_TIMEOUT = constants.DEFAULT_TIMEOUT
+DEFAULT_WAIT_TIME = constants.DEFAULT_WAIT_TIME
 
 _running_processes: Dict[str, Dict[str, Any]] = {}
 _completed_outputs: Dict[str, Dict[str, Any]] = {}

@@ -3,8 +3,9 @@ import sys
 import os
 from pathlib import Path
 from colorama import Fore, Style
+from modules.bootstrap import constants
 
-MAX_FILE_SIZE = 10 * 1024 * 1024
+MAX_FILE_SIZE = constants.MAX_FILE_SIZE
 
 def get_request_manager():
     try:
