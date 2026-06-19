@@ -26,7 +26,6 @@ init()
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
-from rich.align import Align
 from rich.progress import Progress, BarColumn, TextColumn
 from rich import box
 
@@ -191,7 +190,7 @@ def _print_header():
         current_config.get('model', 'deepseek-v4-flash'))
     work_dir = current_config.get('work_directory', 'workplace')
 
-    dolphin = Align.center(Text(_DOLPHIN_ART, style="bright_blue"))
+    dolphin = Text(_DOLPHIN_ART, style="bright_blue")
 
     info = Text()
     if deprecation_warning:
@@ -749,7 +748,7 @@ def _progress_bar(percent, label):
     if _progress is None:
         _progress = Progress(
             BarColumn(bar_width=25, style="dim", complete_style="cyan", finished_style="cyan"),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("[bright_blue]{task.percentage:>3.0f}%"),
             TextColumn("{task.description}"),
         )
         _progress.start()
@@ -823,7 +822,7 @@ def _build_dolphin_art():
 _DOLPHIN_ART = _build_dolphin_art()
 
 def _print_dolphin():
-    _console.print(Text(_DOLPHIN_ART, style="bright_blue"), justify="center")
+    _console.print(Text(_DOLPHIN_ART, style="bright_blue"))
 
 def _show_splash():
     _print_dolphin()
