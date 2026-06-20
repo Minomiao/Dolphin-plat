@@ -14,6 +14,7 @@ from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionErr
 from modules.main_server import config
 from modules.CLIserver import commands as cmd
 from modules.chater import chat, conversation_loader
+from modules.CLIserver import screen_refresh
 from modules.logger import setup_logger, get_logger
 from modules.functions import backup_manager
 
@@ -40,6 +41,7 @@ _using_alt_screen = False
 
 show_thinking = False
 _thinking_start_time = 0.0
+_turn_first_output = True
 
 
 def _supports_ansi():
@@ -330,10 +332,7 @@ def open_work_directory(path=None, silent=False):
             current_dir_id = result['dir_id']
             current_conv_id = result['conv_id']
             if not silent:
-                os.system('cls' if os.name == 'nt' else 'clear')
-                _print_header()
-                print(f"已自动加载对话: {conv_name}")
-                _print_conversation_history()
+                screen_refresh.refresh(_print_header, _print_conversation_history, f"已自动加载对话: {conv_name}")
             return
     
     if conv_id:
@@ -358,9 +357,7 @@ def open_work_directory(path=None, silent=False):
     current_conv_id = new_conv_id
     log.info(f"为工作目录创建新对话: {conv_name} ({new_conv_id})")
     if not silent:
-        os.system('cls' if os.name == 'nt' else 'clear')
-        _print_header()
-        print(f"已创建新对话: {conv_name}")
+        screen_refresh.refresh(_print_header, _print_conversation_history, f"已创建新对话: {conv_name}", show_history=False)
 
 def model_settings():
     global current_config, chat_instance
@@ -436,13 +433,19 @@ def model_settings():
 
 def chat_callback(event_type, data):
     """处理聊天事件的回调函数"""
-    global _thinking_start_time
+    global _thinking_start_time, _turn_first_output
     if event_type == 'thinking':
+        if _turn_first_output:
+            print()
+            _turn_first_output = False
         if show_thinking:
-            print(f"{Fore.LIGHTBLACK_EX}思考过程:{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}\n")
+            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}\n")
     elif event_type == 'thinking_start':
+        if _turn_first_output:
+            print()
+            _turn_first_output = False
         if show_thinking:
-            print(f"{Fore.LIGHTBLACK_EX}思考过程:{Style.RESET_ALL}")
+            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}")
         else:
             _thinking_start_time = time.time()
             print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - 0s{Style.RESET_ALL}", end="", flush=True)
@@ -457,8 +460,11 @@ def chat_callback(event_type, data):
             print(f"\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
         else:
             elapsed = int(time.time() - _thinking_start_time)
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}思考完成{elapsed}s{Style.RESET_ALL}")
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}[思考完成 {elapsed}s]{Style.RESET_ALL}")
     elif event_type == 'response_chunk':
+        if _turn_first_output:
+            print()
+            _turn_first_output = False
         print(data['content'], end="", flush=True)
     elif event_type == 'response_end':
         print()
@@ -601,9 +607,7 @@ async def main():
                 current_dir_id = dir_id
                 current_conv_id = conv_id
                 log.info(f"切换到新对话: {new_name} ({conv_id})")
-                os.system('cls' if os.name == 'nt' else 'clear')
-                _print_header()
-                print(f"已切换到新对话: {new_name}")
+                screen_refresh.refresh(_print_header, _print_conversation_history, f"已切换到新对话: {new_name}", show_history=False)
             continue
         elif user_input.startswith(cmd.get_command('load')):
             parts = user_input.split(' ', 1)
@@ -623,10 +627,7 @@ async def main():
                     current_dir_id = result['dir_id']
                     current_conv_id = result['conv_id']
                     
-                    os.system('cls' if os.name == 'nt' else 'clear')
-                    _print_header()
-                    print(f"已加载对话: {load_name}")
-                    _print_conversation_history()
+                    screen_refresh.refresh(_print_header, _print_conversation_history, f"已加载对话: {load_name}")
                 else:
                     log.warning(f"对话不存在: {load_name}")
                     print(f"对话 '{load_name}' 不存在")
@@ -686,10 +687,7 @@ async def main():
                 else:
                     print(f"{Fore.RED}无效输入，请输入 on 或 off{Style.RESET_ALL}")
             if changed:
-                os.system('cls' if os.name == 'nt' else 'clear')
-                _print_header()
-                print(f"思考过程显示: {'开启' if show_thinking else '关闭'}")
-                _print_conversation_history()
+                screen_refresh.refresh(_print_header, _print_conversation_history, f"思考过程显示: {'开启' if show_thinking else '关闭'}")
             continue
         
         prefix = cmd._get_prefix()
@@ -714,6 +712,7 @@ async def main():
             continue
 
         log.info(f"用户输入: {user_input}")
+        _turn_first_output = True
         chat_instance.set_save_target(current_dir_id, current_conv_id)
         try:
             await chat_instance.chat_stream(user_input)
@@ -880,7 +879,7 @@ if __name__ == "__main__":
     log.info(f"当前配置: model={current_config.get('model')}, max_tokens={current_config.get('max_tokens', 8192)}, conversation={current_conversation}, work_directory={WORKPLACE_DIR}")
     _progress_bar(100, _DEEPSLEEPING)
     time.sleep(0.3)
-    os.system('cls' if os.name == 'nt' else 'clear')
+    screen_refresh.clear_screen()
     
     _print_header()
     

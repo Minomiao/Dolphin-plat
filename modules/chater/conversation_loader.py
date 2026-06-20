@@ -41,17 +41,19 @@ def format_conversation_history(messages, show_thinking):
         if role == 'system':
             continue
         elif role == 'user':
-            lines.append(f"您: {content}")
+            lines.append("")
+            lines.append(f"{Fore.WHITE}>{Style.RESET_ALL} {content}")
+            lines.append("")
         elif role == 'assistant':
             if msg.get('reasoning_content'):
                 if show_thinking:
-                    lines.append(f"{Fore.LIGHTBLACK_EX}思考过程:{Style.RESET_ALL}")
+                    lines.append(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}")
                     lines.append(f"{Fore.LIGHTBLACK_EX}{msg['reasoning_content']}{Style.RESET_ALL}")
                     lines.append(f"{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
                 else:
-                    lines.append(f"{Fore.LIGHTBLACK_EX}思考完成{Style.RESET_ALL}")
+                    lines.append(f"{Fore.LIGHTBLACK_EX}[思考完成]{Style.RESET_ALL}")
             if content:
-                lines.append(f"AI: {content}")
+                lines.append(content)
             if msg.get('tool_calls'):
                 all_have_uo = all(tc['id'] in tool_ids_have_uo for tc in msg['tool_calls'] if tc.get('id'))
                 if all_have_uo:
