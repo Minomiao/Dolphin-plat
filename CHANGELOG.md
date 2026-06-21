@@ -1,5 +1,56 @@
 # Change Log
 
+## v1.1.4 (2026-06-21)
+
+Bootstrap module, SkillContext architecture, rich Table for pending changes, async compatibility layer, and UI polish.
+
+### Architecture: Bootstrap Module
+
++ Add `modules/bootstrap/` with `paths.py` and `constants.py` for centralized path and constant management
++ `paths.py` — compute absolute paths from project root (PyInstaller-compatible)
++ `constants.py` — unify all global constants (file limits, thresholds, MODEL_REGISTRY, etc.)
++ Eliminate hardcoded relative paths — all paths now resolved from `PROJECT_ROOT`
++ `BACKUP_DIR` upgraded from relative to absolute path via bootstrap
+
+### Architecture: SkillContext
+
++ Add `SkillContext` (`modules/loader/skill_context.py`) — unified injection interface for skill functions
++ `create_default_context(work_dir)` factory with all dependencies wired (logger, request_manager, backup, powershell)
++ Skills declare `context` parameter to receive context; backward-compatible via `inspect.signature`
++ Rewrite 3 core skills to use `context`: powershell_executor, file_reader, file_manager
++ Remove 11 duplicated helper functions across skills
++ Remove 9 `sys.path.insert` hacks from skills
++ Fix SkillContext to always use config work_directory instead of `os.getcwd()` fallback
+
+### Rich CLI: Pending Changes Display
+
+/ Replace plain-text pending changes output with `rich.Table`
++ Color-coded actions: **创建** (green), **删除** (red), **修改** (yellow)
++ Wrap summary + table in `rich.Panel` with cyan border
++ Simplify display: only count, action type, and file path (remove timestamp/dialog_id)
+
+### Async Compatibility & Tool Unification
+
++ Add async compatibility layer (`_run_async`) for sync/async context bridging in request_manager
++ Unify tool execution pipeline across skill / plugin / MCP routing paths
+
+### Screen Refresh & Conversation Display
+
++ Unify screen refresh logic across conversation management
++ Standardize conversation history formatting with color-coded messages
+
+### UI Polish
+
++ Left-align Dolphin splash art for cleaner layout
++ Progress bar percentage displayed in blue
+
+### Documentation
+
++ Update README.md, FEATURES.md, SKILL_OPERATION_GUIDE.md to reflect current architecture
++ Document bootstrap module and SkillContext patterns
+
+---
+
 ## v1.1.3 (2026-06-14)
 
 Rich CLI styling, showthinking history rerender, model settings UX, code refactoring, and architecture improvements.

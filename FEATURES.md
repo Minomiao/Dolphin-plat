@@ -93,6 +93,7 @@
 - [x] Per-dialog, per-file deduplication
 - [x] Pending changes tracking (`backup_info.json`)
 - [x] Quit prompt: apply / revert / skip pending changes
+- [x] Rich Table display with color-coded actions (green=create, red=delete, yellow=modify) wrapped in Panel
 - [x] Backup cleanup on `clear_history` via `backup_mgr.end_dialog_backup()`
 
 ## Conversation Management
