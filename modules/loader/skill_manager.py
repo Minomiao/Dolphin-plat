@@ -28,9 +28,6 @@ class SkillManager:
             return config.load_config().get('work_directory', 'workplace')
         except Exception:
             return 'workplace'
-        log.info(f"SkillManager 初始化完成: {len(self.skills)} 个技能加载成功, {len(self.failed_skills)} 个失败")
-        if self.failed_skills:
-            log.warning(f"加载失败的技能: {list(self.failed_skills.keys())}")
     
     def _load_skills(self):
         if not self.skills_dir.exists():

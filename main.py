@@ -535,9 +535,9 @@ def chat_callback(event_type, data):
         level = data.get('level', 'warn')
         pct = f"{ratio:.0%}"
         if level == 'critical':
-            print(f"\n{Fore.RED}上下文即将耗尽 ({pct}, 约 {est_tokens}/{window} tokens)，强烈建议 /clear 清空历史{Style.RESET_ALL}")
+            print(f"\n{Fore.RED}上下文即将耗尽 ({pct}, 约 {est_tokens}/{window} tokens)，强烈建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
         elif level == 'high':
-            print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct}, 约 {est_tokens}/{window} tokens)，建议 /clear 清空历史{Style.RESET_ALL}")
+            print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct}, 约 {est_tokens}/{window} tokens)，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
         else:
             print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct} (约 {est_tokens}/{window} tokens){Style.RESET_ALL}")
 

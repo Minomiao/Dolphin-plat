@@ -1,8 +1,33 @@
 import json
-from typing import Dict, Any, Optional
+import asyncio
+from typing import Dict, Any, Optional, Awaitable
 from modules.logger import get_logger
 
 log = get_logger("Dolphin.request_manager")
+
+
+def _run_async(coro: Awaitable) -> Any:
+    """在同步或异步上下文中安全执行协程。
+
+    - 已在事件循环内运行时：使用 loop.run_until_complete()（兼容嵌套场景）
+    - 无事件循环时：使用 asyncio.run() 创建新循环
+
+    用于在同步请求处理函数中调用异步的 skill/工具接口，
+    解决 Flask 同步路由与 async call_tool 之间的兼容问题。
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    else:
+        # 已有运行中的事件循环，避免 asyncio.run() 的 "cannot run in running loop" 错误
+        if loop.is_running():
+            # 创建 Task 并等待完成（适用于嵌套在已有 async 上下文中的同步调用）
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        return loop.run_until_complete(coro)
 
 class RequestType:
     """申请类型枚举"""
@@ -340,7 +365,7 @@ class RequestManager:
             
             # 构建工具名称
             tool_name = f"skill_{skill_name}_{function_name}"
-            result = skill_mgr.call_tool(tool_name, arguments)
+            result = _run_async(skill_mgr.call_tool(tool_name, arguments))
             
             log.info(f"处理技能请求: {skill_name}.{function_name}, 成功: {result.get('success', False) if isinstance(result, dict) else True}")
             return result

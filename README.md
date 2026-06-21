@@ -38,9 +38,6 @@ python main.py
 |------|------|
 | deepseek-v4-flash | 快速|
 | deepseek-v4-pro |  |
-| deepseek-chat | 废弃 |
-| deepseek-reasoner | 废弃 |
-| deepseek-coder | 废弃 |
 
 已配置的模型若即将废弃，启动时会显示警告及剩余天数。可通过 `/model` 切换模型。
 

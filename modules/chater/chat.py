@@ -62,10 +62,12 @@ class QuickAIChat:
         self.model = model
         self.temperature = temperature
         
+        # 缓存配置，避免重复读取文件
+        _cfg = config.load_config()
+        
         # 从配置中读取 max_tokens，如果没有提供或配置中没有，则使用默认值 8192
         if max_tokens is None:
-            config_data = config.load_config()
-            max_tokens = config_data.get('max_tokens', 8192)
+            max_tokens = _cfg.get('max_tokens', 8192)
         
         self.max_tokens = max_tokens
         self.messages = []
@@ -73,8 +75,8 @@ class QuickAIChat:
         self.enable_tools = enable_tools
         self.callback = callback or (lambda *args, **kwargs: None)
         self.client = OpenAI(
-            api_key=config.load_config().get("api_key"),
-            base_url=config.load_config().get("base_url", "https://api.deepseek.com")
+            api_key=_cfg.get("api_key"),
+            base_url=_cfg.get("base_url", "https://api.deepseek.com")
         )
         self.mcp_mgr = mcp_manager.get_mcp_manager()
         self.skill_mgr = skill_manager.get_skill_manager()
@@ -114,7 +116,7 @@ class QuickAIChat:
         ]
         
         # 从配置读取默认工作目录
-        self.default_work_directory = config.load_config().get('work_directory', 'workplace')
+        self.default_work_directory = _cfg.get('work_directory', 'workplace')
         self.current_work_directory = self.default_work_directory
         from modules.main_server.middleware import request_manager as rm
         rm.reset_ai_work_directory()
@@ -260,9 +262,6 @@ class QuickAIChat:
             log.error(f"工具执行失败: {tool_name}, 错误: {str(e)}")
             return error_msg
     
-    async def _execute_tool_sync(self, tool_name: str, arguments: dict) -> str:
-        return await self._execute_tool(tool_name, arguments)
-
     async def _execute_powershell_script(self, script: str, timeout: int = 30, wait_time: int = 10) -> dict:
         from modules.functions import powershell_manager
         return await powershell_manager.execute_script(script, timeout, wait_time)
@@ -333,7 +332,7 @@ class QuickAIChat:
             arguments['confirmed'] = True
         else:
             arguments = {'confirmed': True}
-        result = await self._execute_tool_sync(tool_name, arguments)
+        result = await self._execute_tool(tool_name, arguments)
         return result, False
 
     async def _process_tool_confirmation(self, result_raw: str, tool_name: str, arguments: dict):
@@ -431,7 +430,7 @@ class QuickAIChat:
                     log.info(f"工具调用失败: {tool_name}")
                     continue
                 
-                result = await self._execute_tool_sync(tool_name, arguments)
+                result = await self._execute_tool(tool_name, arguments)
                 has_user_output = self._last_tool_had_user_output
                 uo_data = self._last_user_output_data
                 
@@ -595,7 +594,7 @@ class QuickAIChat:
                 except:
                     arguments = {}
                 
-                result = await self._execute_tool_sync(tool_name, arguments)
+                result = await self._execute_tool(tool_name, arguments)
                 has_user_output = self._last_tool_had_user_output
                 uo_data = self._last_user_output_data
                 
@@ -675,7 +674,7 @@ class QuickAIChat:
                         except:
                             arguments = {}
 
-                        result = await self._execute_tool_sync(tool_name, arguments)
+                        result = await self._execute_tool(tool_name, arguments)
                         has_user_output = self._last_tool_had_user_output
                         uo_data = self._last_user_output_data
 
@@ -755,6 +754,9 @@ class QuickAIChat:
     def clear_history(self):
         self.messages = []
         self.reset_work_directory()
+        # 清理对话级别的备份记录
+        if self.backup_mgr:
+            self.backup_mgr.end_dialog_backup()
     
     def save_conversation(self, dir_id, conv_id):
         conversation.save_conversation(self.messages, dir_id, conv_id)
