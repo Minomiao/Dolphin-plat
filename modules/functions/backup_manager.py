@@ -9,6 +9,12 @@ from modules import bootstrap as app_paths
 
 log = get_logger("Dolphin.backup_manager")
 
+from rich.console import Console, Group
+from rich.table import Table
+from rich.text import Text
+
+console = Console()
+
 BACKUP_DIR = app_paths.BACKUP_DIR
 
 # 对话级别的备份管理
@@ -343,28 +349,39 @@ def revert_all_changes() -> Dict[str, Any]:
         "message": f"已撤销 {reverted_count} 个更改"
     }
 
-def show_pending_changes() -> str:
-    """显示待确认的更改"""
+def show_pending_changes():
+    """显示待确认的更改，返回 rich Table"""
     pending = get_pending_changes_list()
     if not pending:
-        return "没有待确认的更改"
-    
-    lines = ["=== 待确认的更改 ==="]
+        return None
+
+    table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 1))
+    table.add_column("#", style="dim", width=4)
+    table.add_column("操作", width=8)
+    table.add_column("文件")
+
+    action_style_map = {
+        "create": "green",
+        "delete": "red",
+        "modify": "yellow",
+    }
+    action_label_map = {
+        "create": "创建",
+        "delete": "删除",
+        "modify": "修改",
+    }
+
     for i, change in enumerate(pending, 1):
-        action_map = {
-            "create": "创建",
-            "modify": "修改",
-            "delete": "删除"
-        }
-        action_text = action_map.get(change["action"], change["action"])
-        lines.append(f"{i}. [{action_text}] {change['file_path']}")
-        lines.append(f"   时间: {change['timestamp']}")
-        if change.get("backup_file"):
-            lines.append(f"   备份: {change['backup_file']}")
-        if change.get("dialog_id"):
-            lines.append(f"   对话ID: {change['dialog_id']}")
-    
-    return "\n".join(lines)
+        action = change["action"]
+        label = action_label_map.get(action, action)
+        style = action_style_map.get(action, "white")
+        table.add_row(
+            str(i),
+            Text(label, style=style),
+            change["file_path"],
+        )
+
+    return table
 
 # 单例模式
 _backup_manager = None

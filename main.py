@@ -148,11 +148,18 @@ def handle_pending_changes():
     pending_count = backup_manager.get_pending_changes_count()
     if pending_count == 0:
         return
-    
-    print(f"\n{'='*50}")
-    print(f"发现 {pending_count} 个待确认的文件更改")
-    print(backup_manager.show_pending_changes())
-    print(f"{'='*50}")
+
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+    console = Console()
+
+    table = backup_manager.show_pending_changes()
+    content = Text.assemble("发现 ", (str(pending_count), "bold"), " 个待确认的文件更改")
+    if table:
+        from rich.console import Group
+        content = Group(content, table)
+    console.print(Panel(content, border_style="cyan"))
     
     while True:
         choice = input("\n是否应用这些更改? (y=应用/n=撤销/s=跳过): ").lower().strip()
