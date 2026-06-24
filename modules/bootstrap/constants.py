@@ -19,6 +19,16 @@ MAX_OUTPUT_LINES = 500
 DEFAULT_TIMEOUT = 30
 DEFAULT_WAIT_TIME = 10
 
+# ===== PowerShell 缓存管理 =====
+# 缓存有效期（秒）：命令完成后保留多久供 AI 轮询
+COMMAND_CACHE_TTL_SECONDS = 3600  # 1小时
+# 持久化缓存目录：位于 date 目录下，受 DPC 保护
+COMMAND_CACHE_PERSIST_DIR = "command_cache"
+# 持久化缓存清理时间（秒）：超过此时间未读取则删除
+COMMAND_CACHE_PERSIST_TTL_SECONDS = 86400  # 24小时
+# 最大并发缓存数量（超过时清理最旧的）
+MAX_COMMAND_CACHE_SIZE = 100
+
 DANGEROUS_PATTERNS = [
     # ===== 文件系统破坏 =====
     r'\bremove-item\b', r'\bremove-itemproperty\b',
