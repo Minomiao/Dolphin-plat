@@ -26,8 +26,8 @@ COMMAND_CACHE_TTL_SECONDS = 3600  # 1小时
 COMMAND_CACHE_PERSIST_DIR = "command_cache"
 # 持久化缓存清理时间（秒）：超过此时间未读取则删除
 COMMAND_CACHE_PERSIST_TTL_SECONDS = 86400  # 24小时
-# 最大并发缓存数量（超过时清理最旧的）
-MAX_COMMAND_CACHE_SIZE = 100
+# 最大并发缓存数量（超过时转储到持久化）
+MAX_COMMAND_CACHE_SIZE = 20
 
 DANGEROUS_PATTERNS = [
     # ===== 文件系统破坏 =====

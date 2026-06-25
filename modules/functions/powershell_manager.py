@@ -153,12 +153,23 @@ class CommandCacheManager:
         except Exception as e:
             log.warning(f"持久化缓存失败: {command_id}, {e}")
     
-    def cleanup_expired_persistent(self) -> int:
-        """清理过期的持久化缓存文件"""
+    def cleanup_expired_persistent(self, force_all: bool = False) -> int:
+        """清理过期的持久化缓存文件
+        
+        Args:
+            force_all: 是否强制删除所有文件（用于启动时清理）
+        """
         cleaned = 0
         try:
             for file_path in self._persist_dir.glob("*.json"):
                 try:
+                    # 如果 force_all=True，直接删除所有文件
+                    if force_all:
+                        file_path.unlink()
+                        cleaned += 1
+                        continue
+                    
+                    # 否则检查 TTL
                     with open(file_path, 'r', encoding='utf-8') as f:
                         entry = json.load(f)
                     
@@ -176,7 +187,8 @@ class CommandCacheManager:
             log.warning(f"清理持久化缓存失败: {e}")
         
         if cleaned > 0:
-            log.info(f"启动时清理了 {cleaned} 个过期持久化缓存")
+            mode = "所有" if force_all else "过期"
+            log.info(f"启动时清理了 {cleaned} 个{mode}持久化缓存")
         return cleaned
     
     def clear_all(self) -> None:
@@ -208,8 +220,8 @@ _cache_manager = CommandCacheManager()
 
 
 def _init_cache_cleanup():
-    """初始化时清理过期缓存"""
-    _cache_manager.cleanup_expired_persistent()
+    """初始化时清理所有持久化缓存"""
+    _cache_manager.cleanup_expired_persistent(force_all=True)
 
 
 # 在模块加载时立即清理
