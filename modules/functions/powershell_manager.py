@@ -30,6 +30,9 @@ MAX_COMMAND_CACHE_SIZE = constants.MAX_COMMAND_CACHE_SIZE
 _running_processes: Dict[str, Dict[str, Any]] = {}
 _process_counter = 0
 
+# 后台进程最长存活时间（秒），超时自动清理防止泄漏
+MAX_BACKGROUND_LIFETIME = 600  # 10分钟
+
 
 class CommandCacheManager:
     """命令缓存管理器：支持 TTL、自动销毁、持久化"""
@@ -301,6 +304,37 @@ def _close_transports(proc_info: dict) -> None:
         pass
 
 
+async def _wait_for_task_with_timeout(task: asyncio.Task, name: str, command_id: str, timeout: int = 30) -> None:
+    """等待异步任务完成，超时则 cancel 防止永久挂起"""
+    try:
+        await asyncio.wait_for(task, timeout=timeout)
+    except asyncio.TimeoutError:
+        log.warning(f"Task {name} 超时 {timeout}s: command_id={command_id}, 取消任务")
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+async def _auto_kill_background(command_id: str, delay: int = MAX_BACKGROUND_LIFETIME) -> None:
+    """后台进程超时自动清理，防止进程/任务永久泄漏"""
+    await asyncio.sleep(delay)
+    if command_id not in _running_processes:
+        return
+    log.warning(f"后台进程超过最大存活时间 {delay}s, 自动终止: command_id={command_id}")
+    try:
+        proc_info = _running_processes[command_id]
+        _close_transports(proc_info)
+        try:
+            proc_info['process'].kill()
+        except Exception:
+            pass
+        del _running_processes[command_id]
+    except Exception as e:
+        log.error(f"后台进程自动清理失败: command_id={command_id}, {e}")
+
+
 async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time: int = DEFAULT_WAIT_TIME) -> Dict[str, Any]:
     global _process_counter
     _process_counter += 1
@@ -339,8 +373,8 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
 
         try:
             await asyncio.wait_for(process.wait(), timeout=wait_time)
-            await stdout_task
-            await stderr_task
+            await _wait_for_task_with_timeout(stdout_task, "stdout", command_id)
+            await _wait_for_task_with_timeout(stderr_task, "stderr", command_id)
 
             stdout = ''.join(stdout_buffer)
             if len(stdout) > MAX_OUTPUT_LENGTH:
@@ -369,6 +403,9 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
         except asyncio.TimeoutError:
             await asyncio.sleep(0.1)
             stdout = ''.join(stdout_buffer)
+
+            # 注册后台超时自动清理，防止进程永久泄漏
+            asyncio.create_task(_auto_kill_background(command_id))
 
             log.info(f"命令仍在运行: command_id={command_id}, stdout={len(stdout)}字")
 
@@ -415,8 +452,8 @@ async def check_script(command_id: str, wait_time: int = DEFAULT_WAIT_TIME) -> D
 
     try:
         await asyncio.wait_for(process.wait(), timeout=wait_time)
-        await proc_info['stdout_task']
-        await proc_info['stderr_task']
+        await _wait_for_task_with_timeout(proc_info['stdout_task'], "stdout", command_id)
+        await _wait_for_task_with_timeout(proc_info['stderr_task'], "stderr", command_id)
 
         stdout = ''.join(proc_info['stdout_buffer'])
         return_code = process.returncode
