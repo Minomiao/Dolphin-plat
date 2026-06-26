@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from modules.logger import get_logger
 from modules.bootstrap import constants
 
@@ -10,7 +10,7 @@ MAX_FILE_SIZE = constants.MAX_FILE_SIZE
 MAX_LINE_COUNT = constants.MAX_LINE_COUNT
 
 
-def _check_dpc_restriction(absolute_path):
+def _check_dpc_restriction(absolute_path: str) -> Tuple[bool, Optional[str]]:
     from modules.chater import dpc_manager
     current = os.path.dirname(os.path.abspath(absolute_path))
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,7 +28,7 @@ def _check_dpc_restriction(absolute_path):
     return True, None
 
 
-def _resolve_and_validate(work_path: Path, file_path: str) -> tuple:
+def _resolve_and_validate(work_path: Path, file_path: str) -> Tuple[Optional[Path], Optional[str]]:
     """解析路径并验证：1)在工作目录内 2)不含符号链接
     
     Returns:
@@ -61,7 +61,7 @@ def _resolve_and_validate(work_path: Path, file_path: str) -> tuple:
 class FileOperation:
     """文件操作管理器"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         log.info("FileOperation 初始化完成")
     
     def get_work_directory(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -270,7 +270,7 @@ class FileOperation:
         """去除所有空白字符（空格、制表符、换行等）"""
         return ''.join(s.split())
 
-    def _find_str_match(self, content: str, target: str):
+    def _find_str_match(self, content: str, target: str) -> Tuple[int, Optional[str]]:
         """
         三级匹配策略查找 target 在 content 中的位置。
         返回 (index, method) 或 (-1, None)。

@@ -1,6 +1,6 @@
 import json
 import asyncio
-from typing import Dict, Any, Optional, Awaitable
+from typing import Dict, Any, List, Optional, Awaitable, Callable
 from modules.logger import get_logger
 
 log = get_logger("Dolphin.request_manager")
@@ -44,21 +44,21 @@ class RequestType:
 
 class RequestManager:
     """申请管理器"""
-    def __init__(self):
-        self.pending_requests = []
-        self._prompt_manager = None
-        self._file_operation = None
-        self._last_user_output = None
+    def __init__(self) -> None:
+        self.pending_requests: List[Dict[str, Any]] = []
+        self._prompt_manager: Optional[Any] = None
+        self._file_operation: Optional[Any] = None
+        self._last_user_output: Optional[Dict[str, Any]] = None
         log.info("RequestManager 初始化完成")
-    
-    def _get_prompt_manager(self):
+
+    def _get_prompt_manager(self) -> Any:
         """延迟加载提示词管理器"""
         if self._prompt_manager is None:
             from modules.main_server import prompt_manager
             self._prompt_manager = prompt_manager.get_prompt_manager()
         return self._prompt_manager
-    
-    def _get_file_operation(self):
+
+    def _get_file_operation(self) -> Any:
         """延迟加载文件操作管理器"""
         if self._file_operation is None:
             from modules.functions import file_operation
@@ -208,7 +208,7 @@ class RequestManager:
         
         return False
     
-    def handle_request(self, request: Dict[str, Any], callback) -> Any:
+    def handle_request(self, request: Dict[str, Any], callback: Callable[..., Any]) -> Any:
         """处理申请"""
         if not self.is_request(request):
             return request
@@ -386,15 +386,15 @@ def get_request_manager() -> RequestManager:
         _request_manager = RequestManager()
     return _request_manager
 
-def set_ai_work_directory(work_dir: str):
+def set_ai_work_directory(work_dir: str) -> None:
     global _ai_work_directory
     _ai_work_directory = work_dir
 
-def get_ai_work_directory() -> str:
+def get_ai_work_directory() -> Optional[str]:
     global _ai_work_directory
     return _ai_work_directory
 
-def reset_ai_work_directory():
+def reset_ai_work_directory() -> None:
     global _ai_work_directory
     _ai_work_directory = None
 
