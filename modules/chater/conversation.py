@@ -215,20 +215,64 @@ def init_conversation(dir_id, conv_id, conv_name, work_dir):
 
 
 def save_conversation(messages, dir_id, conv_id):
-    conv_dir = os.path.join(CONVERSATIONS_DIR, dir_id)
-    os.makedirs(conv_dir, exist_ok=True)
-    filepath = os.path.join(conv_dir, f"{conv_id}.json")
+    """
+    Save conversation to folder structure.
+    
+    新架构：
+    - 会话文件夹：date/conversations/{dir_id}/{conv_id}/
+    - 会话文件：{conv_id}/{conv_id}.json
+    - 备份管理：{conv_id}/backup_registry.json（由 backup_manager 管理）
+    - 备份文件：{conv_id}/backups/{dialog_id}/...
+    """
+    conv_base_dir = os.path.join(CONVERSATIONS_DIR, dir_id)
+    conv_folder = os.path.join(conv_base_dir, conv_id)
+    
+    # 创建会话文件夹
+    os.makedirs(conv_folder, exist_ok=True)
+    
+    # 保存会话文件
+    filepath = os.path.join(conv_folder, f"{conv_id}.json")
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
+    
     log.info(f"保存对话: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
 
 
 def load_conversation(dir_id, conv_id):
-    filepath = os.path.join(CONVERSATIONS_DIR, dir_id, f"{conv_id}.json")
-    if os.path.exists(filepath):
-        with open(filepath, 'r', encoding='utf-8') as f:
+    """
+    Load conversation from folder structure.
+    
+    支持新旧两种格式：
+    - 新格式：{dir_id}/{conv_id}/{conv_id}.json
+    - 旧格式：{dir_id}/{conv_id}.json（兼容现有数据）
+    """
+    # 尝试新格式
+    new_filepath = os.path.join(CONVERSATIONS_DIR, dir_id, conv_id, f"{conv_id}.json")
+    if os.path.exists(new_filepath):
+        with open(new_filepath, 'r', encoding='utf-8') as f:
             messages = json.load(f)
-            log.info(f"加载对话: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
+            log.info(f"加载对话（新格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
             return messages
+    
+    # 尝试旧格式（兼容现有数据）
+    old_filepath = os.path.join(CONVERSATIONS_DIR, dir_id, f"{conv_id}.json")
+    if os.path.exists(old_filepath):
+        with open(old_filepath, 'r', encoding='utf-8') as f:
+            messages = json.load(f)
+            log.info(f"加载对话（旧格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
+            
+            # 自动迁移到新格式
+            log.info(f"迁移对话到新格式: conv={conv_id}")
+            save_conversation(messages, dir_id, conv_id)
+            
+            # 删除旧文件
+            try:
+                os.remove(old_filepath)
+                log.info(f"删除旧格式文件: {old_filepath}")
+            except Exception as e:
+                log.warning(f"删除旧格式文件失败: {e}")
+            
+            return messages
+    
     log.warning(f"对话不存在: dir={dir_id}, conv={conv_id}")
     return None

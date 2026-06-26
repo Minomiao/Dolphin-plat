@@ -145,7 +145,8 @@ def settings_mode():
     print("客户端已更新")
 
 def handle_pending_changes():
-    pending_count = backup_manager.get_pending_changes_count()
+    bm = backup_manager.get_backup_manager()
+    pending_count = bm.get_pending_changes_count()
     if pending_count == 0:
         return
 
@@ -154,7 +155,7 @@ def handle_pending_changes():
     from rich.text import Text
     console = Console()
 
-    table = backup_manager.show_pending_changes()
+    table = bm.show_pending_changes()
     content = Text.assemble("发现 ", (str(pending_count), "bold"), " 个待确认的文件更改")
     if table:
         from rich.console import Group
@@ -165,13 +166,13 @@ def handle_pending_changes():
         choice = input("\n是否应用这些更改? (y=应用/n=撤销/s=跳过): ").lower().strip()
         
         if choice == 'y':
-            result = backup_manager.apply_all_changes()
+            result = bm.apply_all_changes()
             print(f"\n{result['message']}")
             for change in result.get('changes', []):
                 print(f"  - {change['file']}: {change['status']}")
             break
         elif choice == 'n':
-            result = backup_manager.revert_all_changes()
+            result = bm.revert_all_changes()
             print(f"\n{result['message']}")
             for change in result.get('changes', []):
                 print(f"  - {change['file']}: {change['status']}")

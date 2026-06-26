@@ -87,15 +87,9 @@ class QuickAIChat:
         from modules.functions import backup_manager
         self.backup_mgr = backup_manager.get_backup_manager()
         
-        # 生成对话ID
-        self.dialog_id = str(uuid.uuid4())
-        log.info(f"生成对话ID: {self.dialog_id}")
+        # dialog_id = conv_id（在 set_save_target 时统一设置）
+        self.dialog_id = None
         
-        # 设置备份管理器的对话ID
-        if self.backup_mgr:
-            self.backup_mgr.set_current_dialog_id(self.dialog_id)
-        
-        self.tools = []
         self._update_tools()
         self._save_dir_id = None
         self._save_conv_id = None
@@ -136,7 +130,12 @@ class QuickAIChat:
     def set_save_target(self, dir_id, conv_id):
         self._save_dir_id = dir_id
         self._save_conv_id = conv_id
-        log.debug(f"设置保存目标: dir={dir_id}, conv={conv_id}")
+        # dialog_id = conv_id（统一标识）
+        self.dialog_id = conv_id
+        # 同步设置备份管理器的会话上下文
+        if self.backup_mgr:
+            self.backup_mgr.set_session(dir_id, conv_id)
+        log.debug(f"设置保存目标: dir={dir_id}, conv={conv_id}, dialog_id={conv_id}")
 
     def _auto_save(self):
         if self._save_dir_id and self._save_conv_id:
@@ -484,10 +483,8 @@ class QuickAIChat:
         log.info(f"聊天完成: 响应长度={len(final_content)}")
         self.add_message("assistant", final_content)
         
-        # 结束对话备份
-        if self.backup_mgr:
-            self.backup_mgr.end_dialog_backup()
-            log.info("对话备份已结束")
+        # 新架构：无需清理内存缓存（持久化存储）
+        log.debug("对话完成（备份记录已持久化）")
         
         await self._check_context_usage()
         
@@ -741,10 +738,8 @@ class QuickAIChat:
                     self.add_message("assistant", full_response, reasoning_content=full_reasoning)
                     break
         
-        # 结束对话备份
-        if self.backup_mgr:
-            self.backup_mgr.end_dialog_backup()
-            log.info("对话备份已结束")
+        # 新架构：无需清理内存缓存（持久化存储）
+        log.debug("流式对话完成（备份记录已持久化）")
         
         await self._check_context_usage()
         
@@ -754,9 +749,8 @@ class QuickAIChat:
     def clear_history(self):
         self.messages = []
         self.reset_work_directory()
-        # 清理对话级别的备份记录
-        if self.backup_mgr:
-            self.backup_mgr.end_dialog_backup()
+        # 新架构：无需清理内存缓存（持久化存储）
+        log.debug("历史已清空（备份记录已持久化）")
     
     def save_conversation(self, dir_id, conv_id):
         conversation.save_conversation(self.messages, dir_id, conv_id)

@@ -2,8 +2,9 @@ import os
 import shutil
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import json
+import uuid
 from modules.logger import get_logger
 from modules import bootstrap as app_paths
 
@@ -15,63 +16,103 @@ from rich.text import Text
 
 console = Console()
 
-BACKUP_DIR = app_paths.BACKUP_DIR
+# ===== 新架构：会话文件夹内备份 =====
+CONVERSATIONS_DIR = app_paths.CONVERSATIONS_DIR
 
-# 对话级别的备份管理
-dialog_backups = {}
-current_dialog_id = None
+# ===== 已废弃：全局内存缓存（保留用于兼容性，但不再使用） =====
+# dialog_backups = {}  # 已移除
+# current_dialog_id = None  # 已移除
 
-def set_current_dialog_id(dialog_id: str):
-    """设置当前对话ID"""
-    global current_dialog_id
-    current_dialog_id = dialog_id
-    log.info(f"当前对话ID已设置: {dialog_id}")
+def _get_conv_folder(dir_id: str, conv_id: str) -> Path:
+    """获取会话文件夹路径"""
+    return Path(CONVERSATIONS_DIR) / dir_id / conv_id
 
-def get_current_dialog_id() -> Optional[str]:
-    """获取当前对话ID"""
-    return current_dialog_id
+def _get_backup_registry_path(dir_id: str, conv_id: str) -> Path:
+    """获取备份注册表路径"""
+    return _get_conv_folder(dir_id, conv_id) / "backup_registry.json"
 
-def get_file_backup_dir(file_path: str) -> Path:
-    """获取文件的备份目录，每个文件对应一个文件夹"""
-    # 将文件路径转换为安全的文件夹名
-    safe_name = file_path.replace('/', '_').replace('\\', '_')
-    backup_path = Path(BACKUP_DIR) / safe_name
-    if not backup_path.exists():
-        backup_path.mkdir(parents=True, exist_ok=True)
-    return backup_path
+def _get_backups_folder(dir_id: str, conv_id: str) -> Path:
+    """获取备份文件夹根路径（文件按 file_id 统一管理，不按 dialog_id 分层）"""
+    return _get_conv_folder(dir_id, conv_id) / "backups"
 
-def get_file_backup_info_path(file_path: str) -> Path:
-    """获取文件的备份信息文件路径"""
-    return get_file_backup_dir(file_path) / "backup_info.json"
+def _get_file_backup_folder(dir_id: str, conv_id: str, file_id: str) -> Path:
+    """获取特定文件的备份文件夹路径"""
+    return _get_backups_folder(dir_id, conv_id) / file_id
 
-def get_file_backup_info(file_path: str) -> Dict[str, Any]:
-    """获取文件的备份信息"""
-    info_path = get_file_backup_info_path(file_path)
-    if info_path.exists():
+def _load_backup_registry(dir_id: str, conv_id: str) -> Dict[str, Any]:
+    """加载备份注册表"""
+    registry_path = _get_backup_registry_path(dir_id, conv_id)
+    if registry_path.exists():
         try:
-            with open(info_path, 'r', encoding='utf-8') as f:
+            with open(registry_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning(f"加载备份注册表失败: {e}")
     
+    # 返回默认结构
     return {
-        "file_path": file_path,
-        "backups": []
+        "conv_id": conv_id,
+        "dialog_id": conv_id,  # dialog_id = conv_id
+        "backups": {}  # {file_id: {file_path, work_dir, backup_files: []}}
     }
 
-def save_file_backup_info(file_path: str, info: Dict[str, Any]):
-    """保存文件的备份信息"""
-    info_path = get_file_backup_info_path(file_path)
-    info_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(info_path, 'w', encoding='utf-8') as f:
-        json.dump(info, f, ensure_ascii=False, indent=2)
+def _save_backup_registry(dir_id: str, conv_id: str, registry: Dict[str, Any]) -> None:
+    """保存备份注册表"""
+    registry_path = _get_backup_registry_path(dir_id, conv_id)
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(registry_path, 'w', encoding='utf-8') as f:
+        json.dump(registry, f, ensure_ascii=False, indent=2)
+    log.debug(f"保存备份注册表: {registry_path}")
 
-def backup_file(file_path: str, work_dir: str, action: str = "modify") -> Optional[str]:
-    """备份文件并记录信息（对话级别备份）"""
+def _generate_file_id() -> str:
+    """生成文件备份ID"""
+    return str(uuid.uuid4())[:8]  # 短UUID，例如 "abc12345"
+
+def _find_file_id_by_path(registry: Dict[str, Any], file_path: str) -> Optional[str]:
+    """根据文件路径查找 file_id"""
+    for file_id, info in registry.get("backups", {}).items():
+        if info.get("file_path") == file_path:
+            return file_id
+    return None
+
+def _find_existing_backup_in_dialog(registry: Dict[str, Any], file_path: str, dialog_id: str) -> Optional[str]:
+    """检查当前对话是否已备份过该文件"""
+    file_id = _find_file_id_by_path(registry, file_path)
+    if not file_id:
+        return None
+    
+    # 检查是否有当前 dialog_id 的备份
+    file_info = registry["backups"][file_id]
+    for backup in file_info.get("backup_files", []):
+        if backup.get("dialog_id") == dialog_id and not backup.get("confirmed", False):
+            return backup.get("backup_file")
+    
+    return None
+
+def backup_file(
+    file_path: str,
+    work_dir: str,
+    dir_id: str,
+    conv_id: str,
+    action: str = "modify"
+) -> Optional[str]:
+    """
+    新架构备份函数：在会话文件夹内创建备份
+    
+    文件按 file_id 统一管理，不按 dialog_id 分层。
+    dialog_id 记录在 backup_registry.json 中。
+    
+    Args:
+        file_path: 文件相对路径
+        work_dir: 工作目录
+        dir_id: 会话目录ID
+        conv_id: 会话ID（也是 dialog_id）
+        action: 操作类型（create, modify, delete）
+    
+    Returns:
+        备份文件路径（成功）或 None（失败或跳过）
+    """
     try:
-        global dialog_backups
-        dialog_id = get_current_dialog_id()
-        
         full_path = Path(work_dir) / file_path
         
         # 对于创建操作，不需要备份
@@ -79,27 +120,54 @@ def backup_file(file_path: str, work_dir: str, action: str = "modify") -> Option
             log.debug(f"跳过备份: {file_path} (action={action}, exists={full_path.exists()})")
             return None
         
-        # 检查是否已经为当前对话创建过备份
-        if dialog_id and file_path in dialog_backups:
-            log.debug(f"当前对话已存在备份: {file_path}")
-            return dialog_backups[file_path]
+        # 加载备份注册表
+        registry = _load_backup_registry(dir_id, conv_id)
+        dialog_id = conv_id  # dialog_id = conv_id
         
-        # 生成备份文件名
+        # 检查当前对话是否已备份过该文件
+        existing_backup = _find_existing_backup_in_dialog(registry, file_path, dialog_id)
+        if existing_backup:
+            log.debug(f"当前对话已存在备份: {file_path}")
+            return existing_backup
+        
+        # 查找或创建 file_id（同一文件统一管理）
+        file_id = _find_file_id_by_path(registry, file_path)
+        if not file_id:
+            file_id = _generate_file_id()
+            registry["backups"][file_id] = {
+                "file_path": file_path,
+                "work_dir": work_dir,
+                "backup_files": []
+            }
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"{timestamp}.bak"
-        backup_dir = get_file_backup_dir(file_path)
-        backup_path = backup_dir / backup_name
+        backup_filename = f"{timestamp}.bak"
+        
+        # 创建备份文件夹：backups/{file_id}/（统一管理，不按 dialog_id 分层）
+        backup_folder = _get_file_backup_folder(dir_id, conv_id, file_id)
+        backup_folder.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_folder / backup_filename
         
         log.info(f"备份文件: {file_path} -> {backup_path}")
         
         # 复制文件到备份位置
         shutil.copy2(full_path, backup_path)
         
-        # 记录到对话备份
-        if dialog_id:
-            dialog_backups[file_path] = str(backup_path)
+        # 记录到备份注册表
+        backup_record = {
+            "backup_file": str(backup_path),
+            "timestamp": datetime.now().isoformat(),
+            "dialog_id": dialog_id,
+            "action": action,
+            "confirmed": False,
+            "applied": False
+        }
+        registry["backups"][file_id]["backup_files"].append(backup_record)
         
-        log.debug(f"备份完成: {file_path}, action={action}")
+        # 保存备份注册表
+        _save_backup_registry(dir_id, conv_id, registry)
+        
+        log.debug(f"备份完成: {file_path}, action={action}, file_id={file_id}")
         return str(backup_path)
     except Exception as e:
         log.error(f"备份文件失败: {file_path}, 错误: {e}")
@@ -108,139 +176,117 @@ def backup_file(file_path: str, work_dir: str, action: str = "modify") -> Option
 def record_change(
     action: str,
     file_path: str,
-    work_dir: str = ""
+    work_dir: str,
+    dir_id: str,
+    conv_id: str
 ) -> Dict[str, Any]:
-    """记录文件更改（对话级别）"""
+    """记录文件更改（新架构，基于 backup_registry.json）"""
     log.debug(f"记录更改: {file_path}, action={action}")
     
-    # 获取文件的备份信息
-    info = get_file_backup_info(file_path)
+    registry = _load_backup_registry(dir_id, conv_id)
+    dialog_id = conv_id
     
-    # 检查是否有未确认的备份记录
-    unconfirmed_backup = None
-    for backup in info["backups"]:
-        if not backup.get("confirmed", False):
-            unconfirmed_backup = backup
-            break
+    # 查找文件的 file_id
+    file_id = _find_file_id_by_path(registry, file_path)
     
-    if unconfirmed_backup:
-        # 更新现有记录
-        unconfirmed_backup["action"] = action
-        unconfirmed_backup["timestamp"] = datetime.now().isoformat()
-        log.debug(f"更新未确认的备份记录: {file_path}")
+    if file_id:
+        file_info = registry["backups"][file_id]
+        # 检查当前对话是否有未确认的备份
+        unconfirmed = None
+        for backup in file_info.get("backup_files", []):
+            if backup.get("dialog_id") == dialog_id and not backup.get("confirmed", False):
+                unconfirmed = backup
+                break
+        
+        if unconfirmed:
+            # 更新现有记录
+            unconfirmed["action"] = action
+            unconfirmed["timestamp"] = datetime.now().isoformat()
+            log.debug(f"更新未确认的备份记录: {file_path}")
+        else:
+            # 创建新记录（无对应备份文件，例如 create 操作）
+            backup_record = {
+                "backup_file": None,
+                "timestamp": datetime.now().isoformat(),
+                "dialog_id": dialog_id,
+                "action": action,
+                "applied": False,
+                "confirmed": False
+            }
+            file_info["backup_files"].append(backup_record)
+            log.debug(f"创建新的备份记录: {file_path}")
+        
+        if work_dir:
+            file_info["work_dir"] = work_dir
     else:
-        # 创建新记录
+        # 文件不在注册表中，创建新记录
+        file_id = _generate_file_id()
         backup_record = {
+            "backup_file": None,
             "timestamp": datetime.now().isoformat(),
-            "backup_file": dialog_backups.get(file_path),
+            "dialog_id": dialog_id,
             "action": action,
             "applied": False,
-            "confirmed": False,
-            "dialog_id": get_current_dialog_id()
+            "confirmed": False
         }
-        info["backups"].append(backup_record)
-        log.debug(f"创建新的备份记录: {file_path}")
+        registry["backups"][file_id] = {
+            "file_path": file_path,
+            "work_dir": work_dir,
+            "backup_files": [backup_record]
+        }
+        log.debug(f"创建新的文件记录: {file_path}, file_id={file_id}")
     
-    # 更新工作目录
-    if work_dir:
-        info["work_dir"] = work_dir
-    
-    # 保存备份信息
-    save_file_backup_info(file_path, info)
-    
-    return info["backups"][-1]
+    _save_backup_registry(dir_id, conv_id, registry)
+    return registry["backups"][file_id]["backup_files"][-1]
 
-def end_dialog_backup():
-    """结束对话备份，清理对话级别的备份记录"""
-    global dialog_backups
-    dialog_backups.clear()
-    log.info("对话备份已结束，备份记录已清理")
-
-def get_all_file_backup_dirs() -> List[Path]:
-    """获取所有文件的备份目录"""
-    backup_root = Path(BACKUP_DIR)
-    if not backup_root.exists():
-        return []
-    
-    return [d for d in backup_root.iterdir() if d.is_dir()]
-
-def get_pending_changes_count() -> int:
-    """获取待确认的更改数量"""
+def get_pending_changes_count(dir_id: str, conv_id: str) -> int:
+    """获取待确认的更改数量（新架构）"""
+    registry = _load_backup_registry(dir_id, conv_id)
     count = 0
-    for backup_dir in get_all_file_backup_dirs():
-        info_path = backup_dir / "backup_info.json"
-        if info_path.exists():
-            try:
-                with open(info_path, 'r', encoding='utf-8') as f:
-                    info = json.load(f)
-                    count += len([b for b in info["backups"] if not b.get("confirmed", False)])
-            except Exception:
-                pass
+    for file_id, file_info in registry.get("backups", {}).items():
+        for backup in file_info.get("backup_files", []):
+            if not backup.get("confirmed", False):
+                count += 1
     return count
 
-def get_pending_changes_list() -> List[Dict[str, Any]]:
-    """获取待确认的更改列表"""
+def get_pending_changes_list(dir_id: str, conv_id: str) -> List[Dict[str, Any]]:
+    """获取待确认的更改列表（新架构）"""
+    registry = _load_backup_registry(dir_id, conv_id)
     pending_changes = []
     
-    for backup_dir in get_all_file_backup_dirs():
-        info_path = backup_dir / "backup_info.json"
-        if info_path.exists():
-            try:
-                with open(info_path, 'r', encoding='utf-8') as f:
-                    info = json.load(f)
-                    for backup in info["backups"]:
-                        if not backup.get("confirmed", False):
-                            pending_changes.append({
-                                "file_path": info["file_path"],
-                                "work_dir": info.get("work_dir", ""),
-                                "backup_dir": str(backup_dir),
-                                **backup
-                            })
-            except Exception:
-                pass
+    for file_id, file_info in registry.get("backups", {}).items():
+        for backup in file_info.get("backup_files", []):
+            if not backup.get("confirmed", False):
+                pending_changes.append({
+                    "file_path": file_info.get("file_path", ""),
+                    "work_dir": file_info.get("work_dir", ""),
+                    "file_id": file_id,
+                    **backup
+                })
     
     return pending_changes
 
-def apply_all_changes() -> Dict[str, Any]:
-    """应用所有待确认的更改"""
-    log.info("开始应用所有待确认的更改")
+def apply_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
+    """应用所有待确认的更改（新架构）"""
+    log.info(f"开始应用所有待确认的更改: conv={conv_id}")
+    registry = _load_backup_registry(dir_id, conv_id)
     results = []
     applied_count = 0
     
-    for backup_dir in get_all_file_backup_dirs():
-        info_path = backup_dir / "backup_info.json"
-        if info_path.exists():
-            try:
-                with open(info_path, 'r', encoding='utf-8') as f:
-                    info = json.load(f)
-                    
-                for backup in info["backups"]:
-                    if not backup.get("confirmed", False):
-                        backup["confirmed"] = True
-                        backup["applied"] = True
-                        results.append({
-                            "file": info["file_path"],
-                            "action": backup["action"],
-                            "status": "applied"
-                        })
-                        applied_count += 1
-                        log.info(f"应用更改: {info['file_path']}, action={backup['action']}")
-                
-                # 保存更新后的信息
-                with open(info_path, 'w', encoding='utf-8') as f:
-                    json.dump(info, f, ensure_ascii=False, indent=2)
-                    
-            except Exception as e:
-                log.error(f"应用更改失败: {info.get('file_path', 'unknown')}, 错误: {e}")
+    for file_id, file_info in registry.get("backups", {}).items():
+        for backup in file_info.get("backup_files", []):
+            if not backup.get("confirmed", False):
+                backup["confirmed"] = True
+                backup["applied"] = True
                 results.append({
-                    "file": info.get("file_path", "unknown"),
-                    "action": "unknown",
-                    "status": "failed",
-                    "error": str(e)
+                    "file": file_info.get("file_path", ""),
+                    "action": backup.get("action", ""),
+                    "status": "applied"
                 })
+                applied_count += 1
+                log.info(f"应用更改: {file_info.get('file_path', '')}, action={backup.get('action', '')}")
     
-    # 清理对话备份
-    end_dialog_backup()
+    _save_backup_registry(dir_id, conv_id, registry)
     
     log.info(f"应用更改完成: {applied_count} 个")
     return {
@@ -250,96 +296,87 @@ def apply_all_changes() -> Dict[str, Any]:
         "message": f"已应用 {applied_count} 个更改"
     }
 
-def revert_all_changes() -> Dict[str, Any]:
-    """撤销所有待确认的更改"""
-    log.info("开始撤销所有待确认的更改")
+def revert_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
+    """撤销所有待确认的更改（新架构）
+    
+    撤销时不保留备份文件，直接删除。
+    """
+    log.info(f"开始撤销所有待确认的更改: conv={conv_id}")
+    registry = _load_backup_registry(dir_id, conv_id)
     results = []
     reverted_count = 0
     
-    for backup_dir in get_all_file_backup_dirs():
-        info_path = backup_dir / "backup_info.json"
-        if info_path.exists():
+    for file_id, file_info in list(registry.get("backups", {}).items()):
+        file_path = file_info.get("file_path", "")
+        work_dir = file_info.get("work_dir", "workplace")
+        full_path = Path(work_dir) / file_path if file_path else None
+        
+        # 从后往前处理备份
+        new_backup_files = []
+        for backup in file_info.get("backup_files", []):
+            if backup.get("confirmed", False):
+                # 保留已确认的
+                new_backup_files.append(backup)
+                continue
+            
+            action = backup.get("action", "")
+            backup_file_path = backup.get("backup_file")
+            
             try:
-                with open(info_path, 'r', encoding='utf-8') as f:
-                    info = json.load(f)
-                
-                file_path = info["file_path"]
-                work_dir = info.get("work_dir", "workplace")
-                full_path = Path(work_dir) / file_path
-                
-                # 从后往前处理备份
-                for backup in reversed(info["backups"]):
-                    if not backup.get("confirmed", False):
-                        action = backup.get("action", "")
-                        backup_file = backup.get("backup_file")
-                        
-                        try:
-                            if action == "create":
-                                # 创建操作：删除文件
-                                if full_path.exists():
-                                    full_path.unlink()
-                                    results.append({
-                                        "file": file_path,
-                                        "action": "create",
-                                        "status": "reverted (deleted)"
-                                    })
-                                    reverted_count += 1
-                                    log.info(f"撤销创建: 删除文件 {file_path}")
-                                else:
-                                    results.append({
-                                        "file": file_path,
-                                        "action": "create",
-                                        "status": "file not found"
-                                    })
-                                    log.warning(f"撤销创建失败: 文件不存在 {file_path}")
-                            elif action in ["modify", "delete"]:
-                                # 修改或删除操作：从备份恢复
-                                if backup_file:
-                                    backup_path = Path(backup_file)
-                                    if backup_path.exists():
-                                        shutil.copy2(backup_path, full_path)
-                                        backup_path.unlink()
-                                        results.append({
-                                            "file": file_path,
-                                            "action": action,
-                                            "status": "reverted (restored from backup)"
-                                        })
-                                        reverted_count += 1
-                                        log.info(f"撤销{action}: 恢复文件 {file_path}")
-                                    else:
-                                        results.append({
-                                            "file": file_path,
-                                            "action": action,
-                                            "status": "backup not found"
-                                        })
-                                        log.warning(f"撤销{action}失败: 备份不存在 {file_path}")
-                        except Exception as e:
+                if action == "create":
+                    # 创建操作：删除文件
+                    if full_path and full_path.exists():
+                        full_path.unlink()
+                        results.append({
+                            "file": file_path,
+                            "action": "create",
+                            "status": "reverted (deleted)"
+                        })
+                        reverted_count += 1
+                        log.info(f"撤销创建: 删除文件 {file_path}")
+                    else:
+                        results.append({
+                            "file": file_path,
+                            "action": "create",
+                            "status": "file not found"
+                        })
+                elif action in ["modify", "delete"]:
+                    # 修改或删除操作：从备份恢复
+                    if backup_file_path:
+                        backup_path_obj = Path(backup_file_path)
+                        if backup_path_obj.exists() and full_path:
+                            shutil.copy2(backup_path_obj, full_path)
+                            # 撤销时删除备份文件（不保留）
+                            backup_path_obj.unlink()
                             results.append({
                                 "file": file_path,
                                 "action": action,
-                                "status": "failed",
-                                "error": str(e)
+                                "status": "reverted (restored from backup)"
                             })
-                            log.error(f"撤销更改失败: {file_path}, action={action}, 错误: {e}")
-                
-                # 移除已撤销的备份记录
-                info["backups"] = [b for b in info["backups"] if b.get("confirmed", False)]
-                
-                # 保存更新后的信息
-                with open(info_path, 'w', encoding='utf-8') as f:
-                    json.dump(info, f, ensure_ascii=False, indent=2)
-                    
+                            reverted_count += 1
+                            log.info(f"撤销{action}: 恢复文件 {file_path}")
+                        else:
+                            results.append({
+                                "file": file_path,
+                                "action": action,
+                                "status": "backup not found"
+                            })
+                            log.warning(f"撤销{action}失败: 备份不存在 {file_path}")
             except Exception as e:
-                log.error(f"撤销更改失败: {info.get('file_path', 'unknown')}, 错误: {e}")
                 results.append({
-                    "file": info.get("file_path", "unknown"),
-                    "action": "unknown",
+                    "file": file_path,
+                    "action": action,
                     "status": "failed",
                     "error": str(e)
                 })
+                log.error(f"撤销更改失败: {file_path}, action={action}, 错误: {e}")
+                # 失败的记录保留
+                new_backup_files.append(backup)
+        
+        # 更新备份列表（只保留已确认和失败的）
+        file_info["backup_files"] = new_backup_files
     
-    # 清理对话备份
-    end_dialog_backup()
+    _save_backup_registry(dir_id, conv_id, registry)
     
     log.info(f"撤销更改完成: {reverted_count} 个")
     return {
@@ -349,9 +386,9 @@ def revert_all_changes() -> Dict[str, Any]:
         "message": f"已撤销 {reverted_count} 个更改"
     }
 
-def show_pending_changes():
-    """显示待确认的更改，返回 rich Table"""
-    pending = get_pending_changes_list()
+def show_pending_changes(dir_id: str, conv_id: str):
+    """显示待确认的更改（新架构），返回 rich Table"""
+    pending = get_pending_changes_list(dir_id, conv_id)
     if not pending:
         return None
 
@@ -387,37 +424,80 @@ def show_pending_changes():
 _backup_manager = None
 
 class BackupManager:
-    """备份管理器"""
+    """备份管理器（新架构）
+    
+    通过 set_session() 设置当前会话上下文，
+    后续所有操作自动使用该上下文。
+    """
     
     def __init__(self):
+        self._dir_id: Optional[str] = None
+        self._conv_id: Optional[str] = None
         log.info("BackupManager 初始化完成")
     
+    def set_session(self, dir_id: str, conv_id: str):
+        """设置当前会话上下文"""
+        self._dir_id = dir_id
+        self._conv_id = conv_id
+        log.info(f"BackupManager 会话已设置: dir={dir_id}, conv={conv_id}")
+    
+    def _check_session(self) -> bool:
+        """检查会话上下文是否已设置"""
+        if not self._dir_id or not self._conv_id:
+            log.warning("BackupManager 会话上下文未设置，请先调用 set_session()")
+            return False
+        return True
+    
     def backup_file(self, file_path: str, work_dir: str, action: str = "modify") -> Optional[str]:
-        return backup_file(file_path, work_dir, action)
+        """备份文件"""
+        if not self._check_session():
+            return None
+        return backup_file(file_path, work_dir, self._dir_id, self._conv_id, action)
     
     def record_change(self, action: str, file_path: str, work_dir: str = "") -> Dict[str, Any]:
-        return record_change(action, file_path, work_dir)
+        """记录文件更改"""
+        if not self._check_session():
+            return {}
+        return record_change(action, file_path, work_dir, self._dir_id, self._conv_id)
     
     def get_pending_changes_count(self) -> int:
-        return get_pending_changes_count()
+        """获取待确认的更改数量"""
+        if not self._check_session():
+            return 0
+        return get_pending_changes_count(self._dir_id, self._conv_id)
     
     def get_pending_changes_list(self) -> List[Dict[str, Any]]:
-        return get_pending_changes_list()
+        """获取待确认的更改列表"""
+        if not self._check_session():
+            return []
+        return get_pending_changes_list(self._dir_id, self._conv_id)
     
     def apply_all_changes(self) -> Dict[str, Any]:
-        return apply_all_changes()
+        """应用所有待确认的更改"""
+        if not self._check_session():
+            return {"success": False, "message": "会话上下文未设置"}
+        return apply_all_changes(self._dir_id, self._conv_id)
     
     def revert_all_changes(self) -> Dict[str, Any]:
-        return revert_all_changes()
+        """撤销所有待确认的更改"""
+        if not self._check_session():
+            return {"success": False, "message": "会话上下文未设置"}
+        return revert_all_changes(self._dir_id, self._conv_id)
     
-    def show_pending_changes(self) -> str:
-        return show_pending_changes()
+    def show_pending_changes(self):
+        """显示待确认的更改"""
+        if not self._check_session():
+            return None
+        return show_pending_changes(self._dir_id, self._conv_id)
     
+    # ===== 兼容性方法（已废弃） =====
     def set_current_dialog_id(self, dialog_id: str):
-        set_current_dialog_id(dialog_id)
+        """已废弃：请使用 set_session()"""
+        log.warning("set_current_dialog_id() 已废弃，请使用 set_session()")
     
     def end_dialog_backup(self):
-        end_dialog_backup()
+        """已废弃：新架构无需清理内存缓存"""
+        log.debug("end_dialog_backup() 已废弃，新架构无需清理内存缓存")
 
 def get_backup_manager() -> BackupManager:
     global _backup_manager
