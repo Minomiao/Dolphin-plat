@@ -116,13 +116,9 @@ def load_config():
 
     config_data = dict(defaults)
     config_data.update({k: v for k, v in file_data.items() if k not in ("api_key", "work_directory")})
+    # api_key 和 work_directory 以 .env 环境变量为准，config.json 中不再存储
     config_data["api_key"] = os.getenv("QUICKAI_API_KEY", "")
     config_data["work_directory"] = os.getenv("QUICKAI_WORK_DIRECTORY", "workplace")
-
-    missing_keys = [k for k in defaults if k not in file_data]
-    if missing_keys:
-        log.info(f"补全缺失的配置键: {missing_keys}")
-        save_config(config_data)
 
     return config_data
 
@@ -149,3 +145,32 @@ def save_config(config):
     with open(app_paths.CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config_to_save, f, ensure_ascii=False, indent=2)
     log.debug(f"保存配置文件: {app_paths.CONFIG_FILE}")
+
+
+def ensure_config():
+    """确保配置文件包含所有默认键，补全新增配置项（仅在启动时调用一次）。"""
+    defaults = _get_default_config()
+    if not os.path.exists(app_paths.CONFIG_FILE):
+        return
+
+    try:
+        with open(app_paths.CONFIG_FILE, 'r', encoding='utf-8') as f:
+            file_data = json.load(f)
+    except Exception as e:
+        log.warning(f"ensure_config 读取配置文件失败: {e}")
+        return
+
+    missing_keys = [k for k in defaults if k not in file_data]
+    if not missing_keys:
+        return
+
+    log.info(f"补全缺失的配置键: {missing_keys}")
+    config_data = dict(defaults)
+    config_data.update({k: v for k, v in file_data.items() if k not in ("api_key", "work_directory")})
+    config_data["api_key"] = os.getenv("QUICKAI_API_KEY", "")
+    config_data["work_directory"] = os.getenv("QUICKAI_WORK_DIRECTORY", "workplace")
+    save_config(config_data)
+
+
+# 启动时执行一次性初始化
+ensure_config()

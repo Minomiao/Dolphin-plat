@@ -236,7 +236,8 @@ class SkillManager:
         from modules.main_server import config
         if skill_name not in self.skills:
             return {"error": f"技能不存在: {skill_name}"}
-        
+
+        # 读-改-写模式：asyncio 单线程模型中无 await 切换点，不存在竞态条件
         current_config = config.load_config()
         if 'skills' not in current_config:
             current_config['skills'] = {}
