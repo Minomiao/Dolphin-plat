@@ -27,6 +27,37 @@ def _check_dpc_restriction(absolute_path):
         current = parent
     return True, None
 
+
+def _resolve_and_validate(work_path: Path, file_path: str) -> tuple:
+    """解析路径并验证：1)在工作目录内 2)不含符号链接
+    
+    Returns:
+        (resolved_path, None) 或 (None, error_message)
+    """
+    file_path_obj = Path(file_path)
+    if file_path_obj.is_absolute():
+        resolved_path = file_path_obj.resolve()
+    else:
+        resolved_path = (work_path / file_path_obj).resolve()
+    
+    # 检查路径是否在工作目录内
+    try:
+        resolved_path.relative_to(work_path)
+    except ValueError:
+        return None, f"路径必须是工作目录的子目录: {work_path}"
+    
+    # 检查符号链接：工作目录下任何组件是 symlink 都拒绝
+    try:
+        current = resolved_path
+        while current != work_path and current != current.parent:
+            if current.is_symlink():
+                return None, f"路径包含符号链接，不允许: {current}"
+            current = current.parent
+    except OSError:
+        pass
+    
+    return resolved_path, None
+
 class FileOperation:
     """文件操作管理器"""
     
@@ -92,28 +123,11 @@ class FileOperation:
                     "error": f"文件行数过多: {line_count} 行，最大允许: {MAX_LINE_COUNT} 行"
                 }
             
-            # 构建完整路径
+            # 构建完整路径（含符号链接检测）
             work_path = Path(work_directory).resolve()
-            file_path_obj = Path(file_path)
-            
-            if file_path_obj.is_absolute():
-                # 绝对路径必须在工作目录内
-                try:
-                    resolved_path = file_path_obj.resolve()
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
-            else:
-                # 相对路径相对于工作目录
-                resolved_path = (work_path / file_path_obj).resolve()
-                try:
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
+            resolved_path, path_err = _resolve_and_validate(work_path, file_path)
+            if path_err:
+                return {"error": path_err}
             
             allowed, msg = _check_dpc_restriction(str(resolved_path))
             if not allowed:
@@ -135,10 +149,10 @@ class FileOperation:
                 from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
-                    backup_path = backup_mgr.backup_file(str(file_path_obj), work_directory, action="create")
+                    backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action="create")
                     backup_mgr.record_change(
                         action="create",
-                        file_path=str(file_path_obj),
+                        file_path=str(Path(file_path)),
                         work_dir=work_directory
                     )
                     pending_count = backup_mgr.get_pending_changes_count()
@@ -177,28 +191,11 @@ class FileOperation:
             if not work_directory:
                 return {"error": "缺少 work_directory 参数"}
             
-            # 构建完整路径
+            # 构建完整路径（含符号链接检测）
             work_path = Path(work_directory).resolve()
-            file_path_obj = Path(file_path)
-            
-            if file_path_obj.is_absolute():
-                # 绝对路径必须在工作目录内
-                try:
-                    resolved_path = file_path_obj.resolve()
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
-            else:
-                # 相对路径相对于工作目录
-                resolved_path = (work_path / file_path_obj).resolve()
-                try:
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
+            resolved_path, path_err = _resolve_and_validate(work_path, file_path)
+            if path_err:
+                return {"error": path_err}
             
             allowed, msg = _check_dpc_restriction(str(resolved_path))
             if not allowed:
@@ -358,26 +355,11 @@ class FileOperation:
             if not work_directory:
                 return {"error": "缺少 work_directory 参数"}
 
-            # 构建完整路径
+            # 构建完整路径（含符号链接检测）
             work_path = Path(work_directory).resolve()
-            file_path_obj = Path(file_path)
-            
-            if file_path_obj.is_absolute():
-                try:
-                    resolved_path = file_path_obj.resolve()
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
-            else:
-                resolved_path = (work_path / file_path_obj).resolve()
-                try:
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
+            resolved_path, path_err = _resolve_and_validate(work_path, file_path)
+            if path_err:
+                return {"error": path_err}
             
             allowed, msg = _check_dpc_restriction(str(resolved_path))
             if not allowed:
@@ -418,7 +400,7 @@ class FileOperation:
                 from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
-                    backup_path = backup_mgr.backup_file(str(file_path_obj), work_directory, action="modify")
+                    backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action="modify")
             except Exception as e:
                 log.warning(f"备份操作失败: {e}")
             
@@ -434,7 +416,7 @@ class FileOperation:
                 if backup_mgr:
                     backup_mgr.record_change(
                         action="modify",
-                        file_path=str(file_path_obj),
+                        file_path=str(Path(file_path)),
                         work_dir=work_directory
                     )
                     pending_count = backup_mgr.get_pending_changes_count()
@@ -472,28 +454,11 @@ class FileOperation:
             if not work_directory:
                 return {"error": "缺少 work_directory 参数"}
             
-            # 构建完整路径
+            # 构建完整路径（含符号链接检测）
             work_path = Path(work_directory).resolve()
-            file_path_obj = Path(file_path)
-            
-            if file_path_obj.is_absolute():
-                # 绝对路径必须在工作目录内
-                try:
-                    resolved_path = file_path_obj.resolve()
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
-            else:
-                # 相对路径相对于工作目录
-                resolved_path = (work_path / file_path_obj).resolve()
-                try:
-                    resolved_path.relative_to(work_path)
-                except ValueError:
-                    return {
-                        "error": f"路径必须是工作目录的子目录: {work_directory}"
-                    }
+            resolved_path, path_err = _resolve_and_validate(work_path, file_path)
+            if path_err:
+                return {"error": path_err}
             
             allowed, msg = _check_dpc_restriction(str(resolved_path))
             if not allowed:
@@ -513,7 +478,7 @@ class FileOperation:
                 from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
-                    backup_path = backup_mgr.backup_file(str(file_path_obj), work_directory, action="delete")
+                    backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action="delete")
             except Exception as e:
                 log.warning(f"备份操作失败: {e}")
             
@@ -528,7 +493,7 @@ class FileOperation:
                 if backup_mgr:
                     backup_mgr.record_change(
                         action="delete",
-                        file_path=str(file_path_obj),
+                        file_path=str(Path(file_path)),
                         work_dir=work_directory
                     )
                     pending_count = backup_mgr.get_pending_changes_count()

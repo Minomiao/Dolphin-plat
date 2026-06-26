@@ -85,6 +85,17 @@ DANGEROUS_PATTERNS = [
     r'\bfrombase64string\b.*\binvoke-expression\b',
     r'\bfrombase64string\b.*\biex\b',
     r'\bfrombase64string\b.*\bstart-process\b',
+
+    # ===== 字符串拼接/变量拼接绕过 =====
+    # 检测 "In"+"voke" 类拼接，或 [char] 拼接构造危险命令
+    r'[\'"](?:i|in|inv|invo|invok|invoke)[\'"]\s*\+\s*[\'"]',
+    r'\[[\s]*char[\s]*\][\s]*\d',
+    r'invoke[\s]*-[\s]*expression',
+    r'\bset-itemproperty\b.*(?:registry|hklm|hkcu|hkcr|hkey)',
+    r'\bnew-itemproperty\b.*(?:registry|hklm|hkcu|hkcr|hkey)',
+    r'\bscriptblock\s*::\s*create',
+    r'\.\s*\(?\s*set-itemproperty',
+    r'\.\s*\(?\s*invoke-expression',
 ]
 
 # ===== 上下文窗口告警阈值 =====
