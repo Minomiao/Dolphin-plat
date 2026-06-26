@@ -122,22 +122,38 @@ def settings_mode():
         log.info("用户取消设置，返回主界面")
         print("返回主界面")
         return
-    try:
-        new_max_tokens = int(new_max_tokens) if new_max_tokens else state.current_config.get('max_tokens', 8192)
-    except ValueError:
-        log.warning(f"无效的Token数: {new_max_tokens}")
-        print("无效的Token数，保持当前值")
+    if new_max_tokens:
+        try:
+            new_max_tokens = int(new_max_tokens)
+            if new_max_tokens < 1:
+                log.warning(f"Token数过小: {new_max_tokens}")
+                print("Token数至少为 1，保持当前值")
+                new_max_tokens = state.current_config.get('max_tokens', 8192)
+            elif new_max_tokens > 200000:
+                log.warning(f"Token数过大: {new_max_tokens}")
+                print("Token数最大不超过 200000，保持当前值")
+                new_max_tokens = state.current_config.get('max_tokens', 8192)
+        except ValueError:
+            log.warning(f"无效的Token数: {new_max_tokens}")
+            print("请输入有效数字，保持当前值")
+            new_max_tokens = state.current_config.get('max_tokens', 8192)
+    else:
         new_max_tokens = state.current_config.get('max_tokens', 8192)
     
     current_prefix = state.current_config.get('command_prefix', '/')
     print(f"\n当前命令前缀: {current_prefix}")
     print("修改后将统一更改所有命令的唤起前缀 (例如 /help → .help)")
-    new_prefix = input("输入新的命令前缀 (留空保持当前值): ")
+    new_prefix = input("输入新的命令前缀 (留空保持当前值, 最长10字符): ")
     if new_prefix == cmd.get_command('back'):
         log.info("用户取消设置，返回主界面")
         print("返回主界面")
         return
+    new_prefix = new_prefix.strip()
     if new_prefix:
+        if len(new_prefix) > 10:
+            log.warning(f"命令前缀过长: {len(new_prefix)}字符")
+            print(f"命令前缀最长 10 个字符，已截断为: {new_prefix[:10]}")
+            new_prefix = new_prefix[:10]
         state.current_config['command_prefix'] = new_prefix
         log.info(f"命令前缀已更改: {current_prefix} -> {new_prefix}")
     
