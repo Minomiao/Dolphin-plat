@@ -219,21 +219,21 @@ class SkillManager:
             log.debug(f"技能工具执行结果: {result}")
             return result
         except TypeError as e:
-            log.error(f"技能工具 {tool_name} 参数类型错误: {e}")
-            return {"error": f"参数类型错误: {str(e)}"}
+            log.error(f"技能工具 {tool_name} 参数类型错误: {e}\n{traceback.format_exc()}")
+            return {"error": "参数类型错误，请检查调用参数格式"}
         except ValueError as e:
-            log.error(f"技能工具 {tool_name} 参数值错误: {e}")
-            return {"error": f"参数值错误: {str(e)}"}
+            log.error(f"技能工具 {tool_name} 参数值错误: {e}\n{traceback.format_exc()}")
+            return {"error": "参数值错误，请检查调用参数"}
         except KeyError as e:
-            log.error(f"技能工具 {tool_name} 缺少键: {e}")
-            return {"error": f"缺少键: {str(e)}"}
+            log.error(f"技能工具 {tool_name} 缺少必需键: {e}\n{traceback.format_exc()}")
+            return {"error": "缺少必需参数"}
         except ImportError as e:
-            log.error(f"技能工具 {tool_name} 导入依赖失败: {e}")
-            return {"error": f"导入依赖失败: {str(e)}"}
+            log.error(f"技能工具 {tool_name} 依赖加载失败: {e}\n{traceback.format_exc()}")
+            return {"error": "工具所需依赖加载失败"}
         except Exception as e:
-            log.error(f"技能工具执行失败: {tool_name}, 错误: {str(e)}")
+            log.error(f"技能工具执行失败: {tool_name}, 错误: {e}")
             log.debug(f"错误详情:\n{traceback.format_exc()}")
-            return {"error": str(e)}
+            return {"error": "工具执行过程中发生内部错误"}
     
     def get_tool_names(self) -> List[str]:
         names = []

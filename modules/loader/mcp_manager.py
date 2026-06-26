@@ -1,5 +1,6 @@
 import asyncio
 import json
+import traceback
 from typing import Dict, List, Any, Optional
 from mcp.client.session import ClientSession
 from mcp.client.stdio import stdio_client
@@ -50,17 +51,22 @@ class MCPManager:
         if "." not in tool_name:
             log.error(f"工具名称格式错误: {tool_name}")
             raise ValueError(f"工具名称格式错误: {tool_name}")
-        
+
         server_name, actual_tool_name = tool_name.split(".", 1)
-        
+
         if server_name not in self.sessions:
             log.error(f"MCP 服务器 {server_name} 未连接")
             raise ValueError(f"MCP 服务器 {server_name} 未连接")
-        
+
         session = self.sessions[server_name]
-        result = await session.call_tool(actual_tool_name, arguments)
+        try:
+            result = await session.call_tool(actual_tool_name, arguments)
+        except Exception as e:
+            log.error(f"MCP 工具 {tool_name} 执行失败: {e}\n{traceback.format_exc()}")
+            return {"error": "MCP 工具执行过程中发生内部错误"}
+
         log.debug(f"MCP 工具执行结果: {result}")
-        
+
         return result
     
     def get_all_tools(self) -> List[Dict[str, Any]]:
