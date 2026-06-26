@@ -29,9 +29,10 @@ def _try_auto_complete_tool(tool_name, arguments, work_dir):
                 size = os.path.getsize(full_path)
                 with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
                     lines = f.readlines()
+                limit = constants.RECOVERY_WRITE_PREVIEW_LINES
                 total = len(lines)
-                if total > 100:
-                    lines = lines[:100]
+                if total > limit:
+                    lines = lines[:limit]
                 preview = "".join(lines)
                 result = {
                     "success": True,
@@ -43,8 +44,8 @@ def _try_auto_complete_tool(tool_name, arguments, work_dir):
                     "_recovered": True,
                     "_note": "此结果为对话恢复时自动补全，文件已存在"
                 }
-                if total > 100:
-                    result["content_preview_note"] = f"仅显示前100行，共{total}行"
+                if total > limit:
+                    result["content_preview_note"] = f"仅显示前{limit}行，共{total}行"
                 return json.dumps(result, ensure_ascii=False)
             except Exception as e:
                 log.debug(f"对话恢复写入文件失败: {file_path}, {e}")
@@ -62,8 +63,9 @@ def _try_auto_complete_tool(tool_name, arguments, work_dir):
                 with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
                     lines = f.readlines()
                 total = len(lines)
-                if total > 200:
-                    lines = lines[:200]
+                limit = constants.RECOVERY_READ_LIMIT_LINES
+                if total > limit:
+                    lines = lines[:limit]
                 content = "".join(lines)
                 result = {
                     "success": True,
@@ -73,8 +75,8 @@ def _try_auto_complete_tool(tool_name, arguments, work_dir):
                     "_recovered": True,
                     "_note": "此结果为对话恢复时从当前文件状态补全"
                 }
-                if total > 200:
-                    result["content_note"] = f"仅显示前200行，共{total}行"
+                if total > limit:
+                    result["content_note"] = f"仅显示前{limit}行，共{total}行"
                 return json.dumps(result, ensure_ascii=False)
             except Exception as e:
                 log.debug(f"对话恢复读取文件失败: {file_path}, {e}")

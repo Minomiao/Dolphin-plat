@@ -109,6 +109,8 @@ FILE_ATTRIBUTE_HIDDEN = 0x2
 
 # ===== 对话恢复：文件工具集 =====
 FILE_AUTOCOMPLETE_TOOLS = {"create_file", "write_file", "read_file", "modify_file", "delete_file"}
+RECOVERY_WRITE_PREVIEW_LINES = 100  # 写入工具恢复时预览行数
+RECOVERY_READ_LIMIT_LINES = 200    # 读取工具恢复时最大返回行数
 
 # ===== 模型注册表 =====
 MODEL_REGISTRY = {
