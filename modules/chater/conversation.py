@@ -102,8 +102,8 @@ def _try_auto_complete_tool(tool_name, arguments, work_dir):
                     "_recovered": True,
                     "_note": "此结果为对话恢复时从当前文件状态补全，修改可能已应用"
                 }, ensure_ascii=False)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"对话恢复修改文件失败: {file_path}, {e}")
         return json.dumps({
             "error": f"文件不存在: {file_path}",
             "_recovered": True,

@@ -588,7 +588,8 @@ class QuickAIChat:
                 tool_name = tc['function']['name']
                 try:
                     arguments = json.loads(tc['function']['arguments'])
-                except:
+                except (json.JSONDecodeError, TypeError) as e:
+                    log.debug(f"参数解析失败: {tool_name}, {e}")
                     arguments = {}
                 
                 result = await self._execute_tool(tool_name, arguments)
@@ -668,7 +669,8 @@ class QuickAIChat:
                         tool_name = tc['function']['name']
                         try:
                             arguments = json.loads(tc['function']['arguments'])
-                        except:
+                        except (json.JSONDecodeError, TypeError) as e:
+                            log.debug(f"参数解析失败: {tool_name}, {e}")
                             arguments = {}
 
                         result = await self._execute_tool(tool_name, arguments)
