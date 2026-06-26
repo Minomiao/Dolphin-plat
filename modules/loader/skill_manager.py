@@ -2,6 +2,7 @@ import os
 import json
 import inspect
 import importlib.util
+import asyncio
 import traceback
 from typing import Dict, List, Any, Callable, Optional
 from pathlib import Path
@@ -26,7 +27,14 @@ class SkillManager:
         try:
             from modules.main_server import config
             return config.load_config().get('work_directory', 'workplace')
-        except Exception:
+        except ImportError as e:
+            log.warning(f"无法导入配置模块: {e}")
+            return 'workplace'
+        except (KeyError, TypeError) as e:
+            log.warning(f"配置格式错误: {e}")
+            return 'workplace'
+        except Exception as e:
+            log.error(f"获取默认工作目录时发生意外错误: {e}\n{traceback.format_exc()}")
             return 'workplace'
     
     def _load_skills(self):
@@ -38,9 +46,21 @@ class SkillManager:
         for skill_folder in self.skills_dir.iterdir():
             if not skill_folder.is_dir() or skill_folder.name.startswith("_"):
                 continue
-            
+
             try:
                 self._load_skill_folder(skill_folder)
+            except (FileNotFoundError, PermissionError) as e:
+                error_msg = f"文件访问错误: {str(e)}"
+                self.failed_skills[skill_folder.name] = error_msg
+                log.error(f"加载技能 {skill_folder.name} 失败: {error_msg}")
+            except SyntaxError as e:
+                error_msg = f"技能脚本语法错误: {str(e)}"
+                self.failed_skills[skill_folder.name] = error_msg
+                log.error(f"加载技能 {skill_folder.name} 失败: {error_msg}")
+            except ImportError as e:
+                error_msg = f"技能依赖导入失败: {str(e)}"
+                self.failed_skills[skill_folder.name] = error_msg
+                log.error(f"加载技能 {skill_folder.name} 失败: {error_msg}")
             except Exception as e:
                 error_msg = f"{str(e)}"
                 self.failed_skills[skill_folder.name] = error_msg
@@ -66,6 +86,15 @@ class SkillManager:
         try:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
+        except SyntaxError as e:
+            log.error(f"技能 {skill_folder.name} 存在语法错误: {e}")
+            raise
+        except ImportError as e:
+            log.error(f"技能 {skill_folder.name} 导入依赖失败: {e}")
+            raise
+        except (FileNotFoundError, PermissionError) as e:
+            log.error(f"技能 {skill_folder.name} 文件访问失败: {e}")
+            raise
         except Exception as e:
             log.error(f"执行技能模块失败 {skill_folder.name}: {e}")
             raise
@@ -183,14 +212,27 @@ class SkillManager:
                 result = func(context=ctx, **arguments)
             else:
                 result = func(**arguments)
-            
+
             if asyncio.iscoroutine(result):
                 result = await result
-            
+
             log.debug(f"技能工具执行结果: {result}")
             return result
+        except TypeError as e:
+            log.error(f"技能工具 {tool_name} 参数类型错误: {e}")
+            return {"error": f"参数类型错误: {str(e)}"}
+        except ValueError as e:
+            log.error(f"技能工具 {tool_name} 参数值错误: {e}")
+            return {"error": f"参数值错误: {str(e)}"}
+        except KeyError as e:
+            log.error(f"技能工具 {tool_name} 缺少键: {e}")
+            return {"error": f"缺少键: {str(e)}"}
+        except ImportError as e:
+            log.error(f"技能工具 {tool_name} 导入依赖失败: {e}")
+            return {"error": f"导入依赖失败: {str(e)}"}
         except Exception as e:
             log.error(f"技能工具执行失败: {tool_name}, 错误: {str(e)}")
+            log.debug(f"错误详情:\n{traceback.format_exc()}")
             return {"error": str(e)}
     
     def get_tool_names(self) -> List[str]:
@@ -251,9 +293,6 @@ class SkillManager:
             "enabled": enabled,
             "message": f"技能 '{skill_name}' 已{'启用' if enabled else '禁用'}"
         }
-
-
-import asyncio
 
 
 _skill_manager = None

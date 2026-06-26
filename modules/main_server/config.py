@@ -27,8 +27,14 @@ def _ensure_env_file():
                 config_data = json.load(f)
             api_key = config_data.get("api_key", "")
             work_dir = config_data.get("work_directory", "")
+        except FileNotFoundError:
+            log.warning("config.json 文件不存在")
+        except PermissionError as e:
+            log.warning(f"无权限读取 config.json: {e}")
+        except json.JSONDecodeError as e:
+            log.warning(f"config.json 格式错误: {e}")
         except Exception as e:
-            log.warning(f"读取 config.json 失败: {e}")
+            log.warning(f"读取 config.json 发生意外错误: {e}")
 
     try:
         env_path.parent.mkdir(parents=True, exist_ok=True)
@@ -39,8 +45,12 @@ def _ensure_env_file():
             set_key(app_paths.ENV_FILE, "QUICKAI_WORK_DIRECTORY", work_dir)
         log.info(f"已自动创建 .env 文件并从 config.json 导入配置")
         load_dotenv(app_paths.ENV_FILE, override=True)
+    except PermissionError as e:
+        log.warning(f"无权限创建 .env 文件: {e}")
+    except OSError as e:
+        log.warning(f"创建 .env 文件失败 (操作系统错误): {e}")
     except Exception as e:
-        log.warning(f"创建 .env 文件失败: {e}")
+        log.warning(f"创建 .env 文件发生意外错误: {e}")
 
 
 _ensure_env_file()
@@ -108,8 +118,17 @@ def load_config():
             with open(app_paths.CONFIG_FILE, 'r', encoding='utf-8') as f:
                 file_data = json.load(f)
                 log.debug(f"加载配置文件: {app_paths.CONFIG_FILE}")
+        except FileNotFoundError:
+            log.warning(f"配置文件不存在: {app_paths.CONFIG_FILE}")
+            file_data = {}
+        except PermissionError as e:
+            log.error(f"无权限读取配置文件: {e}")
+            file_data = {}
+        except json.JSONDecodeError as e:
+            log.error(f"配置文件 JSON 格式错误: {e}")
+            file_data = {}
         except Exception as e:
-            log.error(f"加载配置文件失败: {e}")
+            log.error(f"加载配置文件发生意外错误: {e}")
             file_data = {}
     else:
         file_data = {}
@@ -136,8 +155,12 @@ def save_config(config):
         if work_dir:
             set_key(app_paths.ENV_FILE, "QUICKAI_WORK_DIRECTORY", work_dir)
         load_dotenv(app_paths.ENV_FILE, override=True)
+    except PermissionError as e:
+        log.warning(f"无权限更新 .env 文件: {e}")
+    except OSError as e:
+        log.warning(f"更新 .env 文件失败 (操作系统错误): {e}")
     except Exception as e:
-        log.warning(f"更新 .env 文件失败: {e}")
+        log.warning(f"更新 .env 文件发生意外错误: {e}")
 
     config_to_save = {k: v for k, v in config.items() if k not in ("api_key", "work_directory")}
     if not os.path.exists(app_paths.DATE_DIR):
@@ -156,8 +179,17 @@ def ensure_config():
     try:
         with open(app_paths.CONFIG_FILE, 'r', encoding='utf-8') as f:
             file_data = json.load(f)
+    except FileNotFoundError:
+        log.warning(f"ensure_config: 配置文件不存在 {app_paths.CONFIG_FILE}")
+        return
+    except PermissionError as e:
+        log.warning(f"ensure_config: 无权限读取配置文件: {e}")
+        return
+    except json.JSONDecodeError as e:
+        log.warning(f"ensure_config: 配置文件 JSON 格式错误: {e}")
+        return
     except Exception as e:
-        log.warning(f"ensure_config 读取配置文件失败: {e}")
+        log.warning(f"ensure_config: 读取配置文件发生意外错误: {e}")
         return
 
     missing_keys = [k for k in defaults if k not in file_data]
