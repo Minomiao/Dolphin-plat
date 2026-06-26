@@ -426,7 +426,7 @@ class QuickAIChat:
                         "role": "tool",
                         "content": json.dumps(error_result, ensure_ascii=False)
                     })
-                    log.info(f"工具调用失败: {tool_name}")
+                    log.warning(f"工具调用失败: {tool_name}")
                     continue
                 
                 result = await self._execute_tool(tool_name, arguments)

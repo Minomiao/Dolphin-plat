@@ -15,7 +15,7 @@ def _init_date_dpc():
         from modules.chater import dpc_manager
         dpc_manager.ensure_restriction(app_paths.DATE_DIR, ["*"])
     except Exception as e:
-        pass
+        logging.getLogger("Dolphin.logger").error(f"DPC 初始化失败: {e}")
 
 
 def setup_logger(name="Dolphin", level=logging.DEBUG):

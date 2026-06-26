@@ -46,8 +46,8 @@ def _try_auto_complete_tool(tool_name, arguments, work_dir):
                 if total > 100:
                     result["content_preview_note"] = f"仅显示前100行，共{total}行"
                 return json.dumps(result, ensure_ascii=False)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"对话恢复写入文件失败: {file_path}, {e}")
         return json.dumps({
             "success": True,
             "file_path": file_path,
@@ -76,8 +76,8 @@ def _try_auto_complete_tool(tool_name, arguments, work_dir):
                 if total > 200:
                     result["content_note"] = f"仅显示前200行，共{total}行"
                 return json.dumps(result, ensure_ascii=False)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"对话恢复读取文件失败: {file_path}, {e}")
         return json.dumps({
             "error": f"文件不存在: {file_path}",
             "file_path": file_path,

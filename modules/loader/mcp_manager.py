@@ -80,11 +80,11 @@ class MCPManager:
         return list(self.tools.keys())
     
     async def close_all(self):
-        for session in self.sessions.values():
+        for name, session in self.sessions.items():
             try:
                 await session.close()
-            except:
-                pass
+            except Exception as e:
+                log.warning(f"关闭 MCP session {name} 失败: {e}")
         self.sessions.clear()
         self.tools.clear()
 
