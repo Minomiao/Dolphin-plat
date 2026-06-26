@@ -37,11 +37,31 @@ log = setup_logger("Dolphin")
 _SCREEN_ALT_ENTER = '\033[?1049h'
 _SCREEN_ALT_EXIT = '\033[?1049l'
 
-_using_alt_screen = False
 
-show_thinking = False
-_thinking_start_time = 0.0
-_turn_first_output = True
+class _UIState:
+    """封装 UI 运行时状态，避免全局变量散布"""
+    def __init__(self):
+        self.using_alt_screen = False
+        self.thinking_start_time = 0.0
+        self.turn_first_output = True
+        self.progress = None
+
+
+class _AppState:
+    """封装应用业务状态，避免全局变量散布"""
+    def __init__(self):
+        self.current_config = None
+        self.chat_instance = None
+        self.skill_mgr = None
+        self.current_conversation = None
+        self.current_dir_id = None
+        self.current_conv_id = None
+        self.client = None
+        self.show_thinking = False
+
+
+ui = _UIState()
+state = _AppState()
 
 
 def _supports_ansi():
@@ -68,29 +88,26 @@ def _supports_ansi():
 
 
 def _enter_screen():
-    global _using_alt_screen
     if _supports_ansi():
         print(_SCREEN_ALT_ENTER + '\033[H\033[2J', end='', flush=True)
-        _using_alt_screen = True
+        ui.using_alt_screen = True
 
 
 def _exit_screen():
-    global _using_alt_screen
-    if _using_alt_screen:
+    if ui.using_alt_screen:
         print(_SCREEN_ALT_EXIT, end='', flush=True)
 
 def _rollback_last_message():
-    if chat_instance and chat_instance.messages:
-        last = chat_instance.messages[-1]
+    if state.chat_instance and state.chat_instance.messages:
+        last = state.chat_instance.messages[-1]
         if last.get("role") == "user":
-            chat_instance.messages.pop()
-            if current_dir_id and current_conv_id:
+            state.chat_instance.messages.pop()
+            if state.current_dir_id and state.current_conv_id:
                 from modules.chater import conversation
-                conversation.save_conversation(chat_instance.messages, current_dir_id, current_conv_id)
+                conversation.save_conversation(state.chat_instance.messages, state.current_dir_id, state.current_conv_id)
             log.debug("API 错误后已回退未发送的用户消息")
 
 def settings_mode():
-    global current_config, chat_instance
     log.info("进入设置模式")
     print("\n=== 设置模式 ===")
     print(f"输入 '{cmd.get_command('back')}' 返回主界面")
@@ -98,7 +115,7 @@ def settings_mode():
     print(f"  {cmd.get_command('model')} - 切换模型和配置 API 密钥")
     print(f"  {cmd.get_command('open')}  - 切换工作目录")
     print()
-    print(f"当前最大Token数: {current_config.get('max_tokens', 8192)}")
+    print(f"当前最大Token数: {state.current_config.get('max_tokens', 8192)}")
     print("推荐值: 8192 (适合大多数场景)")
     new_max_tokens = input("\n输入新的最大Token数 (留空保持当前值): ")
     if new_max_tokens == cmd.get_command('back'):
@@ -106,13 +123,13 @@ def settings_mode():
         print("返回主界面")
         return
     try:
-        new_max_tokens = int(new_max_tokens) if new_max_tokens else current_config.get('max_tokens', 8192)
+        new_max_tokens = int(new_max_tokens) if new_max_tokens else state.current_config.get('max_tokens', 8192)
     except ValueError:
         log.warning(f"无效的Token数: {new_max_tokens}")
         print("无效的Token数，保持当前值")
-        new_max_tokens = current_config.get('max_tokens', 8192)
+        new_max_tokens = state.current_config.get('max_tokens', 8192)
     
-    current_prefix = current_config.get('command_prefix', '/')
+    current_prefix = state.current_config.get('command_prefix', '/')
     print(f"\n当前命令前缀: {current_prefix}")
     print("修改后将统一更改所有命令的唤起前缀 (例如 /help → .help)")
     new_prefix = input("输入新的命令前缀 (留空保持当前值): ")
@@ -121,24 +138,23 @@ def settings_mode():
         print("返回主界面")
         return
     if new_prefix:
-        current_config['command_prefix'] = new_prefix
+        state.current_config['command_prefix'] = new_prefix
         log.info(f"命令前缀已更改: {current_prefix} -> {new_prefix}")
     
-    current_config['max_tokens'] = new_max_tokens
+    state.current_config['max_tokens'] = new_max_tokens
     
-    config.save_config(current_config)
+    config.save_config(state.current_config)
     cmd.save_commands()
     log.info(f"配置已保存: max_tokens={new_max_tokens}")
     print("\n配置已保存")
     
-    global client
-    client = OpenAI(
-        api_key=current_config.get("api_key"),
-        base_url=current_config.get("base_url")
+    state.client = OpenAI(
+        api_key=state.current_config.get("api_key"),
+        base_url=state.current_config.get("base_url")
     )
-    chat_instance = chat.QuickAIChat(
-        model=current_config.get('model'), 
-        max_tokens=current_config.get('max_tokens', 8192),
+    state.chat_instance = chat.QuickAIChat(
+        model=state.current_config.get('model'), 
+        max_tokens=state.current_config.get('max_tokens', 8192),
         callback=chat_callback
     )
     log.info("客户端已更新")
@@ -197,8 +213,8 @@ def show_help():
 
 def _print_header():
     deprecation_warning = config.check_model_deprecation(
-        current_config.get('model', 'deepseek-v4-flash'))
-    work_dir = current_config.get('work_directory', 'workplace')
+        state.current_config.get('model', 'deepseek-v4-flash'))
+    work_dir = state.current_config.get('work_directory', 'workplace')
 
     dolphin = Text(_DOLPHIN_ART, style="bright_blue")
 
@@ -221,12 +237,12 @@ def _print_header():
 
 def _print_conversation_history():
     output = conversation_loader.format_conversation_history(
-        chat_instance.messages, show_thinking)
+        state.chat_instance.messages, state.show_thinking)
     if output:
         print(output)
 
 def show_tools():
-    tools = chat_instance.list_available_tools()
+    tools = state.chat_instance.list_available_tools()
     log.info(f"显示可用工具，共 {len(tools)} 个")
     if tools:
         print("\n=== 可用工具 ===")
@@ -239,7 +255,7 @@ def show_tools():
 def show_skills():
     log.info("显示技能管理")
 
-    skills = chat_instance.list_skills()
+    skills = state.chat_instance.list_skills()
     if not skills:
         print("\n没有可用的技能")
         return
@@ -271,9 +287,9 @@ def show_skills():
         target_status = not current_status
 
         if skill_name.startswith("plugin-"):
-            result = chat_instance.plugin_loader.toggle_skill(skill_name, target_status)
+            result = state.chat_instance.plugin_loader.toggle_skill(skill_name, target_status)
         else:
-            result = chat_instance.skill_mgr.toggle_skill(skill_name, target_status)
+            result = state.chat_instance.skill_mgr.toggle_skill(skill_name, target_status)
 
         if result.get('success'):
             new_status_text = "启用" if target_status else "禁用"
@@ -283,17 +299,16 @@ def show_skills():
             print(f"错误: {result.get('error')}")
 
 def toggle_tools():
-    current_status = chat_instance.enable_tools
+    current_status = state.chat_instance.enable_tools
     new_status = not current_status
-    chat_instance.enable_tool(new_status)
+    state.chat_instance.enable_tool(new_status)
     status_text = "启用" if new_status else "禁用"
     log.info(f"工具状态已切换: {status_text}")
     print(f"工具已{status_text}")
 
 def open_work_directory(path=None, silent=False):
-    global current_config, chat_instance, skill_mgr, current_conversation, current_dir_id, current_conv_id
     if not path:
-        cur = current_config.get('work_directory', 'workplace')
+        cur = state.current_config.get('work_directory', 'workplace')
         print(f"\n当前工作目录: {cur}")
         path = input("输入要打开的工作目录: ")
         if not path:
@@ -304,9 +319,9 @@ def open_work_directory(path=None, silent=False):
     if not os.path.isabs(path):
         path = os.path.normpath(os.path.join(bootstrap.PROJECT_ROOT, path))
     
-    old_work_directory = current_config.get('work_directory', 'workplace')
-    current_config['work_directory'] = path
-    config.save_config(current_config)
+    old_work_directory = state.current_config.get('work_directory', 'workplace')
+    state.current_config['work_directory'] = path
+    config.save_config(state.current_config)
     log.info(f"工作目录已更改: {old_work_directory} -> {path}")
     
     if path != old_work_directory:
@@ -314,31 +329,30 @@ def open_work_directory(path=None, silent=False):
         import importlib
         import modules.loader.skill_manager as sm
         importlib.reload(sm)
-        global skill_mgr
-        skill_mgr = sm.get_skill_manager()
-        skill_mgr.set_work_dir(path)
-        chat_instance.skill_mgr = skill_mgr
-        if chat_instance.plugin_loader:
-            chat_instance.plugin_loader.set_work_dir(path)
-        chat_instance._update_tools()
+        state.skill_mgr = sm.get_skill_manager()
+        state.skill_mgr.set_work_dir(path)
+        state.chat_instance.skill_mgr = state.skill_mgr
+        if state.chat_instance.plugin_loader:
+            state.chat_instance.plugin_loader.set_work_dir(path)
+        state.chat_instance._update_tools()
         print("技能模块已重新加载")
     
     from modules.chater import dpc_manager
     
-    if chat_instance.messages and current_dir_id and current_conv_id:
-        chat_instance.save_conversation(current_dir_id, current_conv_id)
-        log.info(f"自动保存旧对话: {current_conversation}")
+    if state.chat_instance.messages and state.current_dir_id and state.current_conv_id:
+        state.chat_instance.save_conversation(state.current_dir_id, state.current_conv_id)
+        log.info(f"自动保存旧对话: {state.current_conversation}")
     
     dir_id = dpc_manager.ensure_dir_id(path)
     conv_id, conv_name = dpc_manager.get_current(path)
     
     if conv_id and conv_name:
         result = conversation_loader.load_and_activate(
-            chat_instance, dir_id, conv_id, conv_name, path)
+            state.chat_instance, dir_id, conv_id, conv_name, path)
         if result:
-            current_conversation = result['conv_name']
-            current_dir_id = result['dir_id']
-            current_conv_id = result['conv_id']
+            state.current_conversation = result['conv_name']
+            state.current_dir_id = result['dir_id']
+            state.current_conv_id = result['conv_id']
             if not silent:
                 screen_refresh.refresh(_print_header, _print_conversation_history, f"已自动加载对话: {conv_name}")
             return
@@ -346,7 +360,7 @@ def open_work_directory(path=None, silent=False):
     if conv_id:
         log.warning(f".dpc 指向的对话不存在，将创建新对话")
     
-    chat_instance.clear_history()
+    state.chat_instance.clear_history()
     
     conv_name = os.path.basename(path.rstrip('/\\'))
     if not conv_name:
@@ -360,19 +374,18 @@ def open_work_directory(path=None, silent=False):
     
     from modules.chater import conversation
     dir_id, new_conv_id = conversation.init_conversation(dir_id, None, conv_name, path)
-    current_conversation = conv_name
-    current_dir_id = dir_id
-    current_conv_id = new_conv_id
+    state.current_conversation = conv_name
+    state.current_dir_id = dir_id
+    state.current_conv_id = new_conv_id
     log.info(f"为工作目录创建新对话: {conv_name} ({new_conv_id})")
     if not silent:
         screen_refresh.refresh(_print_header, _print_conversation_history, f"已创建新对话: {conv_name}", show_history=False)
 
 def model_settings():
-    global current_config, chat_instance
     log.info("进入模型设置")
     print("=== 模型设置 ===")
     print(f"输入 '{cmd.get_command('back')}' 返回主界面")
-    print(f"当前模型: {current_config.get('model', 'deepseek-v4-flash')}")
+    print(f"当前模型: {state.current_config.get('model', 'deepseek-v4-flash')}")
     
     print("\n可用模型:")
     from modules.main_server.config import get_available_models
@@ -409,31 +422,30 @@ def model_settings():
     else:
         log.warning(f"无效的模型选择: {model_choice}")
         print("无效选择，保持当前模型")
-        new_model = current_config.get('model', 'deepseek-v4-flash')
+        new_model = state.current_config.get('model', 'deepseek-v4-flash')
     
-    print(f"\n当前 API 密钥: {'***' if current_config.get('api_key') else '未设置'}")
+    print(f"\n当前 API 密钥: {'***' if state.current_config.get('api_key') else '未设置'}")
     new_api_key = input("API 密钥 (留空保持当前值): ")
     if new_api_key == cmd.get_command('back'):
         log.info("用户取消模型设置，返回主界面")
         print("返回主界面")
         return
-    new_api_key = new_api_key or current_config.get('api_key')
+    new_api_key = new_api_key or state.current_config.get('api_key')
     
-    current_config['api_key'] = new_api_key
-    current_config['model'] = new_model
+    state.current_config['api_key'] = new_api_key
+    state.current_config['model'] = new_model
     
-    config.save_config(current_config)
+    config.save_config(state.current_config)
     log.info(f"模型配置已保存: model={new_model}")
     print(f"\n模型已切换至: {new_model}")
     
-    global client
-    client = OpenAI(
-        api_key=current_config.get("api_key"),
-        base_url=current_config.get("base_url")
+    state.client = OpenAI(
+        api_key=state.current_config.get("api_key"),
+        base_url=state.current_config.get("base_url")
     )
-    chat_instance = chat.QuickAIChat(
-        model=current_config.get('model'), 
-        max_tokens=current_config.get('max_tokens', 8192),
+    state.chat_instance = chat.QuickAIChat(
+        model=state.current_config.get('model'), 
+        max_tokens=state.current_config.get('max_tokens', 8192),
         callback=chat_callback
     )
     log.info("客户端已更新")
@@ -441,38 +453,37 @@ def model_settings():
 
 def chat_callback(event_type, data):
     """处理聊天事件的回调函数"""
-    global _thinking_start_time, _turn_first_output
     if event_type == 'thinking':
-        if _turn_first_output:
+        if ui.turn_first_output:
             print()
-            _turn_first_output = False
-        if show_thinking:
+            ui.turn_first_output = False
+        if state.show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}\n")
     elif event_type == 'thinking_start':
-        if _turn_first_output:
+        if ui.turn_first_output:
             print()
-            _turn_first_output = False
-        if show_thinking:
+            ui.turn_first_output = False
+        if state.show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}")
         else:
-            _thinking_start_time = time.time()
+            ui.thinking_start_time = time.time()
             print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - 0s{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_chunk':
-        if show_thinking:
+        if state.show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}", end="", flush=True)
         else:
-            elapsed = int(time.time() - _thinking_start_time)
+            elapsed = int(time.time() - ui.thinking_start_time)
             print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - {elapsed}s{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_end':
-        if show_thinking:
+        if state.show_thinking:
             print(f"\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
         else:
-            elapsed = int(time.time() - _thinking_start_time)
+            elapsed = int(time.time() - ui.thinking_start_time)
             print(f"\r\033[K{Fore.LIGHTBLACK_EX}[思考完成 {elapsed}s]{Style.RESET_ALL}")
     elif event_type == 'response_chunk':
-        if _turn_first_output:
+        if ui.turn_first_output:
             print()
-            _turn_first_output = False
+            ui.turn_first_output = False
         print(data['content'], end="", flush=True)
     elif event_type == 'response_end':
         print()
@@ -550,8 +561,6 @@ def chat_callback(event_type, data):
             print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct} (约 {est_tokens}/{window} tokens){Style.RESET_ALL}")
 
 async def main():
-    global current_config, chat_instance, current_conversation, current_dir_id, current_conv_id, show_thinking
-    
     while True:
         user_input = input("\n> ").strip()
         
@@ -565,7 +574,7 @@ async def main():
             break
         elif user_input == cmd.get_command('clear'):
             log.info("清空历史记录")
-            chat_instance.clear_history()
+            state.chat_instance.clear_history()
             print("历史记录已清空")
             continue
         elif user_input == cmd.get_command('set'):
@@ -596,24 +605,24 @@ async def main():
             if not new_name:
                 new_name = input("请输入新对话名称: ")
             if new_name:
-                if current_conversation == "main" and chat_instance.messages:
+                if state.current_conversation == "main" and state.chat_instance.messages:
                     save_choice = input("是否保存当前main对话? (y/n): ").lower()
                     if save_choice == 'y':
-                        save_name = input("请输入保存名称: ") or current_conversation
+                        save_name = input("请输入保存名称: ") or state.current_conversation
                         from modules.chater import dpc_manager
-                        work_dir = current_config.get('work_directory', 'workplace')
+                        work_dir = state.current_config.get('work_directory', 'workplace')
                         save_dir_id = dpc_manager.ensure_dir_id(work_dir)
                         save_conv_id = dpc_manager.add_conversation(work_dir, save_name)
-                        chat_instance.save_conversation(save_dir_id, save_conv_id)
+                        state.chat_instance.save_conversation(save_dir_id, save_conv_id)
                         log.info(f"对话已保存: {save_name}")
                         print(f"对话已保存为: {save_name}")
-                chat_instance.clear_history()
+                state.chat_instance.clear_history()
                 from modules.chater import conversation
-                work_dir = current_config.get('work_directory', 'workplace')
+                work_dir = state.current_config.get('work_directory', 'workplace')
                 dir_id, conv_id = conversation.init_conversation(None, None, new_name, work_dir)
-                current_conversation = new_name
-                current_dir_id = dir_id
-                current_conv_id = conv_id
+                state.current_conversation = new_name
+                state.current_dir_id = dir_id
+                state.current_conv_id = conv_id
                 log.info(f"切换到新对话: {new_name} ({conv_id})")
                 screen_refresh.refresh(_print_header, _print_conversation_history, f"已切换到新对话: {new_name}", show_history=False)
             continue
@@ -625,15 +634,15 @@ async def main():
                 load_name = input("请输入要加载的对话名称: ")
             if load_name:
                 from modules.chater import dpc_manager
-                work_dir = current_config.get('work_directory', 'workplace')
+                work_dir = state.current_config.get('work_directory', 'workplace')
                 dir_id = dpc_manager.ensure_dir_id(work_dir)
                 load_conv_id = dpc_manager.get_id_by_name(work_dir, load_name)
                 result = conversation_loader.load_and_activate(
-                    chat_instance, dir_id, load_conv_id, load_name, work_dir)
+                    state.chat_instance, dir_id, load_conv_id, load_name, work_dir)
                 if result:
-                    current_conversation = result['conv_name']
-                    current_dir_id = result['dir_id']
-                    current_conv_id = result['conv_id']
+                    state.current_conversation = result['conv_name']
+                    state.current_dir_id = result['dir_id']
+                    state.current_conv_id = result['conv_id']
                     
                     screen_refresh.refresh(_print_header, _print_conversation_history, f"已加载对话: {load_name}")
                 else:
@@ -642,13 +651,13 @@ async def main():
             continue
         elif user_input == cmd.get_command('list'):
             from modules.chater import dpc_manager
-            work_dir = current_config.get('work_directory', 'workplace')
+            work_dir = state.current_config.get('work_directory', 'workplace')
             dpc_convs = dpc_manager.get_conversations(work_dir)
             log.info(f"列出对话（当前目录: {work_dir}），共 {len(dpc_convs)} 个")
             if dpc_convs:
                 print(f"\n=== 当前目录 '{work_dir}' 的对话 ===")
                 for conv in dpc_convs:
-                    marker = " *" if conv["id"] == current_conv_id else "  "
+                    marker = " *" if conv["id"] == state.current_conv_id else "  "
                     print(f"  {marker} {conv['name']}")
             else:
                 print(f"当前目录 '{work_dir}' 没有关联的对话")
@@ -671,31 +680,31 @@ async def main():
             parts = user_input[len(showthink_cmd):].strip()
             changed = False
             if parts == 'on':
-                show_thinking = True
-                current_config['show_thinking'] = True
-                config.save_config(current_config)
+                state.show_thinking = True
+                state.current_config['show_thinking'] = True
+                config.save_config(state.current_config)
                 changed = True
             elif parts == 'off':
-                show_thinking = False
-                current_config['show_thinking'] = False
-                config.save_config(current_config)
+                state.show_thinking = False
+                state.current_config['show_thinking'] = False
+                config.save_config(state.current_config)
                 changed = True
             else:
                 choice = input("开启思考过程显示? (on/off): ").strip().lower()
                 if choice == 'on':
-                    show_thinking = True
-                    current_config['show_thinking'] = True
-                    config.save_config(current_config)
+                    state.show_thinking = True
+                    state.current_config['show_thinking'] = True
+                    config.save_config(state.current_config)
                     changed = True
                 elif choice == 'off':
-                    show_thinking = False
-                    current_config['show_thinking'] = False
-                    config.save_config(current_config)
+                    state.show_thinking = False
+                    state.current_config['show_thinking'] = False
+                    config.save_config(state.current_config)
                     changed = True
                 else:
                     print(f"{Fore.RED}无效输入，请输入 on 或 off{Style.RESET_ALL}")
             if changed:
-                screen_refresh.refresh(_print_header, _print_conversation_history, f"思考过程显示: {'开启' if show_thinking else '关闭'}")
+                screen_refresh.refresh(_print_header, _print_conversation_history, f"思考过程显示: {'开启' if state.show_thinking else '关闭'}")
             continue
         
         prefix = cmd._get_prefix()
@@ -709,9 +718,9 @@ async def main():
             continue
         
         missing = []
-        if not current_config.get('api_key'):
+        if not state.current_config.get('api_key'):
             missing.append("API 密钥")
-        if not current_config.get('model'):
+        if not state.current_config.get('model'):
             missing.append("模型")
         if missing:
             missing_text = "、".join(missing)
@@ -720,10 +729,10 @@ async def main():
             continue
 
         log.info(f"用户输入: {user_input}")
-        _turn_first_output = True
-        chat_instance.set_save_target(current_dir_id, current_conv_id)
+        ui.turn_first_output = True
+        state.chat_instance.set_save_target(state.current_dir_id, state.current_conv_id)
         try:
-            await chat_instance.chat_stream(user_input)
+            await state.chat_instance.chat_stream(user_input)
         except AuthenticationError:
             print(f"{Fore.RED}错误: API 密钥无效或已过期。输入 '{cmd.get_command('model')}' 重新配置 API 密钥{Style.RESET_ALL}")
             log.error("API 认证失败: 密钥无效或已过期")
@@ -748,25 +757,22 @@ async def main():
         # 每次对话结束后检查是否有待确认的文件更改
         handle_pending_changes()
 
-_progress = None
-
 def _progress_bar(percent, label):
-    global _progress
-    if _progress is None:
-        _progress = Progress(
+    if ui.progress is None:
+        ui.progress = Progress(
             BarColumn(bar_width=25, style="dim", complete_style="cyan", finished_style="cyan"),
             TextColumn("[bright_blue]{task.percentage:>3.0f}%"),
             TextColumn("{task.description}"),
         )
-        _progress.start()
-        _progress.add_task("", total=100)
-        _progress.console.print()
-    _progress.tasks[0].completed = percent
-    _progress.tasks[0].description = label
-    _progress.refresh()
+        ui.progress.start()
+        ui.progress.add_task("", total=100)
+        ui.progress.console.print()
+    ui.progress.tasks[0].completed = percent
+    ui.progress.tasks[0].description = label
+    ui.progress.refresh()
     if percent >= 100:
-        _progress.stop()
-        _progress = None
+        ui.progress.stop()
+        ui.progress = None
 
 _DEEPSLEEPING = "d-e-e-p-s-l-e-e-p-i-n-g"
 
@@ -843,8 +849,8 @@ if __name__ == "__main__":
     
     _progress_bar(5, _DEEPSLEEPING[:1])
     time.sleep(0.1)
-    current_config = config.load_config()
-    show_thinking = current_config.get('show_thinking', False)
+    state.current_config = config.load_config()
+    state.show_thinking = state.current_config.get('show_thinking', False)
     _progress_bar(20, _DEEPSLEEPING[:3])
     time.sleep(0.1)
     
@@ -852,39 +858,39 @@ if __name__ == "__main__":
     _progress_bar(35, _DEEPSLEEPING[:7])
     time.sleep(0.1)
     
-    deprecation_warning = config.check_model_deprecation(current_config.get('model', 'deepseek-v4-flash'))
+    deprecation_warning = config.check_model_deprecation(state.current_config.get('model', 'deepseek-v4-flash'))
     if deprecation_warning:
         log.warning(deprecation_warning)
     
-    WORKPLACE_DIR = current_config.get('work_directory', 'workplace')
+    WORKPLACE_DIR = state.current_config.get('work_directory', 'workplace')
     # 相对路径基于项目根目录解析为绝对路径
     if not os.path.isabs(WORKPLACE_DIR):
         WORKPLACE_DIR = os.path.join(bootstrap.PROJECT_ROOT, WORKPLACE_DIR)
     if not os.path.exists(WORKPLACE_DIR):
         WORKPLACE_DIR = os.path.join(bootstrap.PROJECT_ROOT, 'workplace')
         log.warning(f"工作目录不存在，回退到默认目录: {WORKPLACE_DIR}")
-        current_config['work_directory'] = WORKPLACE_DIR
-        config.save_config(current_config)
+        state.current_config['work_directory'] = WORKPLACE_DIR
+        config.save_config(state.current_config)
     if not os.path.exists(WORKPLACE_DIR):
         os.makedirs(WORKPLACE_DIR)
         log.info(f"创建工作目录: {WORKPLACE_DIR}")
     _progress_bar(50, _DEEPSLEEPING[:11])
     time.sleep(0.1)
     
-    chat_instance = chat.QuickAIChat(
-        model=current_config.get('model', 'deepseek-v4-flash'), 
-        max_tokens=current_config.get('max_tokens', 8192),
+    state.chat_instance = chat.QuickAIChat(
+        model=state.current_config.get('model', 'deepseek-v4-flash'), 
+        max_tokens=state.current_config.get('max_tokens', 8192),
         callback=chat_callback
     )
     _progress_bar(85, _DEEPSLEEPING[:17])
     time.sleep(0.1)
     
-    current_conversation = "main"
-    current_dir_id = None
-    current_conv_id = None
+    state.current_conversation = "main"
+    state.current_dir_id = None
+    state.current_conv_id = None
     
     log.info("Dolphin 启动")
-    log.info(f"当前配置: model={current_config.get('model')}, max_tokens={current_config.get('max_tokens', 8192)}, conversation={current_conversation}, work_directory={WORKPLACE_DIR}")
+    log.info(f"当前配置: model={state.current_config.get('model')}, max_tokens={state.current_config.get('max_tokens', 8192)}, conversation={state.current_conversation}, work_directory={WORKPLACE_DIR}")
     _progress_bar(100, _DEEPSLEEPING)
     time.sleep(0.3)
     screen_refresh.clear_screen()
@@ -893,7 +899,7 @@ if __name__ == "__main__":
     
     open_work_directory(WORKPLACE_DIR, silent=True)
     
-    if chat_instance.messages:
+    if state.chat_instance.messages:
         _print_conversation_history()
     
     asyncio.run(main())
