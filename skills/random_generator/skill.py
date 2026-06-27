@@ -1,4 +1,5 @@
 import random
+import secrets
 from typing import List, Dict, Any
 from colorama import Fore, Style
 
@@ -121,7 +122,7 @@ def random_password(
 
     password = []
     for _ in range(length):
-        password.append(random.choice(charset))
+        password.append(secrets.choice(charset))
 
     value = ''.join(password)
     return {
