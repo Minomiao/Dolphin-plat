@@ -7,6 +7,7 @@ from modules.loader import mcp_manager
 from modules.loader import skill_manager
 from modules.loader import plugin_skill_loader
 from modules.main_server.middleware import request_manager
+from modules.functions import backup_manager, powershell_manager
 from modules.logger import get_logger, log_thinking
 import json
 import asyncio
@@ -83,8 +84,6 @@ class QuickAIChat:
         self.plugin_loader = plugin_skill_loader.get_plugin_skill_loader()
         self.request_manager = request_manager.get_request_manager()
         
-        # 导入备份管理器
-        from modules.functions import backup_manager
         self.backup_mgr = backup_manager.get_backup_manager()
         
         # dialog_id = conv_id（在 set_save_target 时统一设置）
@@ -262,7 +261,6 @@ class QuickAIChat:
             return error_msg
     
     async def _execute_powershell_script(self, script: str, timeout: int = 30, wait_time: int = 10) -> dict:
-        from modules.functions import powershell_manager
         return await powershell_manager.execute_script(script, timeout, wait_time)
 
     async def _handle_auto_execute(self, result_dict: dict) -> tuple:

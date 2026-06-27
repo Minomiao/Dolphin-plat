@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 from modules.logger import get_logger
 from modules.bootstrap import constants
+from . import backup_manager
 
 log = get_logger("Dolphin.file_operation")
 
@@ -146,7 +147,6 @@ class FileOperation:
             backup_path = None
             pending_count = 0
             try:
-                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action="create")
@@ -397,7 +397,6 @@ class FileOperation:
             # 备份文件
             backup_path = None
             try:
-                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action="modify")
@@ -411,7 +410,6 @@ class FileOperation:
             # 记录变更
             pending_count = 0
             try:
-                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_mgr.record_change(
@@ -475,7 +473,6 @@ class FileOperation:
             # 备份文件
             backup_path = None
             try:
-                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action="delete")
@@ -488,7 +485,6 @@ class FileOperation:
             # 记录变更
             pending_count = 0
             try:
-                from modules.functions import backup_manager
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
                     backup_mgr.record_change(
