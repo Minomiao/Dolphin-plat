@@ -115,8 +115,8 @@ def settings_mode():
     print(f"  {cmd.get_command('model')} - 切换模型和配置 API 密钥")
     print(f"  {cmd.get_command('open')}  - 切换工作目录")
     print()
-    print(f"当前最大Token数: {state.current_config.get('max_tokens', 8192)}")
-    print("推荐值: 8192 (适合大多数场景)")
+    print(f"当前最大Token数: {state.current_config.get('max_tokens', 18000)}")
+    print("推荐值: 18000 (适合大多数场景)")
     new_max_tokens = input("\n输入新的最大Token数 (留空保持当前值): ")
     if new_max_tokens == cmd.get_command('back'):
         log.info("用户取消设置，返回主界面")
@@ -128,17 +128,17 @@ def settings_mode():
             if new_max_tokens < 1:
                 log.warning(f"Token数过小: {new_max_tokens}")
                 print("Token数至少为 1，保持当前值")
-                new_max_tokens = state.current_config.get('max_tokens', 8192)
+                new_max_tokens = state.current_config.get('max_tokens', 18000)
             elif new_max_tokens > 200000:
                 log.warning(f"Token数过大: {new_max_tokens}")
                 print("Token数最大不超过 200000，保持当前值")
-                new_max_tokens = state.current_config.get('max_tokens', 8192)
+                new_max_tokens = state.current_config.get('max_tokens', 18000)
         except ValueError:
             log.warning(f"无效的Token数: {new_max_tokens}")
             print("请输入有效数字，保持当前值")
-            new_max_tokens = state.current_config.get('max_tokens', 8192)
+            new_max_tokens = state.current_config.get('max_tokens', 18000)
     else:
-        new_max_tokens = state.current_config.get('max_tokens', 8192)
+        new_max_tokens = state.current_config.get('max_tokens', 18000)
     
     current_prefix = state.current_config.get('command_prefix', '/')
     print(f"\n当前命令前缀: {current_prefix}")
@@ -170,7 +170,7 @@ def settings_mode():
     )
     state.chat_instance = chat.QuickAIChat(
         model=state.current_config.get('model'), 
-        max_tokens=state.current_config.get('max_tokens', 8192),
+        max_tokens=state.current_config.get('max_tokens', 18000),
         callback=chat_callback
     )
     state.chat_instance.effort_level = state.effort_level
@@ -462,7 +462,7 @@ def model_settings():
     )
     state.chat_instance = chat.QuickAIChat(
         model=state.current_config.get('model'), 
-        max_tokens=state.current_config.get('max_tokens', 8192),
+        max_tokens=state.current_config.get('max_tokens', 18000),
         callback=chat_callback
     )
     state.chat_instance.effort_level = state.effort_level
@@ -917,7 +917,7 @@ if __name__ == "__main__":
     
     state.chat_instance = chat.QuickAIChat(
         model=state.current_config.get('model', 'deepseek-v4-flash'), 
-        max_tokens=state.current_config.get('max_tokens', 8192),
+        max_tokens=state.current_config.get('max_tokens', 18000),
         callback=chat_callback
     )
     state.chat_instance.effort_level = state.effort_level
@@ -929,7 +929,7 @@ if __name__ == "__main__":
     state.current_conv_id = None
     
     log.info("Dolphin 启动")
-    log.info(f"当前配置: model={state.current_config.get('model')}, max_tokens={state.current_config.get('max_tokens', 8192)}, effort={state.effort_level}, conversation={state.current_conversation}, work_directory={WORKPLACE_DIR}")
+    log.info(f"当前配置: model={state.current_config.get('model')}, max_tokens={state.current_config.get('max_tokens', 18000)}, effort={state.effort_level}, conversation={state.current_conversation}, work_directory={WORKPLACE_DIR}")
     _progress_bar(100, _DEEPSLEEPING)
     time.sleep(0.3)
     screen_refresh.clear_screen()

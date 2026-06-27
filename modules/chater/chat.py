@@ -66,9 +66,9 @@ class QuickAIChat:
         # 缓存配置，避免重复读取文件
         _cfg = config.load_config()
         
-        # 从配置中读取 max_tokens，如果没有提供或配置中没有，则使用默认值 8192
+        # 从配置中读取 max_tokens，如果没有提供或配置中没有，则使用默认值 18000
         if max_tokens is None:
-            max_tokens = _cfg.get('max_tokens', 8192)
+            max_tokens = _cfg.get('max_tokens', 18000)
         
         self.max_tokens = max_tokens
         self.effort_level = "fine"  # fine / medium / high
