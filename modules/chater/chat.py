@@ -7,7 +7,6 @@ from modules.loader import mcp_manager
 from modules.loader import skill_manager
 from modules.loader import plugin_skill_loader
 from modules.main_server.middleware import request_manager
-from modules.main_server import prompt_manager
 from modules.functions import backup_manager, powershell_manager
 from modules.logger import get_logger, log_thinking
 import json
@@ -72,6 +71,7 @@ class QuickAIChat:
             max_tokens = _cfg.get('max_tokens', 8192)
         
         self.max_tokens = max_tokens
+        self.effort_level = "fine"  # fine / medium / high
         self.messages = []
         self.context = ContextManager(self.get_system_prompt)
         self.enable_tools = enable_tools
@@ -165,7 +165,8 @@ class QuickAIChat:
         prompt_request = self.request_manager.create_prompt_request(
             "system",
             work_directory=self.current_work_directory,
-            directory_structure=self.get_directory_structure()
+            directory_structure=self.get_directory_structure(),
+            effort_level=self.effort_level
         )
         result = self.request_manager.handle_request(prompt_request, None)
 
@@ -192,17 +193,6 @@ class QuickAIChat:
             log.error(f"获取目录结构失败: {e}")
             return "无法获取目录结构"
     
-    async def _check_dev_trigger(self, user_input: str) -> str | None:
-        """检查是否触发开发者模式，命中则返回当前系统提示词，否则返回 None"""
-        triggers = ["DEV_SHOW_PROMPT"]
-        if any(t in user_input for t in triggers):
-            log.info("开发者模式触发，返回系统提示词")
-            prompt = self.get_system_prompt()
-            await self._call_callback('response_chunk', {'content': prompt})
-            await self._call_callback('response_end', {})
-            return prompt
-        return None
-
     async def _check_context_usage(self):
         """在每轮对话结束后检查上下文用量，接近窗口上限时通过回调通知。"""
         context_window = config.get_context_window(self.model)
@@ -366,12 +356,6 @@ class QuickAIChat:
 
     async def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
-
-        dev_prompt = await self._check_dev_trigger(user_input)
-        if dev_prompt:
-            self.add_message("user", user_input)
-            self.add_message("assistant", dev_prompt)
-            return dev_prompt
 
         self.add_message("user", user_input)
         
@@ -567,12 +551,6 @@ class QuickAIChat:
 
     async def chat_stream(self, user_input):
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
-
-        dev_prompt = await self._check_dev_trigger(user_input)
-        if dev_prompt:
-            self.add_message("user", user_input)
-            self.add_message("assistant", dev_prompt)
-            return dev_prompt
 
         self.add_message("user", user_input)
         

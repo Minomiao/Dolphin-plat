@@ -173,6 +173,7 @@ def settings_mode():
         max_tokens=state.current_config.get('max_tokens', 8192),
         callback=chat_callback
     )
+    state.chat_instance.effort_level = state.effort_level
     log.info("客户端已更新")
     print("客户端已更新")
 
@@ -464,8 +465,10 @@ def model_settings():
         max_tokens=state.current_config.get('max_tokens', 8192),
         callback=chat_callback
     )
+    state.chat_instance.effort_level = state.effort_level
     log.info("客户端已更新")
     print("客户端已更新")
+
 
 def chat_callback(event_type, data):
     """处理聊天事件的回调函数"""
@@ -722,6 +725,21 @@ async def main():
             if changed:
                 screen_refresh.refresh(_print_header, _print_conversation_history, f"思考过程显示: {'开启' if state.show_thinking else '关闭'}")
             continue
+        elif user_input.startswith(cmd.get_command('effort')):
+            effort_cmd = cmd.get_command('effort')
+            level = user_input[len(effort_cmd):].strip().lower()
+            valid_levels = ["fine", "medium", "high"]
+            if level not in valid_levels:
+                print(f"{Fore.RED}无效的努力程度: '{level}'。可选: fine / medium / high{Style.RESET_ALL}")
+                continue
+            state.effort_level = level
+            state.chat_instance.effort_level = level
+            state.current_config['effort_level'] = level
+            config.save_config(state.current_config)
+            level_label = {"fine": "精简", "medium": "标准", "high": "深度"}
+            log.info(f"努力程度已切换: {level}")
+            print(f"努力程度已切换为: {level_label.get(level, level)}")
+            continue
         
         prefix = cmd._get_prefix()
         if user_input.startswith(prefix):
@@ -867,6 +885,10 @@ if __name__ == "__main__":
     time.sleep(0.1)
     state.current_config = config.load_config()
     state.show_thinking = state.current_config.get('show_thinking', False)
+    state.effort_level = state.current_config.get('effort_level', 'fine')
+    if 'effort_level' not in state.current_config:
+        state.current_config['effort_level'] = 'fine'
+        config.save_config(state.current_config)
     _progress_bar(20, _DEEPSLEEPING[:3])
     time.sleep(0.1)
     
@@ -898,6 +920,7 @@ if __name__ == "__main__":
         max_tokens=state.current_config.get('max_tokens', 8192),
         callback=chat_callback
     )
+    state.chat_instance.effort_level = state.effort_level
     _progress_bar(85, _DEEPSLEEPING[:17])
     time.sleep(0.1)
     
@@ -906,7 +929,7 @@ if __name__ == "__main__":
     state.current_conv_id = None
     
     log.info("Dolphin 启动")
-    log.info(f"当前配置: model={state.current_config.get('model')}, max_tokens={state.current_config.get('max_tokens', 8192)}, conversation={state.current_conversation}, work_directory={WORKPLACE_DIR}")
+    log.info(f"当前配置: model={state.current_config.get('model')}, max_tokens={state.current_config.get('max_tokens', 8192)}, effort={state.effort_level}, conversation={state.current_conversation}, work_directory={WORKPLACE_DIR}")
     _progress_bar(100, _DEEPSLEEPING)
     time.sleep(0.3)
     screen_refresh.clear_screen()

@@ -64,6 +64,10 @@ def _get_default_commands():
             "showthinking": {
                 "input": "showthinking",
                 "description": "显示/隐藏 AI 思考过程 (on/off)"
+            },
+            "effort": {
+                "input": "effort",
+                "description": "设置 AI 努力程度 (fine/medium/high)"
             }
         }
     }
