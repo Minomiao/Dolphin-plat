@@ -7,6 +7,7 @@ from modules.loader import mcp_manager
 from modules.loader import skill_manager
 from modules.loader import plugin_skill_loader
 from modules.main_server.middleware import request_manager
+from modules.main_server import prompt_manager
 from modules.functions import backup_manager, powershell_manager
 from modules.logger import get_logger, log_thinking
 import json
@@ -160,39 +161,48 @@ class QuickAIChat:
         log.info(f"工作目录已重置为: {self.current_work_directory}")
     
     def get_system_prompt(self) -> str:
-        """获取系统提示，包含工作目录信息"""
-        # 通过 request_manager 获取提示词
+        """获取系统提示词，由 PromptManager 组合并注入动态信息"""
         prompt_request = self.request_manager.create_prompt_request(
             "system",
             work_directory=self.current_work_directory,
             directory_structure=self.get_directory_structure()
         )
-        
-        # 处理提示词请求
         result = self.request_manager.handle_request(prompt_request, None)
-        
+
         if result.get("success"):
             return result.get("prompt", "")
-        else:
-            #  fallback to default prompt
-            directory_structure = self.get_directory_structure()
-            default_prompt = f"你是一个AI助手。当用户要求完成任务时，必须确保完成所有必要的步骤，不要中途停止。重要限制：每次只能调用一个工具（skill），等待工具返回结果后，再决定是否需要调用下一个工具。不要同时调用多个工具。重要：在每次回答结束时，必须至少给出一个正常的输出（除了思考过程和工具调用之外的内容），让用户知道发生了什么。始终以完整的回答结束对话。重要：你的所有输出都将显示在终端中，因此请使用纯文本格式输出，不要使用Markdown格式（如 **粗体**、*斜体*、# 标题、- 列表、`代码块`、```代码围栏```、表格、> 引用等），使用自然语言和空格缩进来表达结构和层级。不要输出表情符号（如 emoji）。当前工作目录：{self.current_work_directory}。所有文件操作都在此目录下进行，可以使用子文件夹路径，例如 'subdir/file.txt' 或 'subdir1/subdir2/file.txt'。如果需要切换工作目录，请使用 file_manager 技能的 set_work_directory 函数。切换后的工作目录仅在当前对话有效，下次对话开始时会恢复为此目录。\n\n当前工作目录的文件结构：\n{directory_structure}"
-            return default_prompt
+
+        # 极端情况下的最小化 fallback
+        log.warning("PromptManager 获取系统提示词失败，使用最小化 fallback")
+        return f"你是一个AI助手。当前工作目录：{self.current_work_directory}。"
     
     def get_directory_structure(self) -> str:
         """获取当前工作目录的目录结构"""
         try:
-            # 尝试直接调用 file_reader 技能的 list_directory 函数
             from skills.file_reader.skill import list_directory
-            result = list_directory(".", max_depth=3, show_hidden=False)
+            from modules.loader.skill_context import create_default_context
+            ctx = create_default_context(self.current_work_directory)
+            result = list_directory(ctx, ".", max_depth=3, show_hidden=False)
             if result.get("success"):
                 return result.get("tree", "")
             else:
+                log.warning(f"list_directory 失败: {result.get('error', 'unknown')}")
                 return "无法获取目录结构"
         except Exception as e:
             log.error(f"获取目录结构失败: {e}")
             return "无法获取目录结构"
     
+    async def _check_dev_trigger(self, user_input: str) -> str | None:
+        """检查是否触发开发者模式，命中则返回当前系统提示词，否则返回 None"""
+        triggers = ["DEV_SHOW_PROMPT"]
+        if any(t in user_input for t in triggers):
+            log.info("开发者模式触发，返回系统提示词")
+            prompt = self.get_system_prompt()
+            await self._call_callback('response_chunk', {'content': prompt})
+            await self._call_callback('response_end', {})
+            return prompt
+        return None
+
     async def _check_context_usage(self):
         """在每轮对话结束后检查上下文用量，接近窗口上限时通过回调通知。"""
         context_window = config.get_context_window(self.model)
@@ -356,7 +366,13 @@ class QuickAIChat:
 
     async def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
-        
+
+        dev_prompt = await self._check_dev_trigger(user_input)
+        if dev_prompt:
+            self.add_message("user", user_input)
+            self.add_message("assistant", dev_prompt)
+            return dev_prompt
+
         self.add_message("user", user_input)
         
         kwargs = {
@@ -551,7 +567,13 @@ class QuickAIChat:
 
     async def chat_stream(self, user_input):
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
-        
+
+        dev_prompt = await self._check_dev_trigger(user_input)
+        if dev_prompt:
+            self.add_message("user", user_input)
+            self.add_message("assistant", dev_prompt)
+            return dev_prompt
+
         self.add_message("user", user_input)
         
         kwargs = {
