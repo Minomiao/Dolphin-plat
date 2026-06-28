@@ -71,7 +71,7 @@ class QuickAIChat:
             max_tokens = _cfg.get('max_tokens', 18000)
         
         self.max_tokens = max_tokens
-        self.effort_level = "fine"  # fine / medium / high
+        self.effort_level = "fine"  # fine / normal / high
         self.messages = []
         self.context = ContextManager(self.get_system_prompt)
         self.enable_tools = enable_tools

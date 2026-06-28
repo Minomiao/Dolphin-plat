@@ -67,7 +67,7 @@ def _get_default_commands():
             },
             "effort": {
                 "input": "effort",
-                "description": "设置 AI 努力程度 (fine/medium/high)"
+                "description": "设置 AI 思考深度 (fine/normal/high)"
             }
         }
     }

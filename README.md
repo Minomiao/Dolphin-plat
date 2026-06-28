@@ -59,19 +59,19 @@ python main.py
 | `/skills`               | 管理技能启用/禁用           |
 | `/toggle`               | 切换工具启用/禁用           |
 | `/showthinking on\|off` | 显示/隐藏思考过程           |
-| `/effort [fine\|medium\|high]` | 设置 AI 努力程度，无参数显示当前 |
+| `/effort [fine\|normal\|high]` | 设置 AI 思考深度，无参数显示当前 |
 | `/quit`                 | 退出程序                |
 
 所有命令共用可配置的前缀（默认 `/`），通过 `/set` 修改。
 
-### 努力程度
+### 思考深度
 
 通过 `/effort` 命令调整 AI 的工作模式，影响系统提示词中的行为约束：
 
 | 级别 | 命令 | 说明 |
 | --- | --- | --- |
 | **精简** | `/effort fine` | 只修改与任务直接相关内容，审视必要性和最小改动方案，优先复用现有功能 |
-| **标准** | `/effort medium` | 不确定时向用户询问，使用 `plugin_user_input_request_user_input` 工具 |
+| **标准** | `/effort normal` | 不确定时向用户询问，使用 `plugin_user_input_request_user_input` 工具 |
 | **深度** | `/effort high` | 全面考虑每个细节，不确定时询问，完成后审视逻辑正确性和边界情况 |
 
 默认 `fine`，切换后持久化到 `config.json`，启动时自动恢复。
@@ -110,7 +110,7 @@ modules/
 ├── loader/skill_manager.py      # 技能加载与调用
 ├── loader/plugin_skill_loader.py # 插件加载（ZIP 格式）
 ├── main_server/middleware/request_manager.py # 内部请求分发
-├── main_server/prompt_manager.py # 系统提示词管理与努力程度注入
+├── main_server/prompt_manager.py # 系统提示词管理与思考深度注入
 ├── main_server/config.py        # 配置管理 + 模型注册表
 ├── functions/file_operation.py  # 集中化文件读写
 ├── functions/backup_manager.py  # 对话级文件备份与恢复

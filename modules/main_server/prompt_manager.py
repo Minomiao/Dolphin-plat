@@ -86,7 +86,7 @@ class PromptManager:
                 log.error(f"格式化提示词失败: {e}")
         return prompt
 
-    # 努力程度提示词（动态注入，不持久化到 JSON）
+    # 思考深度提示词（动态注入，不持久化到 JSON）
     EFFORT_PROMPTS = {
         "fine": (
             "当前工作模式：精简。\n"
@@ -94,7 +94,7 @@ class PromptManager:
             "   - 在每次修改前，审视：这个改动是否必要？能否以更少的代码完成？能否复用现有功能？能否使用系统已有的工具或方法？\n"
             "   - 完成后，确认修改范围没有超出任务要求"
         ),
-        "medium": (
+        "normal": (
             "当前工作模式：标准。\n"
             "   - 如果遇到问题或任何不确定的情况，必须向用户询问确认，不要自行猜测\n"
             "   - 询问用户时，使用 plugin_user_input_request_user_input 工具"
