@@ -1,5 +1,78 @@
 # Change Log
 
+## v1.1.5 (2026-06-27)
+
+Effort/thinking depth system, PowerShell command cache, security hardening, code quality improvements, and backup management refactor.
+
+### Effort / Thinking Depth System
+
++ Add `/effort` command with three levels: `fine` (精简), `normal` (标准), `high` (深度)
++ `/effort` without argument displays current level
++ Level persisted to `config.json`, restored on startup
++ Dynamic effort prompts inject behavior constraints into system prompt via `prompt_manager`
++ Chinese label: "思考深度" (replaces "努力程度") throughout all modules and README
+/ Rename effort level `medium` → `normal` across all modules, commands, and documentation
+
+### PowerShell Command Cache
+
++ Add `CommandCacheManager` in `powershell_manager` with TTL-based cache
++ Auto-destroy cache entries after AI reads them (security-first)
++ Memory cache overflow spills to persistent storage (disk)
++ Persistent cache force-deleted on startup (`force_all` cleanup)
++ Cache size limited to 20 entries with `cleanup_expired_persistent()`
++ Cache directory protected by DPC access control
+
+### Security & Robustness
+
++ Add symlink detection to file path validation — prevents bypass via symbolic links
++ Harden PowerShell dangerous pattern detection against string concatenation and dot-invocation bypasses
++ Use `secrets` module for cryptographically secure random password generation (Issue #14)
+/ Sanitize error messages returned to AI/user — keep full traceback in local logs only
+/ Replace broad `except Exception` handlers with specific exception types (Issue #2)
+
+### Code Quality
+
+/ Refactor `main.py` global variables into `state` container objects (Issue #1)
++ Add type annotations for public interfaces across modules (Issue #7)
+/ Extract hardcoded magic numbers in conversation recovery to constants (Issue #6)
+/ Fix inconsistent logging levels and refactor thinking log (Issue #8)
+
+### Backup Management Refactor
+
+/ Store backups inside conversation folders with unified `backup_registry.json`
+/ Remove in-memory backup cache — eliminates cross-conversation conflicts
+/ Use `dialog_id = conv_id` (unified identifier)
+/ Simplify folder structure (file_id based, no dialog_id layering)
+
+### System Prompt & Dev Mode
+
+/ Refactor system prompt management with centralized `prompt_manager`
++ Add dev mode trigger for testing/development
+
+### Task Timeout & Validation
+
++ Add task timeout protection and background process auto-cleanup (Issue #12)
++ Add input validation for `max_tokens` range and `command_prefix` length in `/set` mode (Issue #11)
+
+### Config & Defaults
+
+/ Separate config read/write concerns: extract `ensure_config()` from `load_config()`
+/ Raise default `max_tokens` from 8192 to 18000
+
+### Circular Dependency
+
+/ Resolve circular dependency: move safe lazy imports to top level (Issue #13)
+
+### Confirmation UX
+
++ Auto-refresh screen after confirmed operation completes to clear confirmation dialog
+
+### Documentation
+
+/ Update README with `/effort` command and thinking depth system documentation
+
+---
+
 ## v1.1.4 (2026-06-21)
 
 Bootstrap module, SkillContext architecture, rich Table for pending changes, async compatibility layer, and UI polish.
