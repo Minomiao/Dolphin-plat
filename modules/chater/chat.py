@@ -354,6 +354,15 @@ class QuickAIChat:
 
         return result_raw, False
 
+    def _apply_effort_params(self, kwargs):
+        """根据 effort_level 添加 DeepSeek thinking mode 参数。normal 不传参。"""
+        if self.effort_level == "normal":
+            return
+        effort_map = {"fine": "high", "high": "max"}
+        kwargs["reasoning_effort"] = effort_map.get(self.effort_level, "high")
+        kwargs.setdefault("extra_body", {})
+        kwargs["extra_body"]["thinking"] = {"type": "enabled"}
+
     async def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
 
@@ -368,6 +377,8 @@ class QuickAIChat:
         
         if self.tools:
             kwargs["tools"] = self.tools
+        
+        self._apply_effort_params(kwargs)
         
         response = self.client.chat.completions.create(**kwargs)
         assistant_message = response.choices[0].message
@@ -564,6 +575,8 @@ class QuickAIChat:
         
         if self.tools:
             kwargs["tools"] = self.tools
+        
+        self._apply_effort_params(kwargs)
         
         stream = self.client.chat.completions.create(**kwargs)
         full_response, full_reasoning, tool_calls_buffer, has_tool_calls = await self._process_stream(stream)
