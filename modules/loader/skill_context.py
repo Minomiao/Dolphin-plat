@@ -4,7 +4,7 @@ Skill 执行上下文。
 """
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable
 
 
 class SkillContext:
@@ -114,6 +114,31 @@ class SkillContext:
         if self._powershell_manager:
             return self._powershell_manager.kill_command(command_id)
         return {"error": "powershell_manager 不可用"}
+
+    # ===== 嵌入模型 =====
+    def filter_relevant(
+        self,
+        query: str,
+        results: List[Dict[str, Any]],
+        threshold: float = 0.5,
+    ) -> List[Dict[str, Any]]:
+        """使用嵌入模型过滤搜索结果的相关性。
+
+        Args:
+            query: 搜索查询
+            results: 搜索结果列表，每项需含 title 和 content
+            threshold: 相似度阈值，低于此值的结果被过滤
+
+        Returns:
+            过滤后的结果列表；若模型不可用则返回原始列表
+        """
+        try:
+            from modules.functions.embedding import filter_relevant as _filter
+            return _filter(query, results, threshold)
+        except Exception as e:
+            if self._logger:
+                self._logger.warning(f"嵌入过滤不可用: {e}")
+            return results
 
 
 def create_default_context(work_directory: str) -> SkillContext:

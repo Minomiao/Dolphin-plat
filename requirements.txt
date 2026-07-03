@@ -8,3 +8,6 @@ colorama>=0.4.6
 rich>=13.0.0
 sympy>=1.12
 pyinstaller>=6.0.0
+huggingface-hub>=0.20.0
+sentence-transformers>=5.0.0
+onnxruntime>=1.18.0

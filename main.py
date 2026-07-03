@@ -918,7 +918,80 @@ if __name__ == "__main__":
         log.info(f"创建工作目录: {WORKPLACE_DIR}")
     _progress_bar(50, _DEEPSLEEPING[:11])
     time.sleep(0.1)
-    
+
+    # 嵌入模型下载 + ONNX 转换（仅在 web_search 启用时执行）
+    if state.current_config.get('skills', {}).get('web_search', False):
+        from modules.bootstrap.model_downloader import is_model_downloaded, download_model
+        download_ok = is_model_downloaded()  # 已存在则视为成功
+
+        if not download_ok:
+            model_task = None
+            model_progress = None
+            try:
+                model_progress = Progress(
+                    BarColumn(bar_width=15, style="dim", complete_style="green", finished_style="green"),
+                    TextColumn("[green]{task.percentage:>3.0f}%"),
+                    TextColumn("{task.description}"),
+                )
+                model_progress.start()
+                model_task = model_progress.add_task("嵌入模型", total=100)
+
+                def _on_model_progress(ratio: float, desc: str):
+                    if model_task is not None:
+                        model_progress.tasks[0].completed = int(ratio * 100)
+                        model_progress.tasks[0].description = desc
+                        model_progress.refresh()
+
+                download_ok = download_model(progress_callback=_on_model_progress)
+
+                model_progress.tasks[0].completed = 100
+                model_progress.tasks[0].description = "嵌入模型下载完成" if download_ok else "嵌入模型下载失败"
+                model_progress.refresh()
+
+                if not download_ok:
+                    _console.print("[yellow]联网搜索将使用未过滤结果[/yellow]")
+            except Exception as e:
+                download_ok = False
+                if model_task is not None and model_progress is not None:
+                    model_progress.tasks[0].completed = 100
+                    model_progress.tasks[0].description = "嵌入模型下载失败"
+                    model_progress.refresh()
+                log.warning(f"模型下载过程异常: {e}")
+
+        if download_ok:
+            from modules.bootstrap.onnx_converter import is_onnx_converted, convert_to_onnx
+            if not is_onnx_converted():
+                onnx_task = None
+                onnx_progress = None
+                try:
+                    onnx_progress = Progress(
+                        BarColumn(bar_width=15, style="dim", complete_style="cyan", finished_style="cyan"),
+                        TextColumn("[cyan]{task.percentage:>3.0f}%"),
+                        TextColumn("{task.description}"),
+                    )
+                    onnx_progress.start()
+                    onnx_task = onnx_progress.add_task("ONNX 转换", total=100)
+
+                    def _on_onnx_progress(ratio: float, desc: str):
+                        if onnx_task is not None:
+                            onnx_progress.tasks[0].completed = int(ratio * 100)
+                            onnx_progress.tasks[0].description = desc
+                            onnx_progress.refresh()
+
+                    convert_to_onnx(progress_callback=_on_onnx_progress)
+
+                    onnx_progress.tasks[0].completed = 100
+                    onnx_progress.tasks[0].description = "ONNX 转换完成"
+                    onnx_progress.refresh()
+                except Exception as e:
+                    if onnx_task is not None and onnx_progress is not None:
+                        onnx_progress.tasks[0].completed = 100
+                        onnx_progress.tasks[0].description = "ONNX 转换失败"
+                        onnx_progress.refresh()
+                    log.warning(f"ONNX 转换过程异常: {e}")
+
+        time.sleep(0.5)
+
     state.chat_instance = chat.QuickAIChat(
         model=state.current_config.get('model', 'deepseek-v4-flash'), 
         max_tokens=state.current_config.get('max_tokens', 18000),

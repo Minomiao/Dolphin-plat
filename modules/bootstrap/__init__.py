@@ -15,6 +15,7 @@ CONFIG_FILE = None
 ENV_FILE = None
 COMMANDS_FILE = None
 BACKUP_DIR = None
+MODELS_DIR = None
 
 
 def init(root_path: str):
@@ -22,6 +23,7 @@ def init(root_path: str):
     global PROJECT_ROOT, DATE_DIR, LOG_DIR
     global CONVERSATIONS_DIR, PROMPT_DIR, PROMPT_FILE
     global CONFIG_FILE, ENV_FILE, COMMANDS_FILE
+    global MODELS_DIR
 
     if PROJECT_ROOT is not None:
         return

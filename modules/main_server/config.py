@@ -107,6 +107,8 @@ def _get_default_config():
         "skills": {"web_search": False},
         "plugins": {},
         "show_thinking": False,
+        "onnx_converted": False,
+        "embedding_model_downloaded": False,
     }
 
 

@@ -366,7 +366,11 @@ class RequestManager:
             # 构建工具名称
             tool_name = f"skill_{skill_name}_{function_name}"
             result = _run_async(skill_mgr.call_tool(tool_name, arguments))
-            
+
+            # 提取技能返回的 user_output
+            if isinstance(result, dict) and result.get("user_output"):
+                self._last_user_output = result.pop("user_output")
+
             log.info(f"处理技能请求: {skill_name}.{function_name}, 成功: {result.get('success', False) if isinstance(result, dict) else True}")
             return result
         except Exception as e:
