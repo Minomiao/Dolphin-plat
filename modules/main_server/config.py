@@ -104,7 +104,7 @@ def _get_default_config():
         "command_prefix": "/",
         "max_tokens": 18000,
         "reasoning": True,
-        "skills": {"web_search": False},
+        "skills": {"web_search": True},
         "plugins": {},
         "show_thinking": False,
         "onnx_converted": False,
