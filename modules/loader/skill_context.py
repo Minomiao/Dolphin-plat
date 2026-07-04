@@ -115,30 +115,32 @@ class SkillContext:
             return self._powershell_manager.kill_command(command_id)
         return {"error": "powershell_manager 不可用"}
 
-    # ===== 嵌入模型 =====
-    def filter_relevant(
-        self,
-        query: str,
-        results: List[Dict[str, Any]],
-        threshold: float = 0.5,
-    ) -> List[Dict[str, Any]]:
-        """使用嵌入模型过滤搜索结果的相关性。
+    # ===== 嵌入模型（仅提供向量化，不做匹配判断）=====
+    def encode_texts(self, texts: List[str]):
+        """使用嵌入模型将文本编码为向量。
 
         Args:
-            query: 搜索查询
-            results: 搜索结果列表，每项需含 title 和 content
-            threshold: 相似度阈值，低于此值的结果被过滤
+            texts: 要编码的文本列表
 
         Returns:
-            过滤后的结果列表；若模型不可用则返回原始列表
+            numpy array (n, 512) L2 归一化，模型不可用时返回 None
         """
         try:
-            from modules.functions.embedding import filter_relevant as _filter
-            return _filter(query, results, threshold)
+            from modules.functions.embedding import EmbeddingModel
+            return EmbeddingModel.get_instance().encode(texts)
         except Exception as e:
             if self._logger:
-                self._logger.warning(f"嵌入过滤不可用: {e}")
-            return results
+                self._logger.warning(f"嵌入编码不可用: {e}")
+            return None
+
+    @property
+    def embedding_ready(self) -> bool:
+        """嵌入模型是否已就绪。"""
+        try:
+            from modules.functions.embedding import EmbeddingModel
+            return EmbeddingModel.get_instance().is_ready
+        except Exception:
+            return False
 
 
 def create_default_context(work_directory: str) -> SkillContext:

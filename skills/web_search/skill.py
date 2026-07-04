@@ -1,6 +1,6 @@
 import re
 import requests
-from typing import Dict, Any
+from typing import Dict, Any, List
 from colorama import Fore, Style
 
 
@@ -27,30 +27,79 @@ _HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9",
 }
 
-_SNIPPET_WIDTH = 50
+_FILTER_THRESHOLD = 0.5
 
-def _strip_html(s: str) -> str:
-    s = re.sub(r'&[a-z]+;', '', s)
-    s = re.sub(r'&#\d+;', '', s)
-    return s
+# ---- 关键字匹配回退 ----
+_KEYWORD_MIN_LEN = 2
+_STOP_WORDS = {
+    "的", "是", "了", "在", "和", "与", "或", "不", "有", "我", "他", "她", "它",
+    "这", "那", "都", "也", "就", "还", "要", "会", "能", "对", "把", "被", "让",
+    "从", "到", "很", "更", "最", "已", "着", "呢", "吗", "吧", "啊", "哦", "嗯",
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "shall",
+    "should", "can", "could", "may", "might", "must", "in", "on", "at",
+    "to", "for", "of", "with", "by", "from", "as", "or", "and", "not",
+    "but", "if", "so", "no", "up", "out", "all", "any", "both", "each",
+    "few", "more", "most", "other", "some", "such", "only", "own", "same",
+    "than", "too", "very", "just", "about", "into", "over", "also",
+}
 
-def _truncate(s: str, width: int) -> str:
-    s = _strip_html(s)
-    if len(s) > width:
-        return s[:width - 1] + "…"
-    return s
+
+def _extract_keywords(query: str) -> List[str]:
+    """从查询中提取有意义的关键字（用于模型不可用时的回退过滤）。"""
+    cleaned = re.sub(r'[^\w\s]', ' ', query).strip()
+    tokens = re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z]+', cleaned)
+    return [t.lower() for t in tokens if t.lower() not in _STOP_WORDS and len(t) >= _KEYWORD_MIN_LEN]
+
 
 def _build_user_output(query: str, results: list) -> str:
     gray = Fore.LIGHTBLACK_EX
     reset = Style.RESET_ALL
-    lines = [f'"{query}"{gray} - {len(results)} results{reset}']
+    return f'"{query}"{gray} - {len(results)} results{reset}'
 
+
+# ---- 相关性过滤（由 skill 自己决策）----
+
+def _filter_relevant(context, query: str, results: List[Dict]) -> List[Dict]:
+    """
+    对搜索结果做相关性过滤。
+    优先级: 向量相似度 > 关键字匹配 > 原始结果
+    """
+    if not results:
+        return results
+
+    # 尝试向量化
+    embs = None
+    try:
+        embs = context.encode_texts([query] + [f"{r.get('title', '')} {r.get('content', '')}" for r in results])
+    except Exception:
+        embs = None
+
+    if embs is not None and len(embs) == len(results) + 1:
+        # 向量相似度过滤
+        import numpy as np
+        query_emb = embs[0:1]       # (1, 512)
+        doc_embs = embs[1:]          # (n, 512)
+        similarities = np.dot(doc_embs, query_emb.T).flatten()
+
+        filtered = [r for r, sim in zip(results, similarities) if float(sim) >= _FILTER_THRESHOLD]
+        return filtered if filtered else results
+
+    # 回退：关键字匹配
+    keywords = _extract_keywords(query)
+    if not keywords:
+        return results
+
+    filtered = []
     for r in results:
-        snippet = _truncate(r["content"] or r["title"], _SNIPPET_WIDTH)
-        lines.append(f'{gray}  {snippet}{reset}')
+        text = (r.get("title", "") + " " + r.get("content", "")).lower()
+        if any(kw in text for kw in keywords):
+            filtered.append(r)
 
-    return "\n".join(lines)
+    return filtered if filtered else results
 
+
+# ---- 搜索入口 ----
 
 def search(context, query: str, num_results: int = 5) -> Dict[str, Any]:
     try:
@@ -97,9 +146,9 @@ def search(context, query: str, num_results: int = 5) -> Dict[str, Any]:
                 "url": url_val
             })
 
-        # 使用嵌入模型过滤不相关结果
+        # 相关性过滤（skill 自己决策）
         if context and results:
-            results = context.filter_relevant(query, results)
+            results = _filter_relevant(context, query, results)
 
         return {
             "query": query,

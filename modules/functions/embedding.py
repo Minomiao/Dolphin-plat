@@ -1,7 +1,8 @@
 """
 嵌入模型管理模块。
-封装 bge-small-zh-v1.5 的加载、编码、相关性过滤。
+封装 bge-small-zh-v1.5 的加载和编码。
 优先使用 ONNX Runtime，回退到 SentenceTransformer (torch)。
+仅负责向量化。
 路径通过 bootstrap paths 获取。
 """
 import os
@@ -20,7 +21,6 @@ log = get_logger("Dolphin.embedding")
 MODEL_DIR_NAME = "bge-small-zh-v1.5"
 ONNX_DIR_NAME = "onnx"
 ONNX_FILENAME = "model.onnx"
-DEFAULT_THRESHOLD = 0.5
 
 
 def _is_onnx_available() -> bool:
@@ -43,7 +43,6 @@ class EmbeddingModel:
         self._model = None       # SentenceTransformer (torch 回退)
         self._session = None     # onnxruntime.InferenceSession
         self._tokenizer = None   # transformers.AutoTokenizer
-        self._util = None        # sentence_transformers.util
         self._use_onnx = False
         self._ready = False
 
@@ -54,6 +53,11 @@ class EmbeddingModel:
                 if cls._instance is None:
                     cls._instance = cls()
         return cls._instance
+
+    @property
+    def is_ready(self) -> bool:
+        """模型是否已成功加载。"""
+        return self._ready
 
     def _ensure_loaded(self) -> bool:
         """确保模型已加载，返回是否成功。ONNX 优先。"""
@@ -92,9 +96,9 @@ class EmbeddingModel:
             return False
 
         try:
-            from sentence_transformers import SentenceTransformer, util
+            from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(model_dir)
-            self._util = util
+            self._use_onnx = False
             self._ready = True
             log.info("torch 模型加载完成")
             return True
@@ -102,17 +106,25 @@ class EmbeddingModel:
             log.error(f"模型加载失败: {e}")
             return False
 
-    def encode(self, texts):
+    def encode(self, texts: List[str]):
         """
-        编码文本为向量。
-        texts: str 或 List[str]
-        返回: numpy array, shape (batch, 512)
+        将文本编码为向量。
+
+        Args:
+            texts: 文本列表
+
+        Returns:
+            numpy array, shape (n, 512)，L2 归一化。模型不可用时返回 None。
         """
         if not self._ensure_loaded():
+            log.warning("嵌入模型不可用，encode 返回 None")
             return None
 
         if isinstance(texts, str):
             texts = [texts]
+
+        if not texts:
+            return None
 
         if self._use_onnx:
             import numpy as np
@@ -129,68 +141,3 @@ class EmbeddingModel:
             import numpy as np
             embs = self._model.encode(texts, normalize_embeddings=True)
             return np.array(embs)
-
-    def filter_relevant(
-        self,
-        query: str,
-        results: List[Dict[str, Any]],
-        threshold: float = DEFAULT_THRESHOLD,
-    ) -> List[Dict[str, Any]]:
-        """
-        根据语义相关性过滤搜索结果。
-
-        Args:
-            query: 搜索查询
-            results: 搜索结果列表，每项需含 title 和 content
-            threshold: 相似度阈值，低于此值的结果被过滤
-
-        Returns:
-            过滤后的结果列表；若模型不可用或全部不命中，返回原始列表
-        """
-        if not results:
-            return results
-
-        if not self._ensure_loaded():
-            log.warning("嵌入模型不可用，跳过过滤")
-            return results
-
-        try:
-            import numpy as np
-
-            # 编码查询和文档
-            query_emb = self.encode(query)                # (1, 512)
-            texts = [f"{r.get('title', '')} {r.get('content', '')}" for r in results]
-            doc_embs = self.encode(texts)                  # (n, 512)
-
-            # 计算余弦相似度
-            if self._use_onnx:
-                similarities = np.dot(doc_embs, query_emb.T).flatten()  # (n,)
-            else:
-                import torch
-                similarities = self._util.cos_sim(
-                    torch.tensor(query_emb), torch.tensor(doc_embs)
-                )[0].numpy()
-
-            filtered = []
-            for r, sim in zip(results, similarities):
-                score = float(sim)
-                log.debug(f"  相似度: {score:.3f} - {r.get('title', '')[:30]}")
-                if score >= threshold:
-                    filtered.append(r)
-
-            # 保底：全部不命中时返回原始结果
-            return filtered if filtered else results
-
-        except Exception as e:
-            log.error(f"相关性过滤失败: {e}")
-            return results
-
-
-# 模块级便捷函数
-def filter_relevant(
-    query: str,
-    results: List[Dict[str, Any]],
-    threshold: float = DEFAULT_THRESHOLD,
-) -> List[Dict[str, Any]]:
-    """便捷函数：过滤搜索结果的相关性。"""
-    return EmbeddingModel.get_instance().filter_relevant(query, results, threshold)
