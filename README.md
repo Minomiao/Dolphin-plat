@@ -104,40 +104,6 @@ web_search 技能首次使用时，程序会自动从 hf-mirror 下载 BAAI/bge-
 
 ***
 
-## 核心架构
-
-```
-main.py                          # CLI 入口，命令路由，回调处理
-modules/
-├── chater/chat.py               # 聊天核心（流式处理、工具执行、迭代循环）
-├── chater/conversation_loader.py # 对话历史格式化与加载
-├── loader/skill_manager.py      # 技能加载与调用
-├── loader/plugin_skill_loader.py # 插件加载（ZIP 格式）
-├── main_server/middleware/request_manager.py # 内部请求分发
-├── main_server/prompt_manager.py # 系统提示词管理与思考深度注入
-├── main_server/config.py        # 配置管理 + 模型注册表
-├── functions/file_operation.py  # 集中化文件读写
-├── functions/backup_manager.py  # 对话级文件备份与恢复
-├── functions/powershell_manager.py # PowerShell 子进程管理
-├── CLIserver/commands.py        # 命令管理（前缀化、关键词校验）
-└── logger.py                    # 日志系统
-```
-
-### 执行流程概要
-
-```
-用户输入 → main.py 路由 → chat_stream() 流式解析
-  ├── 无工具调用 → 直接返回回复
-  └── 有工具调用 → 逐个执行（skill / plugin / MCP）
-       └── 结果回传 → 继续迭代（最多 100 轮）
-```
-
-工具执行经过统一管道：路由 → 参数校验 → 确认检查（危险操作）→ 执行 → 结果格式化显示。
-
-系统提示词存储在 `date/prompts/system_prompts.json`，采用数组格式逐行存储，可通过 `prompt_manager.set_prompt()` 动态修改并持久化。
-
-***
-
 ## 插件系统
 
 插件以 ZIP 格式存放在 `plugins/` 目录，启动时自动加载。需包含 `manifest.json` 声明技能信息和入口点。
