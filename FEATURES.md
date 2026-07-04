@@ -78,7 +78,10 @@
 - [x] sympy Float → Python float/int conversion for JSON serialization
 
 ### web_search
-- [x] `search(query, num_results)` — DuckDuckGo API search
+- [x] `search(query, num_results)` — Bing HTML search with ad filtering
+- [x] Semantic relevance filtering via ONNX embedding (bge-small-zh-v1.5, cosine similarity)
+- [x] Keyword substring matching fallback when embedding model unavailable
+- [x] Model auto-download and ONNX conversion on first startup
 
 ## File Operations & Security
 

@@ -89,7 +89,7 @@ python main.py
 | **file\_manager**        | 文件创建、修改、删除、切换目录        | `set_work_directory`, `create_file`, `modify_file`, `delete_file`   |
 | **powershell\_executor** | PowerShell 脚本异步执行（需确认） | `run_script`, `check_script`, `kill_command`                        |
 | **random\_generator**    | 随机数、随机选择、密码生成          | `random_int`, `random_float`, `random_choice`, `random_password`    |
-| **web\_search**          | DuckDuckGo 网络搜索        | `search`                                                            |
+| **web\_search**          | Bing 网络搜索 (语义相关性过滤)     | `search` (自动下载 embedding 模型)                                      |
 
 ### 安全机制
 
@@ -97,6 +97,10 @@ python main.py
 - **DPC 文件保护**：`.dpc` 文件控制目录访问权限，保护程序数据不被 AI 读取
 - **工作目录隔离**：AI 操作限制在配置的工作目录内，支持子目录切换
 - **文件备份**：修改前自动备份到 `date/backup/`，退出时可选择应用/还原
+
+### 首次启动：Embedding 模型下载
+
+web_search 技能首次使用时，程序会自动从 hf-mirror 下载 BAAI/bge-small-zh-v1.5 语义向量模型（约 95MB），并自动转换为 ONNX 格式以加速推理。模型存储在 `models/` 目录，下载过程有 Rich 进度条提示。整个过程仅在首次启动时执行一次。
 
 ***
 
