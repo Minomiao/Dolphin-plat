@@ -2,6 +2,7 @@ import re
 import requests
 from typing import Dict, Any, List
 from colorama import Fore, Style
+from modules.bootstrap import constants
 
 
 skill_info = {
@@ -17,6 +18,16 @@ skill_info = {
                     "num_results": {"type": "integer", "description": "返回结果数量，默认为5"}
                 },
                 "required": ["query"]
+            }
+        },
+        "fetch": {
+            "description": "解析指定网址的网页内容",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "要解析的网页URL"}
+                },
+                "required": ["url"]
             }
         }
     }
@@ -162,4 +173,44 @@ def search(context, query: str, num_results: int = 5) -> Dict[str, Any]:
             "query": query,
             "results": [],
             "user_output": {"label": "Search", "content": f'{Fore.LIGHTBLACK_EX}"{query}" - Error{Style.RESET_ALL}'}
+        }
+
+
+# ---- 网页解析 ----
+
+def fetch(context, url: str) -> Dict[str, Any]:
+    """解析指定网址的网页内容。"""
+    try:
+        resp = requests.get(url, headers=_HEADERS, timeout=15)
+        resp.raise_for_status()
+        html = resp.text
+
+        # 提取标题
+        title_match = re.search(r'<title[^>]*>(.*?)</title>', html, re.DOTALL | re.IGNORECASE)
+        title = re.sub(r'<[^>]+>', '', title_match.group(1)).strip() if title_match else ""
+
+        # 移除脚本和样式
+        cleaned = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        # 移除所有标签
+        text = re.sub(r'<[^>]+>', ' ', cleaned)
+        # 清理空白
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        # 截断过长的内容
+        if len(text) > constants.MAX_WEB_CONTENT_LENGTH:
+            text = text[:constants.MAX_WEB_CONTENT_LENGTH] + "..."
+
+        return {
+            "url": url,
+            "title": title,
+            "content": text,
+            "user_output": {"label": "Fetch", "content": f'{Fore.LIGHTBLACK_EX}"{title or url}" - OK{Style.RESET_ALL}'}
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "url": url,
+            "content": "",
+            "user_output": {"label": "Fetch", "content": f'{Fore.LIGHTBLACK_EX}"{url}" - Error{Style.RESET_ALL}'}
         }
