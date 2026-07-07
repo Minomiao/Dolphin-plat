@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import asyncio
 
 from modules import bootstrap
 
@@ -38,6 +39,9 @@ _SCREEN_ALT_ENTER = '\033[?1049h'
 _SCREEN_ALT_EXIT = '\033[?1049l'
 
 
+_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+
 class _UIState:
     """封装 UI 运行时状态，避免全局变量散布"""
     def __init__(self):
@@ -45,6 +49,8 @@ class _UIState:
         self.thinking_start_time = 0.0
         self.turn_first_output = True
         self.progress = None
+        self._tool_pending = False
+        self._spinner_task = None
 
 
 class _AppState:
@@ -470,6 +476,23 @@ def model_settings():
     print("客户端已更新")
 
 
+async def _run_spinner(prefix: str):
+    i = 0
+    while True:
+        frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
+        sys.stdout.write(f"\r\033[K{Fore.CYAN}[{prefix}]{Style.RESET_ALL} {frame}")
+        sys.stdout.flush()
+        i += 1
+        await asyncio.sleep(0.12)
+
+
+def _clear_tool_pending():
+    if ui._spinner_task and not ui._spinner_task.done():
+        ui._spinner_task.cancel()
+        ui._spinner_task = None
+    ui._tool_pending = False
+
+
 def chat_callback(event_type, data):
     """处理聊天事件的回调函数"""
     if event_type == 'thinking':
@@ -478,6 +501,10 @@ def chat_callback(event_type, data):
             ui.turn_first_output = False
         if state.show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}\n")
+    elif event_type == 'tool_start':
+        _clear_tool_pending()
+        ui._tool_pending = True
+        ui._spinner_task = asyncio.ensure_future(_run_spinner(data['name']))
     elif event_type == 'thinking_start':
         if ui.turn_first_output:
             print()
@@ -507,6 +534,9 @@ def chat_callback(event_type, data):
     elif event_type == 'response_end':
         print()
     elif event_type == 'tool_calls':
+        _clear_tool_pending()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
         print(f"{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
         for call in data['calls']:
             print(f"{Fore.BLUE}  - {call['name']}{Style.RESET_ALL}")
@@ -518,14 +548,19 @@ def chat_callback(event_type, data):
         else:
             print(f"{Fore.GREEN}--结果: {data['raw']}{Style.RESET_ALL}")
     elif event_type == 'user_output':
+        _clear_tool_pending()
         label = data.get('label', '')
         content = data.get('content', data.get('content_str', ''))
         if label:
-            print(f"{Fore.CYAN}[{label}]{Style.RESET_ALL} {content}")
+            sys.stdout.write(f"\r\033[K{Fore.CYAN}[{label}]{Style.RESET_ALL} {content}\n")
         else:
-            print(f"{Fore.CYAN}{content}{Style.RESET_ALL}")
+            sys.stdout.write(f"\r\033[K{Fore.CYAN}{content}{Style.RESET_ALL}\n")
+        sys.stdout.flush()
     elif event_type == 'user_input_required':
-        print(f"\n{Fore.YELLOW}[需要输入]{Style.RESET_ALL}")
+        _clear_tool_pending()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(f"{Fore.YELLOW}[需要输入]{Style.RESET_ALL}")
         print(f"  {data.get('prompt', '请输入信息')}")
         if data.get('default_value'):
             print(f"  默认值: {data.get('default_value')}")
@@ -534,7 +569,10 @@ def chat_callback(event_type, data):
             user_input = data.get('default_value')
         return user_input
     elif event_type == 'confirmation_required':
-        print(f"\n{Fore.YELLOW}[需要确认]{Style.RESET_ALL}")
+        _clear_tool_pending()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(f"{Fore.YELLOW}[需要确认]{Style.RESET_ALL}")
         print(f"  操作: {data.get('action', 'unknown')}")
         if data.get('script_preview'):
             print(f"  脚本预览:")

@@ -58,6 +58,33 @@ def format_tool_result(result_str):
     except (json.JSONDecodeError, TypeError):
         return None
 
+
+def _parse_display_name(tool_name: str, skill_mgr=None, plugin_loader=None) -> str:
+    """将 tool_name 解析为 'skill.func' 格式的显示名，用于预览。"""
+    if tool_name.startswith("skill_"):
+        rest = tool_name[6:]
+        parts = rest.split("_")
+        if skill_mgr:
+            for i in range(len(parts), 0, -1):
+                possible_skill = "_".join(parts[:i])
+                if possible_skill in skill_mgr.skills:
+                    func = "_".join(parts[i:])
+                    return f"{possible_skill}.{func}"
+        return rest
+    elif tool_name.startswith("plugin_"):
+        rest = tool_name[7:]
+        parts = rest.split("_")
+        if plugin_loader:
+            for i in range(len(parts), 0, -1):
+                possible_skill = "_".join(parts[:i])
+                if possible_skill in plugin_loader.skills:
+                    func = "_".join(parts[i:])
+                    return f"{possible_skill}.{func}"
+        return rest
+    else:
+        return tool_name
+
+
 class QuickAIChat:
     def __init__(self, model="deepseek-v4-flash", temperature=0.7, max_tokens=None, enable_tools=True, callback=None):
         self.model = model
@@ -208,6 +235,8 @@ class QuickAIChat:
                 return result
             else:
                 result = self.callback(event_type, data)
+                if event_type == 'tool_start':
+                    await asyncio.sleep(0)
                 return result
         except Exception as e:
             log.error(f"回调函数执行失败: {e}")
@@ -438,6 +467,8 @@ class QuickAIChat:
                     log.warning(f"工具调用失败: {tool_name}")
                     continue
                 
+                display_name = _parse_display_name(tool_name, self.skill_mgr, self.plugin_loader)
+                await self._call_callback('tool_start', {'name': display_name})
                 result = await self._execute_tool(tool_name, arguments)
                 has_user_output = self._last_tool_had_user_output
                 uo_data = self._last_user_output_data
@@ -603,6 +634,8 @@ class QuickAIChat:
                     log.debug(f"参数解析失败: {tool_name}, {e}")
                     arguments = {}
                 
+                display_name = _parse_display_name(tool_name, self.skill_mgr, self.plugin_loader)
+                await self._call_callback('tool_start', {'name': display_name})
                 result = await self._execute_tool(tool_name, arguments)
                 has_user_output = self._last_tool_had_user_output
                 uo_data = self._last_user_output_data
@@ -684,6 +717,8 @@ class QuickAIChat:
                             log.debug(f"参数解析失败: {tool_name}, {e}")
                             arguments = {}
 
+                        display_name = _parse_display_name(tool_name, self.skill_mgr, self.plugin_loader)
+                        await self._call_callback('tool_start', {'name': display_name})
                         result = await self._execute_tool(tool_name, arguments)
                         has_user_output = self._last_tool_had_user_output
                         uo_data = self._last_user_output_data

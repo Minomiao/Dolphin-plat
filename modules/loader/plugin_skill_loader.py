@@ -243,9 +243,9 @@ class PluginSkillLoader:
             if 'context' in sig.parameters:
                 from .skill_context import create_default_context
                 ctx = create_default_context(self._current_work_dir or os.getcwd())
-                result = func(context=ctx, **arguments)
+                result = await asyncio.to_thread(func, context=ctx, **arguments)
             else:
-                result = func(**arguments)
+                result = await asyncio.to_thread(func, **arguments)
             
             if asyncio.iscoroutine(result):
                 result = await result
