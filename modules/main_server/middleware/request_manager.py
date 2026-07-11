@@ -48,7 +48,6 @@ class RequestManager:
         self.pending_requests: List[Dict[str, Any]] = []
         self._prompt_manager: Optional[Any] = None
         self._file_operation: Optional[Any] = None
-        self._last_user_output: Optional[Dict[str, Any]] = None
         log.info("RequestManager 初始化完成")
 
     def _get_prompt_manager(self) -> Any:
@@ -181,11 +180,6 @@ class RequestManager:
         self.pending_requests.clear()
         log.debug("清空待处理申请")
     
-    def pop_last_user_output(self):
-        uo = self._last_user_output
-        self._last_user_output = None
-        return uo
-    
     def is_request(self, data: Any) -> bool:
         """判断是否为申请"""
         if not isinstance(data, dict):
@@ -212,11 +206,6 @@ class RequestManager:
         """处理申请"""
         if not self.is_request(request):
             return request
-
-        # 统一提取 skill 返回的 user_output，避免 USER_INPUT/CONFIRMATION 等分支提前返回时丢失
-        user_output = request.pop("user_output", None)
-        if user_output:
-            self._last_user_output = user_output
 
         request_type = request.get("type")
 
@@ -366,10 +355,6 @@ class RequestManager:
             # 构建工具名称
             tool_name = f"skill_{skill_name}_{function_name}"
             result = _run_async(skill_mgr.call_tool(tool_name, arguments))
-
-            # 提取技能返回的 user_output
-            if isinstance(result, dict) and result.get("user_output"):
-                self._last_user_output = result.pop("user_output")
 
             log.info(f"处理技能请求: {skill_name}.{function_name}, 成功: {result.get('success', False) if isinstance(result, dict) else True}")
             return result

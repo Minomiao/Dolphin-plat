@@ -1,6 +1,5 @@
 from typing import Dict, Any
 from pathlib import Path
-from colorama import Fore, Style
 from modules.bootstrap import constants
 
 MAX_FILE_SIZE = constants.MAX_FILE_SIZE
@@ -91,9 +90,9 @@ def set_work_directory(context, directory: str) -> Dict[str, Any]:
             resolved_path = base_path
 
         if not resolved_path.exists():
-            return {"error": f"目录不存在: {resolved_path}", "user_output": {"label": "Work Place", "content": f"--{directory} {Fore.RED}Error{Style.RESET_ALL}"}}
+            return {"error": f"目录不存在: {resolved_path}", "user_output": {"label": "Work Place", "parts": [{"text": f"--{directory}"}, {"text": "Error", "style": "red"}]}}
         if not resolved_path.is_dir():
-            return {"error": f"路径不是目录: {resolved_path}", "user_output": {"label": "Work Place", "content": f"--{directory} {Fore.RED}Error{Style.RESET_ALL}"}}
+            return {"error": f"路径不是目录: {resolved_path}", "user_output": {"label": "Work Place", "parts": [{"text": f"--{directory}"}, {"text": "Error", "style": "red"}]}}
 
         relative_path = str(resolved_path.relative_to(base_path))
         if relative_path == ".":
@@ -107,10 +106,10 @@ def set_work_directory(context, directory: str) -> Dict[str, Any]:
             "message": f"临时工作目录已切换为: {temp_work_dir}",
             "format_hint": "建议使用相对路径格式，例如: 'subdir' 或 'subdir1/subdir2'，使用 '..' 返回上级目录",
             "warning": "注意：此设置为临时切换，下次对话开始时将恢复为默认工作目录",
-            "user_output": {"label": "Work Place", "content": f"--{relative_path or '.'}"}
+            "user_output": {"label": "Work Place", "parts": [{"text": f"--{relative_path or '.'}"}]}
         }
     except Exception as e:
-        return {"error": f"设置工作目录失败: {str(e)}", "user_output": {"label": "Work Place", "content": f"-- {Fore.RED}Error{Style.RESET_ALL}"}}
+        return {"error": f"设置工作目录失败: {str(e)}", "user_output": {"label": "Work Place", "parts": [{"text": "--"}, {"text": "Error", "style": "red"}]}}
 
 
 def create_file(context, file_path: str, content: str, encoding: str = "utf-8") -> Dict[str, Any]:
@@ -127,16 +126,16 @@ def create_file(context, file_path: str, content: str, encoding: str = "utf-8") 
             filename = Path(full_path).name
             line_count = result.get("line_count", 0)
             if parent and parent != ".":
-                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.LIGHTBLACK_EX}--{parent}{Style.RESET_ALL} {Fore.GREEN}+{line_count}{Style.RESET_ALL} {Fore.RED}-0{Style.RESET_ALL}"}
+                result["user_output"] = {"label": "File Change", "parts": [{"text": filename}, {"text": f"--{parent}", "style": "gray"}, {"text": f"+{line_count}", "style": "green"}, {"text": "-0", "style": "red"}]}
             else:
-                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.GREEN}+{line_count}{Style.RESET_ALL} {Fore.RED}-0{Style.RESET_ALL}"}
+                result["user_output"] = {"label": "File Change", "parts": [{"text": filename}, {"text": f"+{line_count}", "style": "green"}, {"text": "-0", "style": "red"}]}
         else:
             filename = _safe_filename(file_path)
-            result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}
+            result["user_output"] = {"label": "File Change", "parts": [{"text": filename}, {"text": "Error", "style": "red"}]}
         return result
     except Exception as e:
         filename = _safe_filename(file_path)
-        return {"error": f"创建文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
+        return {"error": f"创建文件失败: {str(e)}", "user_output": {"label": "File Change", "parts": [{"text": filename}, {"text": "Error", "style": "red"}]}}
 
 
 def modify_file(context, file_path: str, old_str: str, new_str: str, encoding: str = "utf-8") -> Dict[str, Any]:
@@ -155,16 +154,16 @@ def modify_file(context, file_path: str, old_str: str, new_str: str, encoding: s
             old_lines = result.get("old_lines", 0)
             new_lines = result.get("new_lines", 0)
             if parent and parent != ".":
-                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.LIGHTBLACK_EX}--{parent}{Style.RESET_ALL} {Fore.GREEN}+{new_lines}{Style.RESET_ALL} {Fore.RED}-{old_lines}{Style.RESET_ALL}"}
+                result["user_output"] = {"label": "File Change", "parts": [{"text": filename}, {"text": f"--{parent}", "style": "gray"}, {"text": f"+{new_lines}", "style": "green"}, {"text": f"-{old_lines}", "style": "red"}]}
             else:
-                result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.GREEN}+{new_lines}{Style.RESET_ALL} {Fore.RED}-{old_lines}{Style.RESET_ALL}"}
+                result["user_output"] = {"label": "File Change", "parts": [{"text": filename}, {"text": f"+{new_lines}", "style": "green"}, {"text": f"-{old_lines}", "style": "red"}]}
         else:
             filename = _safe_filename(file_path)
-            result["user_output"] = {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}
+            result["user_output"] = {"label": "File Change", "parts": [{"text": filename}, {"text": "Error", "style": "red"}]}
         return result
     except Exception as e:
         filename = _safe_filename(file_path)
-        return {"error": f"修改文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
+        return {"error": f"修改文件失败: {str(e)}", "user_output": {"label": "File Change", "parts": [{"text": filename}, {"text": "Error", "style": "red"}]}}
 
 
 def delete_file(context, file_path: str, confirmed: bool = False) -> Dict[str, Any]:
@@ -176,7 +175,7 @@ def delete_file(context, file_path: str, confirmed: bool = False) -> Dict[str, A
             "action": "delete_file",
             "file_path": file_path,
             "work_directory": context.work_directory,
-            "user_output": {"label": "File Change", "content": f"--{filename} {Fore.YELLOW}?{Style.RESET_ALL}"}
+            "user_output": {"label": "File Change", "parts": [{"text": f"--{filename}"}, {"text": "?", "style": "yellow"}]}
         }
 
     try:
@@ -187,11 +186,11 @@ def delete_file(context, file_path: str, confirmed: bool = False) -> Dict[str, A
         if result.get("success"):
             full_path = result.get("file_path", file_path)
             filename = Path(full_path).name
-            result["user_output"] = {"label": "File Change", "content": f"--{filename} {Fore.RED}Delet{Style.RESET_ALL}"}
+            result["user_output"] = {"label": "File Change", "parts": [{"text": f"--{filename}"}, {"text": "Delet", "style": "red"}]}
         else:
             filename = _safe_filename(file_path)
-            result["user_output"] = {"label": "File Change", "content": f"--{filename} {Fore.RED}Error{Style.RESET_ALL}"}
+            result["user_output"] = {"label": "File Change", "parts": [{"text": f"--{filename}"}, {"text": "Error", "style": "red"}]}
         return result
     except Exception as e:
         filename = _safe_filename(file_path)
-        return {"error": f"删除文件失败: {str(e)}", "user_output": {"label": "File Change", "content": f"--{filename} {Fore.RED}Error{Style.RESET_ALL}"}}
+        return {"error": f"删除文件失败: {str(e)}", "user_output": {"label": "File Change", "parts": [{"text": f"--{filename}"}, {"text": "Error", "style": "red"}]}}

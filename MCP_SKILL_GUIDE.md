@@ -124,15 +124,28 @@ def my_function(context, param1: str) -> str:
 
 ## user_output 精简显示
 
-工具可通过返回 `user_output` 字段简化终端输出：
+工具可通过返回 `user_output` 字段简化终端输出。推荐使用结构化 `parts` 格式，将数据与显示分离：
 
 ```python
 return {
     "success": True,
     "result": value,
-    "user_output": {"label": "标签", "content": "内容"}
+    "user_output": {
+        "label": "标签",
+        "parts": [
+            {"text": "文件名", "style": "default"},
+            {"text": "+12", "style": "green"},
+            {"text": "-3", "style": "red"}
+        ]
+    }
 }
 ```
+
+**parts 协议**：
+- 每个 part 是 `{"text": "...", "style": "..."}` 或纯字符串
+- `style` 可选值：`default`、`green`、`red`、`yellow`、`gray`、`cyan`、`blue`
+- 渲染由 `format_user_output_line` 统一负责，skill 不应嵌入 colorama 颜色代码
+- 向后兼容：`{"label": "标签", "content": "纯文本"}` 仍然可用，但不含自动着色
 
 返回 `user_output` 时，冗长的工具调用/结果区块自动隐藏，仅显示一行简约标签。
 

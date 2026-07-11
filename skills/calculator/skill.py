@@ -1,6 +1,5 @@
 import datetime
 from typing import Dict, Any
-from colorama import Fore, Style
 
 try:
     from sympy import sympify, N, SympifyError
@@ -40,7 +39,7 @@ def calculate(expression: str) -> Dict[str, Any]:
         return {
             "success": False,
             "error": "sympy 未安装，请运行 pip install sympy",
-            "user_output": {"label": "Calculator", "content": f"{Fore.LIGHTBLACK_EX}{expression}{Style.RESET_ALL} {Fore.RED}Error{Style.RESET_ALL}"}
+            "user_output": {"label": "Calculator", "parts": [{"text": expression, "style": "gray"}, {"text": "Error", "style": "red"}]}
         }
 
     try:
@@ -56,19 +55,19 @@ def calculate(expression: str) -> Dict[str, Any]:
             "success": True,
             "expression": expression,
             "result": result,
-            "user_output": {"label": "Calculator", "content": f"{Fore.LIGHTBLACK_EX}{expression}{Style.RESET_ALL} {result}"}
+            "user_output": {"label": "Calculator", "parts": [{"text": expression, "style": "gray"}, {"text": str(result)}]}
         }
     except SympifyError:
         return {
             "success": False,
             "error": f"无法解析表达式: {expression}",
-            "user_output": {"label": "Calculator", "content": f"{Fore.LIGHTBLACK_EX}{expression}{Style.RESET_ALL} {Fore.RED}Error{Style.RESET_ALL}"}
+            "user_output": {"label": "Calculator", "parts": [{"text": expression, "style": "gray"}, {"text": "Error", "style": "red"}]}
         }
     except Exception as e:
         return {
             "success": False,
             "error": f"计算失败: {str(e)}",
-            "user_output": {"label": "Calculator", "content": f"{Fore.LIGHTBLACK_EX}{expression}{Style.RESET_ALL} {Fore.RED}Error{Style.RESET_ALL}"}
+            "user_output": {"label": "Calculator", "parts": [{"text": expression, "style": "gray"}, {"text": "Error", "style": "red"}]}
         }
 
 
@@ -77,5 +76,5 @@ def get_current_time() -> Dict[str, Any]:
     return {
         "success": True,
         "time": time_str,
-        "user_output": {"label": "Calculator", "content": f"--time {Fore.LIGHTBLACK_EX}{time_str}{Style.RESET_ALL}"}
+        "user_output": {"label": "Calculator", "parts": [{"text": "--time"}, {"text": time_str, "style": "gray"}]}
     }

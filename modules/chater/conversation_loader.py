@@ -6,14 +6,51 @@ from colorama import Fore, Style
 
 log = get_logger("Dolphin.conversation_loader")
 
+# style 名称 → colorama 前缀的映射，skill 通过 parts 中的 style 字段引用
+_STYLE_MAP = {
+    "default": "",
+    "green": Fore.GREEN,
+    "red": Fore.RED,
+    "yellow": Fore.YELLOW,
+    "gray": Fore.LIGHTBLACK_EX,
+    "cyan": Fore.CYAN,
+    "blue": Fore.BLUE,
+}
+
+
+def _render_parts(parts: list) -> str:
+    """将结构化 parts 列表渲染为带颜色的终端字符串。"""
+    rendered = []
+    for part in parts:
+        if isinstance(part, str):
+            rendered.append(part)
+            continue
+        text = part.get("text", "")
+        style_name = part.get("style", "default")
+        prefix = _STYLE_MAP.get(style_name, "")
+        if prefix:
+            rendered.append(f"{prefix}{text}{Style.RESET_ALL}")
+        else:
+            rendered.append(text)
+    return " ".join(rendered)
+
 
 def format_user_output_line(uo: dict) -> str:
-    """将 user_output 字典渲染为终端显示行，统一实时回调和历史回显的格式。"""
+    """将 user_output 字典渲染为终端显示行，统一实时回调和历史回显的格式。
+
+    支持两种格式：
+    - 结构化: {"label": "...", "parts": [{"text": "...", "style": "green"}, ...]}
+    - 向后兼容: {"label": "...", "content": "已含颜色代码的字符串"}
+    """
     label = uo.get('label', '')
-    content = uo.get('content', uo.get('content_str', ''))
+    parts = uo.get('parts')
+    if parts:
+        content = _render_parts(parts)
+    else:
+        content = uo.get('content', '')
     if label:
         return f"{Fore.CYAN}[{label}]{Style.RESET_ALL} {content}"
-    return f"{Fore.CYAN}{content}{Style.RESET_ALL}"
+    return content
 
 
 def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):

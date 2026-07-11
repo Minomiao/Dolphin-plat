@@ -1,5 +1,4 @@
 from openai import OpenAI
-from colorama import Fore, Style
 from modules.main_server import config
 from modules.chater import conversation
 from modules.chater.context import ContextManager
@@ -290,16 +289,15 @@ class QuickAIChat:
                     log.debug(f"检测到申请: {result.get('type', 'unknown')}")
                     self.request_manager.handle_request(result, self.callback)
 
-            # 从请求管理器获取 user_output 并转发
-            if self.request_manager:
-                uo = self.request_manager.pop_last_user_output()
-                if uo:
-                    if isinstance(uo, dict):
-                        await self._call_callback('user_output', uo)
-                    else:
-                        await self._call_callback('user_output', {'content': str(uo)})
-                    had_user_output = True
-                    user_output = uo
+            # 从工具返回结果中直接提取 user_output（显式传递，不再依赖 request_manager 隐式状态）
+            if isinstance(result, dict) and result.get("user_output"):
+                uo = result.pop("user_output")
+                if isinstance(uo, dict):
+                    await self._call_callback('user_output', uo)
+                else:
+                    await self._call_callback('user_output', {'content': str(uo)})
+                had_user_output = True
+                user_output = uo
 
             if isinstance(result, dict):
                 # 拦截 set_work_directory 成功结果，同步更新 AI 临时工作目录
@@ -337,8 +335,10 @@ class QuickAIChat:
             'default_value': result_dict.get('default_value')
         }
         user_input = await self._call_callback('user_input_required', input_data)
-        user_out_content = f"{result_dict.get('prompt', '')} {Fore.LIGHTBLACK_EX}{user_input}{Style.RESET_ALL}"
-        user_out_data = {'label': 'Input', 'content': user_out_content}
+        user_out_data = {'label': 'Input', 'parts': [
+            {"text": result_dict.get('prompt', '')},
+            {"text": user_input, "style": "gray"}
+        ]}
         await self._call_callback('user_output', user_out_data)
         return json.dumps({"success": True, "input": user_input}, ensure_ascii=False), False, user_out_data
 
@@ -349,8 +349,12 @@ class QuickAIChat:
             'default': result_dict.get('default')
         }
         confirm = await self._call_callback('confirmation_required', confirmation_data)
-        status = Fore.GREEN + "已确认" + Style.RESET_ALL if confirm == 'y' else Fore.RED + "已取消" + Style.RESET_ALL
-        user_out_data = {'label': 'Confirm', 'content': f"{result_dict.get('action', 'unknown')} {status}"}
+        status_style = "green" if confirm == 'y' else "red"
+        status_text = "已确认" if confirm == 'y' else "已取消"
+        user_out_data = {'label': 'Confirm', 'parts': [
+            {"text": result_dict.get('action', 'unknown')},
+            {"text": status_text, "style": status_style}
+        ]}
         await self._call_callback('user_output', user_out_data)
         return json.dumps({"success": True, "confirmed": confirm == 'y'}, ensure_ascii=False), False, user_out_data
 

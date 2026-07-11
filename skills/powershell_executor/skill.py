@@ -1,6 +1,5 @@
 import re
 from typing import Dict, Any
-from colorama import Fore, Style
 from modules.bootstrap import constants
 
 MAX_SCRIPT_LENGTH = constants.MAX_SCRIPT_LENGTH
@@ -67,7 +66,7 @@ def run_script(context, script: str, timeout: int = None, wait_time: int = None)
                 "error": f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符",
                 "script_length": script_length,
                 "max_length": MAX_SCRIPT_LENGTH,
-                "user_output": {"label": "Run", "content": f"--{preview} {Fore.RED}Error{Style.RESET_ALL}"}
+                "user_output": {"label": "Run", "parts": [{"text": f"--{preview}"}, {"text": "Error", "style": "red"}]}
             }
 
         actual_timeout = timeout if timeout is not None else 30
@@ -86,7 +85,7 @@ def run_script(context, script: str, timeout: int = None, wait_time: int = None)
                 timeout=actual_timeout,
                 wait_time=actual_wait
             )
-            result["user_output"] = {"label": "Run", "content": f"--{script_preview}"}
+            result["user_output"] = {"label": "Run", "parts": [{"text": f"--{script_preview}"}]}
             return result
         else:
             short_preview = script.split('\n')[0][:80]
@@ -99,13 +98,13 @@ def run_script(context, script: str, timeout: int = None, wait_time: int = None)
                 "script": script,
                 "timeout": actual_timeout,
                 "wait_time": actual_wait,
-                "user_output": {"label": "Run", "content": f"--{short_preview}"}
+                "user_output": {"label": "Run", "parts": [{"text": f"--{short_preview}"}]}
             }
 
     except Exception as e:
         context.log_error(f"运行脚本失败: {str(e)}")
         preview = script[:500] + "..." if len(script) > 500 else script
-        return {"error": f"运行脚本失败: {str(e)}", "user_output": {"label": "Run", "content": f"--{preview} {Fore.RED}Error{Style.RESET_ALL}"}}
+        return {"error": f"运行脚本失败: {str(e)}", "user_output": {"label": "Run", "parts": [{"text": f"--{preview}"}, {"text": "Error", "style": "red"}]}}
 
 
 async def check_script(context, command_id: str, wait_time: int = None) -> Dict[str, Any]:
@@ -115,7 +114,10 @@ async def check_script(context, command_id: str, wait_time: int = None) -> Dict[
     display = _truncate_output(output)
     result["user_output"] = {
         "label": "Read",
-        "content": f"--{Fore.LIGHTBLACK_EX}{command_id}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{display}{Style.RESET_ALL}"
+        "parts": [
+            {"text": f"--{command_id}", "style": "gray"},
+            {"text": display, "style": "gray"}
+        ]
     }
     return result
 
@@ -134,6 +136,6 @@ def kill_command(context, command_id: str) -> Dict[str, Any]:
     result = context.kill_command(command_id)
     result["user_output"] = {
         "label": "Stop",
-        "content": f"--{Fore.LIGHTBLACK_EX}{command_id}{Style.RESET_ALL}"
+        "parts": [{"text": f"--{command_id}", "style": "gray"}]
     }
     return result

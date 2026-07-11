@@ -57,7 +57,7 @@ def delete_file(context, file_path: str) -> Dict[str, Any]:
 
     # 执行删除
     result = context.file_operation("delete_file", file_path=file_path)
-    result["user_output"] = {"label": "File Change", "content": f"--{file_path} Delet"}
+    result["user_output"] = {"label": "File Change", "parts": [{"text": f"--{Path(file_path).name}"}, {"text": "Delet", "style": "red"}]}
     return result
 ```
 
@@ -79,7 +79,7 @@ def create_file(context, file_path: str, content: str, encoding: str = "utf-8") 
     )
     # context.file_operation 已自动填充 work_directory
     if result.get("success"):
-        result["user_output"] = {"label": "File Change", "content": f"{Path(file_path).name} +{result.get('line_count', 0)}"}
+        result["user_output"] = {"label": "File Change", "parts": [{"text": Path(file_path).name}, {"text": f"+{result.get('line_count', 0)}", "style": "green"}]}
     return result
 ```
 
@@ -95,7 +95,7 @@ def modify_file(context, file_path: str, old_str: str, new_str: str, encoding: s
         encoding=encoding,
     )
     if result.get("success"):
-        result["user_output"] = {"label": "File Change", "content": f"{Path(file_path).name}"}
+        result["user_output"] = {"label": "File Change", "parts": [{"text": Path(file_path).name}]}
     return result
 ```
 
@@ -110,7 +110,7 @@ def delete_file(context, file_path: str, confirmed: bool = False) -> Dict[str, A
             file_path=file_path,
         )
     result = context.file_operation("delete_file", file_path=file_path)
-    result["user_output"] = {"label": "File Change", "content": f"--{Path(file_path).name} Delet"}
+    result["user_output"] = {"label": "File Change", "parts": [{"text": f"--{Path(file_path).name}"}, {"text": "Delet", "style": "red"}]}
     return result
 ```
 
@@ -142,13 +142,13 @@ def run_command(context, script: str, timeout: int = 30, wait_time: int = 10) ->
 
 async def check_status(context, command_id: str, wait_time: int = 10) -> Dict[str, Any]:
     result = await context.check_script(command_id, wait_time)
-    result["user_output"] = {"label": "Read", "content": f"--{command_id}"}
+    result["user_output"] = {"label": "Read", "parts": [{"text": f"--{command_id}", "style": "gray"}]}
     return result
 
 
 def stop_command(context, command_id: str) -> Dict[str, Any]:
     result = context.kill_command(command_id)
-    result["user_output"] = {"label": "Stop", "content": f"--{command_id}"}
+    result["user_output"] = {"label": "Stop", "parts": [{"text": f"--{command_id}", "style": "gray"}]}
     return result
 ```
 
@@ -170,6 +170,27 @@ def my_operation(context):
 1. **命中即确认**：删除、危险命令、工作目录外操作
 2. **清晰明确**：确认消息包含操作内容和影响
 3. **使用 `user_output`**：提供紧凑的终端显示
+
+## user_output 结构化格式
+
+`user_output` 使用 `parts` 列表将数据与显示分离，skill 不应嵌入 colorama 颜色代码：
+
+```python
+result["user_output"] = {
+    "label": "File Change",
+    "parts": [
+        {"text": filename},
+        {"text": f"+{new_lines}", "style": "green"},
+        {"text": f"-{old_lines}", "style": "red"}
+    ]
+}
+```
+
+**parts 协议**：
+- 每个 part 是 `{"text": "...", "style": "..."}` 或纯字符串
+- `style` 可选值：`default`、`green`、`red`、`yellow`、`gray`、`cyan`、`blue`
+- 渲染由 `format_user_output_line` 统一负责
+- 向后兼容：`{"label": "...", "content": "纯文本"}` 仍然可用，但无自动着色
 
 ## 旧式与 context 式对比
 

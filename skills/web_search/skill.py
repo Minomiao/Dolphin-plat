@@ -1,7 +1,6 @@
 import re
 import requests
 from typing import Dict, Any, List
-from colorama import Fore, Style
 from modules.bootstrap import constants
 
 
@@ -63,10 +62,11 @@ def _extract_keywords(query: str) -> List[str]:
     return [t.lower() for t in tokens if t.lower() not in _STOP_WORDS and len(t) >= _KEYWORD_MIN_LEN]
 
 
-def _build_user_output(query: str, results: list) -> str:
-    gray = Fore.LIGHTBLACK_EX
-    reset = Style.RESET_ALL
-    return f'"{query}"{gray} - {len(results)} results{reset}'
+def _build_user_output(query: str, results: list) -> list:
+    return [
+        {"text": f'"{query}"'},
+        {"text": f"- {len(results)} results", "style": "gray"}
+    ]
 
 
 # ---- 相关性过滤（由 skill 自己决策）----
@@ -164,7 +164,7 @@ def search(context, query: str, num_results: int = 5) -> Dict[str, Any]:
         return {
             "query": query,
             "results": results,
-            "user_output": {"label": "Search", "content": _build_user_output(query, results)}
+            "user_output": {"label": "Search", "parts": _build_user_output(query, results)}
         }
 
     except Exception as e:
@@ -172,7 +172,7 @@ def search(context, query: str, num_results: int = 5) -> Dict[str, Any]:
             "error": str(e),
             "query": query,
             "results": [],
-            "user_output": {"label": "Search", "content": f'{Fore.LIGHTBLACK_EX}"{query}" - Error{Style.RESET_ALL}'}
+            "user_output": {"label": "Search", "parts": [{"text": f'"{query}"'}, {"text": "- Error", "style": "gray"}]}
         }
 
 
@@ -204,7 +204,7 @@ def fetch(context, url: str) -> Dict[str, Any]:
             "url": url,
             "title": title,
             "content": text,
-            "user_output": {"label": "Fetch", "content": f'{Fore.LIGHTBLACK_EX}"{title or url}" - OK{Style.RESET_ALL}'}
+            "user_output": {"label": "Fetch", "parts": [{"text": f'"{title or url}"'}, {"text": "- OK", "style": "gray"}]}
         }
 
     except Exception as e:
@@ -212,5 +212,5 @@ def fetch(context, url: str) -> Dict[str, Any]:
             "error": str(e),
             "url": url,
             "content": "",
-            "user_output": {"label": "Fetch", "content": f'{Fore.LIGHTBLACK_EX}"{url}" - Error{Style.RESET_ALL}'}
+            "user_output": {"label": "Fetch", "parts": [{"text": f'"{url}"'}, {"text": "- Error", "style": "gray"}]}
         }
