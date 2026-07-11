@@ -7,6 +7,15 @@ from colorama import Fore, Style
 log = get_logger("Dolphin.conversation_loader")
 
 
+def format_user_output_line(uo: dict) -> str:
+    """将 user_output 字典渲染为终端显示行，统一实时回调和历史回显的格式。"""
+    label = uo.get('label', '')
+    content = uo.get('content', uo.get('content_str', ''))
+    if label:
+        return f"{Fore.CYAN}[{label}]{Style.RESET_ALL} {content}"
+    return f"{Fore.CYAN}{content}{Style.RESET_ALL}"
+
+
 def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):
     loaded = chat_instance.load_conversation(dir_id, conv_id)
     if not loaded:
@@ -72,12 +81,7 @@ def format_conversation_history(messages, show_thinking):
         elif role == 'tool':
             user_output = msg.get('user_output')
             if user_output:
-                label = user_output.get('label', '')
-                content_uo = user_output.get('content', '')
-                if label:
-                    lines.append(f"{Fore.CYAN}[{label}]{Style.RESET_ALL} {content_uo}")
-                else:
-                    lines.append(f"{Fore.CYAN}{content_uo}{Style.RESET_ALL}")
+                lines.append(format_user_output_line(user_output))
             else:
                 tool_content = msg.get('content', '')
                 if tool_content:

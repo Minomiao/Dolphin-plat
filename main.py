@@ -15,6 +15,7 @@ from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionErr
 from modules.main_server import config
 from modules.CLIserver import commands as cmd
 from modules.chater import chat, conversation_loader
+from modules.chater.conversation_loader import format_user_output_line
 from modules.CLIserver import screen_refresh
 from modules.logger import setup_logger, get_logger
 from modules.functions import backup_manager
@@ -104,14 +105,20 @@ def _exit_screen():
         print(_SCREEN_ALT_EXIT, end='', flush=True)
 
 def _rollback_last_message():
-    if state.chat_instance and state.chat_instance.messages:
-        last = state.chat_instance.messages[-1]
-        if last.get("role") == "user":
-            state.chat_instance.messages.pop()
+    if not state.chat_instance or not state.chat_instance.messages:
+        return
+
+    msgs = state.chat_instance.messages
+    for i in range(len(msgs) - 1, -1, -1):
+        if msgs[i].get("role") == "user":
+            del msgs[i:]
             if state.current_dir_id and state.current_conv_id:
                 from modules.chater import conversation
-                conversation.save_conversation(state.chat_instance.messages, state.current_dir_id, state.current_conv_id)
-            log.debug("API 错误后已回退未发送的用户消息")
+                conversation.save_conversation(msgs, state.current_dir_id, state.current_conv_id)
+            log.debug("API 错误后已回退用户消息及其后的 assistant/tool 消息")
+            return
+
+    log.debug("未找到用户消息，未执行回退")
 
 def settings_mode():
     log.info("进入设置模式")
@@ -549,12 +556,8 @@ def chat_callback(event_type, data):
             print(f"{Fore.GREEN}--结果: {data['raw']}{Style.RESET_ALL}")
     elif event_type == 'user_output':
         _clear_tool_pending()
-        label = data.get('label', '')
-        content = data.get('content', data.get('content_str', ''))
-        if label:
-            sys.stdout.write(f"\r\033[K{Fore.CYAN}[{label}]{Style.RESET_ALL} {content}\n")
-        else:
-            sys.stdout.write(f"\r\033[K{Fore.CYAN}{content}{Style.RESET_ALL}\n")
+        line = format_user_output_line(data)
+        sys.stdout.write(f"\r\033[K{line}\n")
         sys.stdout.flush()
     elif event_type == 'user_input_required':
         _clear_tool_pending()

@@ -212,9 +212,14 @@ class RequestManager:
         """处理申请"""
         if not self.is_request(request):
             return request
-        
+
+        # 统一提取 skill 返回的 user_output，避免 USER_INPUT/CONFIRMATION 等分支提前返回时丢失
+        user_output = request.pop("user_output", None)
+        if user_output:
+            self._last_user_output = user_output
+
         request_type = request.get("type")
-        
+
         if request_type == RequestType.USER_INPUT:
             log.info(f"用户输入申请，由主程序处理")
             return request
@@ -226,7 +231,6 @@ class RequestManager:
             return request
         elif request.get("requires_confirmation"):
             log.info(f"技能确认申请，由主程序处理")
-            self._last_user_output = request.pop("user_output", None)
             return request
         elif request_type == RequestType.PROMPT_REQUEST:
             # 处理提示词请求
@@ -243,11 +247,7 @@ class RequestManager:
         elif request_type == RequestType.SKILL_REQUEST:
             # 处理技能请求
             return self._handle_skill_request(request)
-        elif request.get("user_output"):
-            self._last_user_output = request.pop("user_output")
-            log.info(f"用户输出: {self._last_user_output}")
-            return request
-        
+
         return request
 
     def _handle_prompt_request(self, request: Dict[str, Any]) -> Any:
