@@ -1,5 +1,70 @@
 # Change Log
 
+## v1.1.6 (2026-07-11)
+
+User Output parts protocol, web search embedding model with ONNX runtime, web page fetching, tool spinner animation, and packaging updates.
+
+### User Output — Structured Parts Protocol
+
+/ Refactor `user_output` from implicit state to structured `parts` protocol
+  - Each output line is a list of `{type, content, style}` dicts
+  - `format_user_output_line()` formats parts with color-coded rendering
+/ Remove implicit state tracking; tool execution flow uses explicit parts pipeline
+/ Update FEATURES.md to document the new parts protocol
+
+### Web Search Enhancement
+
++ Add web page content fetching to `web_search` skill (`c419871`)
+  - Fetch full page content from search result URLs
+  - Extract readable text from HTML responses
++ Enable `web_search` skill by default (`58cada0`)
+/ Overhaul `web_search` with Bing search integration (`5e2a1e2`)
++ Add embedding-based relevance filtering for search results (`93853e2`)
+  - Separate embedding encoding (`EmbeddingModel`) from filtering logic
+  - Use cosine similarity to rank and filter search snippets
+
+### Embedding Model & ONNX
+
++ Add `modules/bootstrap/model_downloader.py` — downloads `bge-small-zh-v1.5` from HuggingFace
+  - Mirror support for mainland China (`hf-mirror.com`)
+  - Download verification via config flag + file existence check
++ Add `modules/bootstrap/onnx_converter.py` — converts safetensors to ONNX format
+  - Auto-conversion on first run after model download
+  - Config-based state tracking (`onnx_converted` flag)
++ Add `modules/functions/embedding.py` — `EmbeddingModel` singleton for vector encoding
+  - ONNX Runtime inference (primary path)
+  - SentenceTransformer torch fallback
+  - Thread-safe lazy loading
+
+### Thinking Mode
+
++ Integrate DeepSeek thinking mode with effort level system (`cf3c1b3`)
+  - `reasoning_effort` parameter mapped to effort levels
+  - Supports `fine`/`normal`/`high` with corresponding reasoning depth
+
+### Tool Execution UX
+
++ Add tool spinner animation with Braille frames before tool execution (`7098618`)
++ Offload sync skill calls to `asyncio.to_thread` for responsive event loop
+
+### Plugin Fix
+
++ Add `modules/__init__.py` to fix plugin import resolution (`3dc5a8f`)
+  - Repack `user_input_plugin.zip` with corrected import path
+
+### Packaging
+
++ Add `rich`, `huggingface_hub`, `sentence_transformers`, `onnxruntime`, `transformers`, `torch` to `hidden_imports`
++ Replace `--collect-submodules rich._unicode_data` with `rich` + `huggingface_hub`
++ Add `onnxruntime>=1.18.0`, `huggingface-hub>=0.20.0`, `sentence-transformers>=5.0.0` to `requirements.txt`
+
+### Documentation
+
+/ Simplify README: remove internal architecture details (`317fc98`)
+/ Update README with web_search overhaul, embedding model, and Bing search docs (`5e2a1e2`)
+
+---
+
 ## v1.1.5 (2026-06-27)
 
 Effort/thinking depth system, PowerShell command cache, security hardening, code quality improvements, and backup management refactor.
