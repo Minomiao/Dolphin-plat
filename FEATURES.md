@@ -29,9 +29,12 @@
 
 ## User Output (`user_output`)
 
-- [x] Skill tools return `user_output` dict `{label, content}` for compact display
+- [x] Skill tools return `user_output` dict with structured `parts` protocol for clean data/display separation
+- [x] Parts format: `{"label": "...", "parts": [{"text": "...", "style": "green"}, ...]}`
+- [x] Styles: `default`, `green`, `red`, `yellow`, `gray`, `cyan`, `blue` — rendered centrally by `format_user_output_line`
+- [x] Skill code no longer embeds colorama ANSI codes; all terminal coloring unified in rendering layer
 - [x] Tools with `user_output` skip verbose tool_calls/tool_result blocks
-- [x] Inline color support (colorama Fore/RED, Fore/GREEN, Fore/LIGHTBLACK_EX)
+- [x] Backward compatible: `{"label": "...", "content": "text"}` still supported
 
 ### Per Tool Display
 
@@ -41,13 +44,13 @@
 | file_reader | `list_directory` | `[Read] --dir\` |
 | file_reader | `search_files` | `[Search] --pattern` |
 | file_reader | `get_work_directory` | `[Read] dirname` |
-| file_manager | `create_file` | `[File Change] filename +N(green) -0(red)` |
-| file_manager | `modify_file` | `[File Change] filename +N(green) -N(red)` |
-| file_manager | `delete_file` | `[File Change] --filename Delet(red)` (需确认) |
+| file_manager | `create_file` | `[File Change] filename +N -0` |
+| file_manager | `modify_file` | `[File Change] filename +N -N` |
+| file_manager | `delete_file` | `[File Change] --filename Delet` (需确认) |
 | file_manager | `set_work_directory` | `[Work Place] --path` |
-| random_generator | `random_int/float/choice/password` | `[Random] --type (details)(gray)` |
-| calculator | `calculate` | `[Calculator] expr(gray) result` |
-| calculator | `get_current_time` | `[Calculator] --time time(gray)` |
+| random_generator | `random_int/float/choice/password` | `[Random] --type (details)` |
+| calculator | `calculate` | `[Calculator] expr result` |
+| calculator | `get_current_time` | `[Calculator] --time time` |
 
 ## Skills
 
