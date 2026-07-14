@@ -139,19 +139,23 @@ class FileOperation:
             if not parent_dir.exists():
                 parent_dir.mkdir(parents=True, exist_ok=True)
             
+            # 检查文件是否存在，决定操作类型
+            file_exists_before_write = resolved_path.exists()
+            action_type = "modify" if file_exists_before_write else "create"
+
             # 写入文件
             with open(resolved_path, 'w', encoding=encoding, errors='ignore') as f:
                 f.write(content)
-            
+
             # 记录备份（如果有）
             backup_path = None
             pending_count = 0
             try:
                 backup_mgr = backup_manager.get_backup_manager()
                 if backup_mgr:
-                    backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action="create")
+                    backup_path = backup_mgr.backup_file(str(Path(file_path)), work_directory, action=action_type)
                     backup_mgr.record_change(
-                        action="create",
+                        action=action_type,
                         file_path=str(Path(file_path)),
                         work_dir=work_directory
                     )
