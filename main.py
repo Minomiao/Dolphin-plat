@@ -191,43 +191,191 @@ def settings_mode():
     print("客户端已更新")
 
 def handle_pending_changes():
+    """处理待确认的文件变更（使用 Rich Live Display）"""
     bm = backup_manager.get_backup_manager()
     pending_count = bm.get_pending_changes_count()
     if pending_count == 0:
         return
 
+    # 进入独立屏幕
+    _enter_screen()
+    try:
+        # 显示变更确认界面
+        _show_changes_screen(bm, pending_count)
+    finally:
+        # 退出独立屏幕
+        _exit_screen()
+
+
+def _get_last_assistant_output():
+    """获取最后一段 AI 输出内容"""
+    try:
+        if not hasattr(state, 'chat_instance') or not state.chat_instance:
+            return None
+
+        messages = state.chat_instance.messages
+        if not messages:
+            return None
+
+        # 从后往前查找最后一条 assistant 消息
+        for msg in reversed(messages):
+            if msg.get('role') == 'assistant':
+                content = msg.get('content', '')
+                if content and content.strip():
+                    return content.strip()
+
+        return None
+    except Exception as e:
+        log.debug(f"获取最后 AI 输出失败: {e}")
+        return None
+
+
+def _show_changes_screen(bm, pending_count):
+    """显示变更确认界面（动态更新）"""
     from rich.console import Console
     from rich.panel import Panel
     from rich.text import Text
+
     console = Console()
 
-    table = bm.show_pending_changes()
-    content = Text.assemble("发现 ", (str(pending_count), "bold"), " 个待确认的文件更改")
-    if table:
-        from rich.console import Group
-        content = Group(content, table)
-    console.print(Panel(content, border_style="cyan"))
-    
+    # 构建标题
+    header_text = Text.assemble(
+        "文件变更确认 (",
+        (str(pending_count), "bold cyan"),
+        " 个待处理)",
+    )
+
+    # 获取最后一段对话内容
+    last_output = _get_last_assistant_output()
+
+    # 构建变更列表
+    pending_list = bm.get_pending_changes_list()
+    table = _build_changes_table(pending_list)
+
+    # 构建操作提示
+    footer_text = Text.from_markup(
+        "[bold]操作:[/bold] "
+        "[green]y[/green]=应用全部 | "
+        "[red]n[/red]=撤销全部 | "
+        "[yellow]s[/yellow]=跳过"
+    )
+
+    # 显示界面（简化布局，避免空白）
+    console.print()
+    console.print(Panel(header_text, border_style="cyan"))
+
+    # 显示最后一段对话输出
+    if last_output:
+        # 限制显示长度，避免界面过长
+        display_text = last_output[:300] + "..." if len(last_output) > 300 else last_output
+        console.print(Panel(
+            display_text,
+            title="最近对话",
+            border_style="dim",
+            padding=(0, 1)
+        ))
+
+    console.print(table)  # 直接显示表格，不使用 Panel 包裹
+    console.print(Panel(footer_text, border_style="dim"))
+    console.print()
+
+    # 处理用户输入
+    _process_changes_input(bm, console)
+
+
+def _build_changes_table(pending_list):
+    """构建变更列表表格"""
+    from rich.table import Table
+    from rich.text import Text
+
+    table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 1))
+    table.add_column("#", style="dim", width=4)
+    table.add_column("操作", width=8)
+    table.add_column("文件路径", width=60)
+
+    action_style_map = {
+        "create": ("green", "创建"),
+        "delete": ("red", "删除"),
+        "modify": ("yellow", "修改"),
+    }
+
+    for i, change in enumerate(pending_list, 1):
+        action = change.get("action", "unknown")
+        style, label = action_style_map.get(action, ("white", action))
+
+        table.add_row(
+            str(i),
+            Text(label, style=style),
+            change.get("file_path", "unknown"),
+        )
+
+    return table
+
+
+def _process_changes_input(bm, console):
+    """处理用户输入"""
+    from rich.text import Text
+
     while True:
-        choice = input("\n是否应用这些更改? (y=应用/n=撤销/s=跳过): ").lower().strip()
-        
-        if choice == 'y':
-            result = bm.apply_all_changes()
-            print(f"\n{result['message']}")
-            for change in result.get('changes', []):
-                print(f"  - {change['file']}: {change['status']}")
+        try:
+            choice = input("\n请选择操作: ").lower().strip()
+
+            if choice == 'y':
+                result = bm.apply_all_changes()
+                _show_operation_result(console, result, "应用")
+                break
+            elif choice == 'n':
+                # 二次确认撤销操作
+                confirm = input("⚠️  确认撤销所有更改？此操作不可恢复 (yes/no): ").lower().strip()
+                if confirm == 'yes':
+                    result = bm.revert_all_changes()
+                    _show_operation_result(console, result, "撤销")
+                    break
+                else:
+                    console.print("[yellow]已取消撤销操作[/yellow]")
+            elif choice == 's':
+                console.print("[yellow]已跳过，下次对话时再次确认[/yellow]")
+                time.sleep(1)
+                break
+            else:
+                console.print("[red]无效输入，请使用 y/n/s[/red]")
+        except KeyboardInterrupt:
+            console.print("\n[dim]已取消操作[/dim]")
             break
-        elif choice == 'n':
-            result = bm.revert_all_changes()
-            print(f"\n{result['message']}")
-            for change in result.get('changes', []):
-                print(f"  - {change['file']}: {change['status']}")
-            break
-        elif choice == 's':
-            print("跳过，更改将在下次对话时再次询问")
-            break
-        else:
-            print("请输入 y (应用) / n (撤销) / s (跳过)")
+
+
+def _show_operation_result(console, result, action_name):
+    """显示操作结果"""
+    from rich.panel import Panel
+    from rich.text import Text
+
+    # 构建结果消息
+    if result.get('success'):
+        message = Text.assemble(
+            f"{action_name}成功: ",
+            (result.get('message', ''), 'green'),
+        )
+    else:
+        message = Text.assemble(
+            f"{action_name}失败: ",
+            (result.get('message', ''), 'red'),
+        )
+
+    # 显示结果面板
+    console.print(Panel(message, border_style="green" if result.get('success') else "red"))
+
+    # 显示详细变更列表
+    changes = result.get('changes', [])
+    if changes:
+        console.print(f"\n{action_name}详情:")
+        for change in changes:
+            file_path = change.get('file', 'unknown')
+            status = change.get('status', 'unknown')
+            status_color = "green" if "success" in status or "applied" in status or "reverted" in status else "red"
+            console.print(f"  [{status_color}]✓[/{status_color}] {file_path}: {status}")
+
+    # 等待用户查看结果
+    input("\n按 Enter 键继续...")
 
 def show_help():
     commands_config = cmd.load_commands()
