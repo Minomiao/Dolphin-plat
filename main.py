@@ -757,16 +757,34 @@ def chat_callback(event_type, data):
         return input("是否继续对话? (y/n): ").lower()
     elif event_type == 'context_usage':
         ratio = data.get('usage_ratio', 0)
-        est_tokens = data.get('estimated_tokens', 0)
-        window = data.get('context_window', 0)
-        level = data.get('level', 'warn')
+        level = data.get('level')  # None 表示无告警
+        turn_completion = data.get('turn_completion_tokens', 0)
+        
         pct = f"{ratio:.0%}"
-        if level == 'critical':
-            print(f"\n{Fore.RED}上下文即将耗尽 ({pct}, 约 {est_tokens}/{window} tokens)，强烈建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
-        elif level == 'high':
-            print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct}, 约 {est_tokens}/{window} tokens)，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
+        
+        # 圆形进度条：根据百分比选择不同填充程度
+        # ○ ◔ ◑ ◕ ● (0% -> 100%)
+        if ratio < 0.25:
+            circle = "○"
+        elif ratio < 0.5:
+            circle = "◔"
+        elif ratio < 0.75:
+            circle = "◑"
+        elif ratio < 0.95:
+            circle = "◕"
         else:
-            print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct} (约 {est_tokens}/{window} tokens){Style.RESET_ALL}")
+            circle = "●"
+        
+        # 告警提示
+        if level == 'critical':
+            print(f"\n{Fore.RED}上下文即将耗尽 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
+        elif level == 'high':
+            print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
+        elif level == 'warn':
+            print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct}{Style.RESET_ALL}")
+        
+        # 本轮只显示 completion_tokens，圆形进度条显示百分比
+        print(f"{Fore.LIGHTBLACK_EX} {turn_completion} token | {circle} {pct}{Style.RESET_ALL}")
 
 async def main():
     while True:

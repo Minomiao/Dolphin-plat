@@ -249,11 +249,11 @@ class QuickAIChat:
             return "无法获取目录结构"
     
     async def _check_context_usage(self):
-        """在每轮对话结束后检查上下文用量，接近窗口上限时通过回调通知。"""
+        """在每轮对话结束后检查上下文用量，通过回调通知。"""
         context_window = config.get_context_window(self.model)
         usage = self.context.check_context_usage(self.messages, context_window)
-        if usage:
-            await self._call_callback("context_usage", usage)
+        # 每轮都发送 usage 信息（不再只在告警时发送）
+        await self._call_callback("context_usage", usage)
     
     async def _call_callback(self, event_type, data):
         """调用回调函数，支持同步和异步回调"""
@@ -513,6 +513,9 @@ class QuickAIChat:
         self._apply_effort_params(kwargs)
         
         response = self.client.chat.completions.create(**kwargs)
+        # 保存 API 返回的精确 token 用量
+        if hasattr(response, 'usage') and response.usage:
+            self.context.update_usage_from_api(response.usage)
         assistant_message = response.choices[0].message
         
         reasoning = None
@@ -547,6 +550,9 @@ class QuickAIChat:
 
             kwargs["messages"] = self.context.prepare_messages(self.messages)
             response = self.client.chat.completions.create(**kwargs)
+            # 保存 API 返回的精确 token 用量
+            if hasattr(response, 'usage') and response.usage:
+                self.context.update_usage_from_api(response.usage)
             assistant_message = response.choices[0].message
 
         final_content = assistant_message.content or ""
@@ -568,8 +574,13 @@ class QuickAIChat:
         reasoning_started = False
         has_tool_calls = False
         response_started = False
+        last_usage = None  # 捕获流式响应的 usage
 
         for chunk in stream:
+            # 检查 usage 信息（流式响应的最后一块可能包含 usage）
+            if hasattr(chunk, 'usage') and chunk.usage:
+                last_usage = chunk.usage
+
             delta = chunk.choices[0].delta
 
             if hasattr(delta, 'model_extra') and delta.model_extra:
@@ -620,7 +631,7 @@ class QuickAIChat:
         if response_started:
             await self._call_callback('response_end', {})
 
-        return full_response, full_reasoning, tool_calls_buffer, has_tool_calls
+        return full_response, full_reasoning, tool_calls_buffer, has_tool_calls, last_usage
 
     async def chat_stream(self, user_input):
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
@@ -632,7 +643,8 @@ class QuickAIChat:
             "messages": self.context.prepare_messages(self.messages),
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "stream": True
+            "stream": True,
+            "stream_options": {"include_usage": True}  # 请求 API 返回 token 用量
         }
         
         if self.tools:
@@ -641,7 +653,11 @@ class QuickAIChat:
         self._apply_effort_params(kwargs)
         
         stream = self.client.chat.completions.create(**kwargs)
-        full_response, full_reasoning, tool_calls_buffer, has_tool_calls = await self._process_stream(stream)
+        full_response, full_reasoning, tool_calls_buffer, has_tool_calls, last_usage = await self._process_stream(stream)
+
+        # 保存 API 返回的精确 token 用量
+        if last_usage:
+            self.context.update_usage_from_api(last_usage)
 
         if full_reasoning:
             log_thinking(full_reasoning)
@@ -671,7 +687,11 @@ class QuickAIChat:
                 kwargs["stream"] = True
                 stream = self.client.chat.completions.create(**kwargs)
 
-                full_response, full_reasoning, tool_calls_buffer, has_tool_calls = await self._process_stream(stream)
+                full_response, full_reasoning, tool_calls_buffer, has_tool_calls, last_usage = await self._process_stream(stream)
+
+                # 保存 API 返回的精确 token 用量
+                if last_usage:
+                    self.context.update_usage_from_api(last_usage)
 
                 if full_reasoning:
                     log_thinking(f"[迭代 {iteration}] {full_reasoning}")
@@ -715,6 +735,7 @@ class QuickAIChat:
     
     def clear_history(self):
         self.messages = []
+        self.context.reset_usage()  # 重置 token 用量统计
         self.reset_work_directory()
         # 新架构：无需清理内存缓存（持久化存储）
         log.debug("历史已清空（备份记录已持久化）")

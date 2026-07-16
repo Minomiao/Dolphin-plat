@@ -23,6 +23,12 @@ class ContextManager:
 
     def __init__(self, get_system_prompt):
         self._get_system_prompt = get_system_prompt
+        # API 返回的精确 token 用量缓存
+        self._api_usage = None
+        self._cumulative_prompt_tokens = 0
+        self._cumulative_completion_tokens = 0
+        # 上一轮的 prompt_tokens（用于计算本轮增量）
+        self._previous_prompt_tokens = 0
 
     def prepare_messages(self, messages: list) -> list:
         """构建最终发送给 API 的完整消息列表。
@@ -55,7 +61,15 @@ class ContextManager:
         Returns:
             None 表示使用率正常；dict 包含 usage_ratio / context_window / estimated_tokens / level
         """
-        estimated = self._estimate_tokens(messages)
+        # 优先使用 API 返回的精确值
+        if self._cumulative_prompt_tokens > 0:
+            # 累计 prompt_tokens + 最后一轮 completion_tokens
+            estimated = self._cumulative_prompt_tokens + self._cumulative_completion_tokens
+            source = "api"
+        else:
+            estimated = self._estimate_tokens(messages)
+            source = "estimated"
+
         ratio = estimated / context_window
 
         level = None
@@ -66,18 +80,54 @@ class ContextManager:
         elif ratio >= _WARN_THRESHOLD:
             level = "warn"
 
-        if level is None:
-            return None
+        if level is not None:
+            log.info(
+                f"上下文用量告警: {ratio:.1%} ({estimated}/{context_window} tokens), level={level}, source={source}"
+            )
 
-        log.info(
-            f"上下文用量告警: {ratio:.1%} ({estimated}/{context_window} tokens), level={level}"
-        )
         return {
             "usage_ratio": ratio,
             "context_window": context_window,
             "estimated_tokens": estimated,
-            "level": level,
+            "level": level,  # None 表示无告警
+            "source": source,
+            "prompt_tokens": self._cumulative_prompt_tokens,
+            "completion_tokens": self._cumulative_completion_tokens,
+            # 本轮增量
+            "turn_prompt_tokens": max(0, self._cumulative_prompt_tokens - self._previous_prompt_tokens),
+            "turn_completion_tokens": self._cumulative_completion_tokens,
         }
+
+    def update_usage_from_api(self, usage) -> None:
+        """从 API 响应更新 token 用量（精确值）。
+
+        Args:
+            usage: OpenAI API 返回的 usage 对象，包含 prompt_tokens, completion_tokens 等
+        """
+        if usage is None:
+            return
+
+        self._api_usage = usage
+
+        # 更新累计值：prompt_tokens 代表当前完整上下文，completion_tokens 是本轮输出
+        if hasattr(usage, 'prompt_tokens') and usage.prompt_tokens:
+            # 记录上一轮的值，用于计算本轮增量
+            self._previous_prompt_tokens = self._cumulative_prompt_tokens
+            self._cumulative_prompt_tokens = usage.prompt_tokens
+        if hasattr(usage, 'completion_tokens') and usage.completion_tokens:
+            self._cumulative_completion_tokens = usage.completion_tokens
+
+        log.debug(
+            f"Token 用量已更新: prompt={self._cumulative_prompt_tokens}, "
+            f"completion={self._cumulative_completion_tokens}"
+        )
+
+    def reset_usage(self) -> None:
+        """重置 token 用量统计（在清空历史时调用）。"""
+        self._api_usage = None
+        self._cumulative_prompt_tokens = 0
+        self._cumulative_completion_tokens = 0
+        self._previous_prompt_tokens = 0
 
     def _estimate_tokens(self, messages: list) -> int:
         """估算消息列表的 token 数量 (近似算法)。
