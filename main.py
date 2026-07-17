@@ -52,6 +52,7 @@ class _UIState:
         self.progress = None
         self._tool_pending = False
         self._spinner_task = None
+        self._pending_context_usage = None  # 暂存的 token 用量，在回显中显示
 
 
 class _AppState:
@@ -191,20 +192,53 @@ def settings_mode():
     print("客户端已更新")
 
 def handle_pending_changes():
-    """处理待确认的文件变更（使用 Rich Live Display）"""
+    """处理待确认的文件变更"""
     bm = backup_manager.get_backup_manager()
     pending_count = bm.get_pending_changes_count()
     if pending_count == 0:
         return
 
-    # 进入独立屏幕
-    _enter_screen()
-    try:
-        # 显示变更确认界面
-        _show_changes_screen(bm, pending_count)
-    finally:
-        # 退出独立屏幕
-        _exit_screen()
+    # 清屏后显示确认界面
+    screen_refresh.clear_screen()
+    _show_changes_screen(bm, pending_count)
+    # 操作完成后刷新主界面
+    screen_refresh.refresh(_print_header, _print_conversation_history)
+
+
+def _flush_context_usage():
+    """在回显中打印暂存的 token 用量"""
+    data = ui._pending_context_usage
+    if data is None:
+        return
+    ui._pending_context_usage = None
+    
+    ratio = data.get('usage_ratio', 0)
+    level = data.get('level')
+    turn_completion = data.get('turn_completion_tokens', 0)
+    pct = f"{ratio:.0%}"
+    
+    # 圆形进度条
+    if ratio < 0.25:
+        circle = "○"
+    elif ratio < 0.5:
+        circle = "◔"
+    elif ratio < 0.75:
+        circle = "◑"
+    elif ratio < 0.95:
+        circle = "◕"
+    else:
+        circle = "●"
+    
+    # 告警提示
+    if level == 'critical':
+        print(f"\n{Fore.RED}上下文即将耗尽 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
+    elif level == 'high':
+        print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
+    elif level == 'warn':
+        print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct}{Style.RESET_ALL}")
+    
+    # 显示 token 用量
+    print(f"{Fore.LIGHTBLACK_EX}[Token] 本轮 {turn_completion} | {circle} {pct}{Style.RESET_ALL}")
 
 
 def _get_last_assistant_output():
@@ -756,35 +790,8 @@ def chat_callback(event_type, data):
         print(f"\n{Fore.YELLOW}工具调用已达 {current_iterations} 次 (上限 {hard_limit} 次，剩余 {remaining} 次){Style.RESET_ALL}")
         return input("是否继续对话? (y/n): ").lower()
     elif event_type == 'context_usage':
-        ratio = data.get('usage_ratio', 0)
-        level = data.get('level')  # None 表示无告警
-        turn_completion = data.get('turn_completion_tokens', 0)
-        
-        pct = f"{ratio:.0%}"
-        
-        # 圆形进度条：根据百分比选择不同填充程度
-        # ○ ◔ ◑ ◕ ● (0% -> 100%)
-        if ratio < 0.25:
-            circle = "○"
-        elif ratio < 0.5:
-            circle = "◔"
-        elif ratio < 0.75:
-            circle = "◑"
-        elif ratio < 0.95:
-            circle = "◕"
-        else:
-            circle = "●"
-        
-        # 告警提示
-        if level == 'critical':
-            print(f"\n{Fore.RED}上下文即将耗尽 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
-        elif level == 'high':
-            print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
-        elif level == 'warn':
-            print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct}{Style.RESET_ALL}")
-        
-        # 本轮只显示 completion_tokens，圆形进度条显示百分比
-        print(f"{Fore.LIGHTBLACK_EX} {turn_completion} token | {circle} {pct}{Style.RESET_ALL}")
+        # 暂存 token 用量数据，在备份提示后的回显中统一显示
+        ui._pending_context_usage = data
 
 async def main():
     while True:
@@ -1001,6 +1008,9 @@ async def main():
         
         # 每次对话结束后检查是否有待确认的文件更改
         handle_pending_changes()
+        
+        # 在备份提示后的回显中显示 token 用量
+        _flush_context_usage()
 
 def _progress_bar(percent, label):
     if ui.progress is None:

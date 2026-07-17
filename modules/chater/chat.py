@@ -581,6 +581,10 @@ class QuickAIChat:
             if hasattr(chunk, 'usage') and chunk.usage:
                 last_usage = chunk.usage
 
+            # usage-only chunk 没有 choices，跳过
+            if not chunk.choices:
+                continue
+
             delta = chunk.choices[0].delta
 
             if hasattr(delta, 'model_extra') and delta.model_extra:
