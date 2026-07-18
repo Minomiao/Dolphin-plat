@@ -11,14 +11,7 @@ if getattr(sys, 'frozen', False):
 else:
     bootstrap.init(os.path.dirname(os.path.abspath(__file__)))
 
-from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
-from modules.main_server import config
-from modules.CLIserver import commands as cmd
-from modules.chater import chat, conversation_loader
-from modules.chater.conversation_loader import format_user_output_line
-from modules.CLIserver import screen_refresh
 from modules.logger import setup_logger, get_logger
-from modules.functions import backup_manager
 
 # 导入 colorama 库
 from colorama import init, Fore, Back, Style
@@ -35,6 +28,39 @@ from rich import box
 _console = Console()
 
 log = setup_logger("Dolphin")
+
+# 以下模块较重或启动初期不需要，将在启动流程的进度条阶段分步导入。
+# 在顶层预声明变量占位，可让静态分析器知道这些名称存在，避免 IDE 误报未定义。
+config = cmd = None
+chat = conversation_loader = format_user_output_line = None
+screen_refresh = backup_manager = None
+OpenAI = AuthenticationError = RateLimitError = APIConnectionError = APIError = None
+
+
+def _load_config_module():
+    """加载配置模块（进度条 20% 阶段）。"""
+    global config
+    from modules.main_server import config
+
+
+def _load_commands_module():
+    """加载命令模块（进度条 35% 阶段）。"""
+    global cmd
+    from modules.CLIserver import commands as cmd
+
+
+def _load_core_modules():
+    """加载对话、屏幕刷新、备份管理及 OpenAI 等核心重模块（进度条 50% 阶段）。"""
+    global chat, conversation_loader, format_user_output_line
+    global screen_refresh, backup_manager
+    global OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
+
+    from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
+    from modules.chater import chat, conversation_loader
+    from modules.chater.conversation_loader import format_user_output_line
+    from modules.CLIserver import screen_refresh
+    from modules.functions import backup_manager
+
 
 _SCREEN_ALT_ENTER = '\033[?1049h'
 _SCREEN_ALT_EXIT = '\033[?1049l'
@@ -1097,13 +1123,13 @@ def _show_splash():
     print()
 
 if __name__ == "__main__":
-    import asyncio
-    import time
-    
     _show_splash()
-    
+
     _progress_bar(5, _DEEPSLEEPING[:1])
     time.sleep(0.1)
+
+    # 20%：加载配置模块
+    _load_config_module()
     state.current_config = config.load_config()
     state.show_thinking = state.current_config.get('show_thinking', False)
     state.effort_level = state.current_config.get('effort_level', 'fine')
@@ -1112,11 +1138,13 @@ if __name__ == "__main__":
         config.save_config(state.current_config)
     _progress_bar(20, _DEEPSLEEPING[:3])
     time.sleep(0.1)
-    
+
+    # 35%：加载命令模块并校验
+    _load_commands_module()
     cmd._validate_commands()
     _progress_bar(35, _DEEPSLEEPING[:7])
     time.sleep(0.1)
-    
+
     deprecation_warning = config.check_model_deprecation(state.current_config.get('model', 'deepseek-v4-flash'))
     if deprecation_warning:
         log.warning(deprecation_warning)
@@ -1134,6 +1162,10 @@ if __name__ == "__main__":
         os.makedirs(WORKPLACE_DIR)
         log.info(f"创建工作目录: {WORKPLACE_DIR}")
     _progress_bar(50, _DEEPSLEEPING[:11])
+
+    # 50%：加载核心对话、屏幕刷新、备份管理及 OpenAI 等较重模块
+    _load_core_modules()
+
     time.sleep(0.1)
 
     # 嵌入模型下载 + ONNX 转换（仅在 web_search 启用时执行）
