@@ -84,7 +84,7 @@ def _parse_display_name(tool_name: str, skill_mgr=None, plugin_loader=None) -> s
         return tool_name
 
 
-class QuickAIChat:
+class DolphinChat:
     def __init__(self, model="deepseek-v4-flash", temperature=0.7, max_tokens=None, enable_tools=True, callback=None):
         self.model = model
         self.temperature = temperature
@@ -144,7 +144,7 @@ class QuickAIChat:
         self.current_work_directory = self.default_work_directory
         request_manager.reset_ai_work_directory()
 
-        log.info(f"初始化 QuickAIChat: model={model}, temperature={temperature}, max_tokens={max_tokens}, enable_tools={enable_tools}")
+        log.info(f"初始化 DolphinChat: model={model}, temperature={temperature}, max_tokens={max_tokens}, enable_tools={enable_tools}")
     
     def add_message(self, role, content, tool_calls=None, reasoning_content=None):
         message = {"role": role, "content": content}
@@ -484,7 +484,7 @@ class QuickAIChat:
         return tool_responses
 
     def _apply_effort_params(self, kwargs):
-        """根据 effort_level 添加 DeepSeek thinking mode 参数。normal 不传参。"""
+        """根据 effort_level 添加 thinking mode 参数。normal 不传参。"""
         if self.effort_level == "normal":
             return
         effort_map = {"fine": "high", "high": "max"}

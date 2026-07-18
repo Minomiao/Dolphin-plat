@@ -1,0 +1,48 @@
+"""页面头部与对话历史渲染。"""
+from rich.console import Group
+from rich.panel import Panel
+from rich.text import Text
+from rich import box
+
+from modules.bootstrap import constants
+from .state import state
+
+_DOLPHIN_ART = constants.DOLPHIN_ART
+
+
+def print_header():
+    """打印主界面头部。"""
+    cmd = state.cmd
+    config = state.config
+    deprecation_warning = config.check_model_deprecation(
+        state.current_config.get('model', 'deepseek-v4-flash'))
+    work_dir = state.current_config.get('work_directory', 'workplace')
+
+    dolphin = Text(_DOLPHIN_ART, style="bright_blue")
+
+    info = Text()
+    if deprecation_warning:
+        info.append(f"{deprecation_warning}\n", style="yellow")
+    info.append("输入 ", style="dim")
+    info.append(f"'{cmd.get_command('help')}'", style="bold white")
+    info.append(" 获取命令帮助\n", style="dim")
+    info.append("工作目录: ", style="dim")
+    info.append(work_dir, style="white")
+
+    panel = Panel(
+        Group(dolphin, "", info),
+        border_style="cyan",
+        box=box.ROUNDED,
+        padding=(1, 2),
+    )
+    from .splash import _console
+    _console.print(panel)
+
+
+def print_conversation_history():
+    """打印对话历史。"""
+    conversation_loader = state.conversation_loader
+    output = conversation_loader.format_conversation_history(
+        state.chat_instance.messages, state.show_thinking)
+    if output:
+        print(output)

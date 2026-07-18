@@ -154,3 +154,79 @@ MODEL_REGISTRY = {
         "replacement": "deepseek-v4-flash",
     },
 }
+
+# ===== 启动动画 =====
+# 启动进度条文字
+DEEPSLEEPING_TEXT = "d-e-e-p-s-l-e-e-p-i-n-g"
+
+# 终端备选屏幕控制序列
+SCREEN_ALT_ENTER = '\033[?1049h'
+SCREEN_ALT_EXIT = '\033[?1049l'
+
+# Spinner 动画帧
+SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+# Dolphin ASCII 艺术（5 行高度，字母逐行拼接）
+_DOLPHIN_LETTERS = {
+    "D": [
+        " ████╗   ",
+        " ██╔═██╗ ",
+        " ██║ ██║ ",
+        " ██╠═██║ ",
+        " ████╝   ",
+    ],
+    "O": [
+        "  ████╗  ",
+        " ██╔═██╗ ",
+        " ██║ ██║ ",
+        " ██╠═██║ ",
+        "  ████╝  ",
+    ],
+    "L": [
+        " ██╗     ",
+        " ██║     ",
+        " ██║     ",
+        " ██║     ",
+        " ██████╗ ",
+    ],
+    "P": [
+        " █████╗  ",
+        " ██╔═██╗ ",
+        " █████╔╝ ",
+        " ██╔══╝  ",
+        " ██║     ",
+    ],
+    "H": [
+        " ██╗ ██╗ ",
+        " ██║ ██║ ",
+        " ██████║ ",
+        " ██╔═██║ ",
+        " ██║ ██║ ",
+    ],
+    "I": [
+        " ██╗  ",
+        " ██║  ",
+        " ██║  ",
+        " ██║  ",
+        " ██║  ",
+    ],
+    "N": [
+        " ███╗   ██╗ ",
+        " ██╔██╗ ██║ ",
+        " ██║╚██╗██║ ",
+        " ██║ ╚████║ ",
+        " ██║  ╚███║ ",
+    ],
+}
+
+
+def build_dolphin_art() -> str:
+    """构造 DOLPHIN 字母的 ASCII 艺术。"""
+    letters = ["D", "O", "L", "P", "H", "I", "N"]
+    lines = []
+    for row in range(5):
+        lines.append("".join(_DOLPHIN_LETTERS[L][row] for L in letters))
+    return "\n".join(lines)
+
+
+DOLPHIN_ART = build_dolphin_art()

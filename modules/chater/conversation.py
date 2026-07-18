@@ -201,11 +201,12 @@ def repair_conversation_messages(messages, work_dir=None):
 
 
 def init_conversation(dir_id, conv_id, conv_name, work_dir):
-    """
-    Unified conversation initialization for all new conversation creation paths.
-    - Registers in .dpc index (or returns existing conv_id if name already exists)
-    - Creates empty JSON conversation file
-    Returns (dir_id, conv_id).
+    """初始化新对话的统一入口。
+
+    - 在 .dpc 索引中注册（若名称已存在则返回现有 conv_id）
+    - 创建空的 JSON 会话文件
+
+    返回 (dir_id, conv_id)。
     """
     from modules.chater import dpc_manager
 
@@ -217,10 +218,8 @@ def init_conversation(dir_id, conv_id, conv_name, work_dir):
 
 
 def save_conversation(messages, dir_id, conv_id):
-    """
-    Save conversation to folder structure.
-    
-    新架构：
+    """将会话保存到文件夹结构。
+
     - 会话文件夹：date/conversations/{dir_id}/{conv_id}/
     - 会话文件：{conv_id}/{conv_id}.json
     - 备份管理：{conv_id}/backup_registry.json（由 backup_manager 管理）
@@ -241,9 +240,8 @@ def save_conversation(messages, dir_id, conv_id):
 
 
 def load_conversation(dir_id, conv_id):
-    """
-    Load conversation from folder structure.
-    
+    """从文件夹结构加载会话。
+
     支持新旧两种格式：
     - 新格式：{dir_id}/{conv_id}/{conv_id}.json
     - 旧格式：{dir_id}/{conv_id}.json（兼容现有数据）

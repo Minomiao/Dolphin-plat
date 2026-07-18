@@ -6,6 +6,14 @@ from modules import bootstrap as app_paths
 log = get_logger("Dolphin.commands")
 
 
+def init():
+    """显式初始化命令模块：校验并修复命令文件。
+
+    由 main.py 在启动时调用一次，避免模块导入时产生副作用。
+    """
+    _validate_commands()
+
+
 def _get_default_commands():
     return {
         "commands": {
@@ -124,9 +132,6 @@ def _validate_commands():
         with open(app_paths.COMMANDS_FILE, 'w', encoding='utf-8') as f:
             json.dump({"commands": file_commands}, f, ensure_ascii=False, indent=2)
         log.info("命令文件校验完成，已修复异常项")
-
-
-_validate_commands()
 
 
 def load_commands():

@@ -54,7 +54,7 @@ def get_thinking_logger():
 
     return _thinking_logger
 
-def get_logger(name="QuickAI"):
+def get_logger(name="Dolphin"):
     return logging.getLogger(name)
 
 

@@ -1,0 +1,201 @@
+"""聊天事件回调和 spinner 动画。"""
+import sys
+import time
+import asyncio
+
+from colorama import Fore, Style
+
+from modules.bootstrap import constants
+from modules.logger import get_logger
+from .state import ui, state
+
+log = get_logger("Dolphin.callback")
+
+_SPINNER_FRAMES = constants.SPINNER_FRAMES
+
+
+async def run_spinner(prefix: str):
+    """运行工具调用等待的 spinner 动画。"""
+    i = 0
+    while True:
+        frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
+        sys.stdout.write(f"\r\033[K{Fore.CYAN}[{prefix}]{Style.RESET_ALL} {frame}")
+        sys.stdout.flush()
+        i += 1
+        await asyncio.sleep(0.12)
+
+
+def clear_tool_pending():
+    """清除工具等待状态和 spinner。"""
+    if ui._spinner_task and not ui._spinner_task.done():
+        ui._spinner_task.cancel()
+        ui._spinner_task = None
+    ui._tool_pending = False
+
+
+def rollback_last_message():
+    """API 错误后回退最后一条用户消息及其后的 assistant/tool 消息。"""
+    if not state.chat_instance or not state.chat_instance.messages:
+        return
+
+    msgs = state.chat_instance.messages
+    for i in range(len(msgs) - 1, -1, -1):
+        if msgs[i].get("role") == "user":
+            del msgs[i:]
+            if state.current_dir_id and state.current_conv_id:
+                from modules.chater import conversation
+                conversation.save_conversation(msgs, state.current_dir_id, state.current_conv_id)
+            log.debug("API 错误后已回退用户消息及其后的 assistant/tool 消息")
+            return
+
+    log.debug("未找到用户消息，未执行回退")
+
+
+def flush_context_usage():
+    """在回显中打印暂存的 token 用量。"""
+    cmd = state.cmd
+    data = ui._pending_context_usage
+    if data is None:
+        return
+    ui._pending_context_usage = None
+
+    ratio = data.get('usage_ratio', 0)
+    level = data.get('level')
+    turn_completion = data.get('turn_completion_tokens', 0)
+    pct = f"{ratio:.0%}"
+
+    # 圆形进度条
+    if ratio < 0.25:
+        circle = "○"
+    elif ratio < 0.5:
+        circle = "◔"
+    elif ratio < 0.75:
+        circle = "◑"
+    elif ratio < 0.95:
+        circle = "◕"
+    else:
+        circle = "●"
+
+    # 告警提示
+    if level == 'critical':
+        print(f"\n{Fore.RED}上下文即将耗尽 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
+    elif level == 'high':
+        print(f"\n{Fore.YELLOW}上下文使用率较高 ({pct})，建议 {cmd.get_command('clear')} 清空历史{Style.RESET_ALL}")
+    elif level == 'warn':
+        print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct}{Style.RESET_ALL}")
+
+    # 显示 token 用量
+    print(f"{Fore.LIGHTBLACK_EX}[Token] 本轮 {turn_completion} | {circle} {pct}{Style.RESET_ALL}")
+
+
+def chat_callback(event_type, data):
+    """处理聊天事件的回调函数。"""
+    cmd = state.cmd
+    format_user_output_line = state.format_user_output_line
+
+    if event_type == 'thinking':
+        if ui.turn_first_output:
+            print()
+            ui.turn_first_output = False
+        if state.show_thinking:
+            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}\n")
+    elif event_type == 'tool_start':
+        clear_tool_pending()
+        ui._tool_pending = True
+        ui._spinner_task = asyncio.ensure_future(run_spinner(data['name']))
+    elif event_type == 'thinking_start':
+        if ui.turn_first_output:
+            print()
+            ui.turn_first_output = False
+        if state.show_thinking:
+            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}")
+        else:
+            ui.thinking_start_time = time.time()
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - 0s{Style.RESET_ALL}", end="", flush=True)
+    elif event_type == 'thinking_chunk':
+        if state.show_thinking:
+            print(f"{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}", end="", flush=True)
+        else:
+            elapsed = int(time.time() - ui.thinking_start_time)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - {elapsed}s{Style.RESET_ALL}", end="", flush=True)
+    elif event_type == 'thinking_end':
+        if state.show_thinking:
+            print(f"\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
+        else:
+            elapsed = int(time.time() - ui.thinking_start_time)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}[思考完成 {elapsed}s]{Style.RESET_ALL}")
+    elif event_type == 'response_chunk':
+        if ui.turn_first_output:
+            print()
+            ui.turn_first_output = False
+        print(data['content'], end="", flush=True)
+    elif event_type == 'response_end':
+        print()
+    elif event_type == 'tool_calls':
+        clear_tool_pending()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(f"{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
+        for call in data['calls']:
+            print(f"{Fore.BLUE}  - {call['name']}{Style.RESET_ALL}")
+            if call.get('arguments'):
+                print(f"{Fore.BLUE}    参数: {call['arguments']}{Style.RESET_ALL}")
+    elif event_type == 'tool_result':
+        if data['formatted']:
+            print(f"{Fore.GREEN}--结果:\n{data['formatted']}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.GREEN}--结果: {data['raw']}{Style.RESET_ALL}")
+    elif event_type == 'user_output':
+        clear_tool_pending()
+        line = format_user_output_line(data)
+        sys.stdout.write(f"\r\033[K{line}\n")
+        sys.stdout.flush()
+    elif event_type == 'user_input_required':
+        clear_tool_pending()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(f"{Fore.YELLOW}[需要输入]{Style.RESET_ALL}")
+        print(f"  {data.get('prompt', '请输入信息')}")
+        if data.get('default_value'):
+            print(f"  默认值: {data.get('default_value')}")
+        user_input = input("\n请输入: ").strip()
+        if not user_input and data.get('default_value'):
+            user_input = data.get('default_value')
+        return user_input
+    elif event_type == 'confirmation_required':
+        clear_tool_pending()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        print(f"{Fore.YELLOW}[需要确认]{Style.RESET_ALL}")
+        print(f"  操作: {data.get('action', 'unknown')}")
+        if data.get('script_preview'):
+            print(f"  脚本预览:")
+            print(f"  {data.get('script_preview')}")
+        if data.get('file_path'):
+            print(f"  文件: {data.get('file_path')}")
+        if data.get('work_directory'):
+            print(f"  工作目录: {data.get('work_directory')}")
+        if data.get('error'):
+            print(f"  原因: {data.get('error')}")
+        return input("\n是否确认此操作? (y/n): ").lower()
+    elif event_type == 'operation_canceled':
+        print("操作已取消")
+    elif event_type == 'operation_confirmed':
+        print("操作已确认，正在执行...")
+    elif event_type == 'console_output':
+        content = data.get('content', '')
+        level = data.get('level', 'info')
+        if level == 'error':
+            print(f"\n{Fore.RED}错误: {content}{Style.RESET_ALL}")
+        elif level == 'warning':
+            print(f"\n{Fore.YELLOW}警告: {content}{Style.RESET_ALL}")
+        else:
+            print(f"\n{Fore.GREEN}信息: {content}{Style.RESET_ALL}")
+    elif event_type == 'max_iterations_reached':
+        current_iterations = data.get('iterations', 0)
+        hard_limit = data.get('hard_limit', 100)
+        remaining = hard_limit - current_iterations
+        print(f"\n{Fore.YELLOW}工具调用已达 {current_iterations} 次 (上限 {hard_limit} 次，剩余 {remaining} 次){Style.RESET_ALL}")
+        return input("是否继续对话? (y/n): ").lower()
+    elif event_type == 'context_usage':
+        ui._pending_context_usage = data

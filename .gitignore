@@ -35,8 +35,6 @@ modules/old_version/
 
 
 # Build files
-build/
-dist/
 dist_pyinstaller/
 dist_dolphin/
 dist_server/

@@ -10,7 +10,15 @@ from modules.bootstrap import constants
 
 log = get_logger("Dolphin.config")
 
-load_dotenv(app_paths.ENV_FILE)
+
+def init():
+    """显式初始化配置模块：加载 .env、补全 .env 文件、补全配置键。
+
+    由 main.py 在启动时调用一次，避免模块导入时产生副作用。
+    """
+    load_dotenv(app_paths.ENV_FILE)
+    _ensure_env_file()
+    ensure_config()
 
 
 def _ensure_env_file():
@@ -51,9 +59,6 @@ def _ensure_env_file():
         log.warning(f"创建 .env 文件失败 (操作系统错误): {e}")
     except Exception as e:
         log.warning(f"创建 .env 文件发生意外错误: {e}")
-
-
-_ensure_env_file()
 
 MODEL_REGISTRY = constants.MODEL_REGISTRY
 
@@ -204,7 +209,3 @@ def ensure_config():
     config_data["api_key"] = os.getenv("QUICKAI_API_KEY", "")
     config_data["work_directory"] = os.getenv("QUICKAI_WORK_DIRECTORY", "workplace")
     save_config(config_data)
-
-
-# 启动时执行一次性初始化
-ensure_config()

@@ -103,8 +103,3 @@ def get_mcp_manager() -> MCPManager:
     if _mcp_manager is None:
         _mcp_manager = MCPManager()
     return _mcp_manager
-
-
-async def run_async(coro):
-    loop = asyncio.get_event_loop()
-    return await loop.run_until_complete(coro)

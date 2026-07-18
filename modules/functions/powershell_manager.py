@@ -222,13 +222,21 @@ class CommandCacheManager:
 _cache_manager = CommandCacheManager()
 
 
-def _init_cache_cleanup():
-    """初始化时清理所有持久化缓存"""
+def init():
+    """显式初始化 PowerShell 管理模块：清理持久化缓存、注册退出清理与信号处理。
+
+    由 main.py 在启动时调用一次，避免模块导入时产生副作用。
+    """
     _cache_manager.cleanup_expired_persistent(force_all=True)
-
-
-# 在模块加载时立即清理
-_init_cache_cleanup()
+    atexit.register(_cleanup_all_processes)
+    try:
+        signal.signal(signal.SIGINT, _signal_handler)
+    except (ValueError, AttributeError):
+        pass
+    try:
+        signal.signal(signal.SIGTERM, _signal_handler)
+    except (ValueError, AttributeError):
+        pass
 
 
 class _DummySock:
@@ -559,17 +567,6 @@ def _cleanup_all_processes():
 def _signal_handler(signum, frame):
     _cleanup_all_processes()
     sys.exit(0)
-
-
-atexit.register(_cleanup_all_processes)
-try:
-    signal.signal(signal.SIGINT, _signal_handler)
-except (ValueError, AttributeError):
-    pass
-try:
-    signal.signal(signal.SIGTERM, _signal_handler)
-except (ValueError, AttributeError):
-    pass
 
 
 def get_cache_stats() -> Dict[str, Any]:

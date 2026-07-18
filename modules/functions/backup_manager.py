@@ -16,12 +16,8 @@ from rich.text import Text
 
 console = Console()
 
-# ===== 新架构：会话文件夹内备份 =====
+# ===== 会话文件夹内备份 =====
 CONVERSATIONS_DIR = app_paths.CONVERSATIONS_DIR
-
-# ===== 已废弃：全局内存缓存（保留用于兼容性，但不再使用） =====
-# dialog_backups = {}  # 已移除
-# current_dialog_id = None  # 已移除
 
 def _get_conv_folder(dir_id: str, conv_id: str) -> Path:
     """获取会话文件夹路径"""
@@ -97,18 +93,18 @@ def backup_file(
     action: str = "modify"
 ) -> Optional[str]:
     """
-    新架构备份函数：在会话文件夹内创建备份
-    
+    在会话文件夹内创建备份。
+
     文件按 file_id 统一管理，不按 dialog_id 分层。
     dialog_id 记录在 backup_registry.json 中。
-    
+
     Args:
         file_path: 文件相对路径
         work_dir: 工作目录
         dir_id: 会话目录ID
         conv_id: 会话ID（也是 dialog_id）
         action: 操作类型（create, modify, delete）
-    
+
     Returns:
         备份文件路径（成功）或 None（失败或跳过）
     """
@@ -180,7 +176,7 @@ def record_change(
     dir_id: str,
     conv_id: str
 ) -> Dict[str, Any]:
-    """记录文件更改（新架构，基于 backup_registry.json）"""
+    """记录文件更改（基于 backup_registry.json）"""
     log.debug(f"记录更改: {file_path}, action={action}")
     
     registry = _load_backup_registry(dir_id, conv_id)
@@ -240,7 +236,7 @@ def record_change(
     return registry["backups"][file_id]["backup_files"][-1]
 
 def get_pending_changes_count(dir_id: str, conv_id: str) -> int:
-    """获取待确认的更改数量（新架构）"""
+    """获取待确认的更改数量"""
     registry = _load_backup_registry(dir_id, conv_id)
     count = 0
     for file_id, file_info in registry.get("backups", {}).items():
@@ -250,7 +246,7 @@ def get_pending_changes_count(dir_id: str, conv_id: str) -> int:
     return count
 
 def get_pending_changes_list(dir_id: str, conv_id: str) -> List[Dict[str, Any]]:
-    """获取待确认的更改列表（新架构）"""
+    """获取待确认的更改列表"""
     registry = _load_backup_registry(dir_id, conv_id)
     pending_changes = []
     
@@ -267,7 +263,7 @@ def get_pending_changes_list(dir_id: str, conv_id: str) -> List[Dict[str, Any]]:
     return pending_changes
 
 def apply_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
-    """应用所有待确认的更改（新架构）"""
+    """应用所有待确认的更改"""
     log.info(f"开始应用所有待确认的更改: conv={conv_id}")
     registry = _load_backup_registry(dir_id, conv_id)
     results = []
@@ -297,8 +293,8 @@ def apply_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
     }
 
 def revert_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
-    """撤销所有待确认的更改（新架构）
-    
+    """撤销所有待确认的更改。
+
     撤销时不保留备份文件，直接删除。
     """
     log.info(f"开始撤销所有待确认的更改: conv={conv_id}")
@@ -387,7 +383,7 @@ def revert_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
     }
 
 def show_pending_changes(dir_id: str, conv_id: str):
-    """显示待确认的更改（新架构），返回 rich Table"""
+    """显示待确认的更改，返回 rich Table"""
     pending = get_pending_changes_list(dir_id, conv_id)
     if not pending:
         return None
@@ -424,80 +420,72 @@ def show_pending_changes(dir_id: str, conv_id: str):
 _backup_manager = None
 
 class BackupManager:
-    """备份管理器（新架构）
-    
+    """备份管理器。
+
     通过 set_session() 设置当前会话上下文，
     后续所有操作自动使用该上下文。
     """
-    
+
     def __init__(self):
         self._dir_id: Optional[str] = None
         self._conv_id: Optional[str] = None
         log.info("BackupManager 初始化完成")
-    
+
     def set_session(self, dir_id: str, conv_id: str):
         """设置当前会话上下文"""
         self._dir_id = dir_id
         self._conv_id = conv_id
         log.info(f"BackupManager 会话已设置: dir={dir_id}, conv={conv_id}")
-    
+
     def _check_session(self) -> bool:
         """检查会话上下文是否已设置"""
         if not self._dir_id or not self._conv_id:
             log.warning("BackupManager 会话上下文未设置，请先调用 set_session()")
             return False
         return True
-    
+
     def backup_file(self, file_path: str, work_dir: str, action: str = "modify") -> Optional[str]:
         """备份文件"""
         if not self._check_session():
             return None
         return backup_file(file_path, work_dir, self._dir_id, self._conv_id, action)
-    
+
     def record_change(self, action: str, file_path: str, work_dir: str = "") -> Dict[str, Any]:
         """记录文件更改"""
         if not self._check_session():
             return {}
         return record_change(action, file_path, work_dir, self._dir_id, self._conv_id)
-    
+
     def get_pending_changes_count(self) -> int:
         """获取待确认的更改数量"""
         if not self._check_session():
             return 0
         return get_pending_changes_count(self._dir_id, self._conv_id)
-    
+
     def get_pending_changes_list(self) -> List[Dict[str, Any]]:
         """获取待确认的更改列表"""
         if not self._check_session():
             return []
         return get_pending_changes_list(self._dir_id, self._conv_id)
-    
+
     def apply_all_changes(self) -> Dict[str, Any]:
         """应用所有待确认的更改"""
         if not self._check_session():
             return {"success": False, "message": "会话上下文未设置"}
         return apply_all_changes(self._dir_id, self._conv_id)
-    
+
     def revert_all_changes(self) -> Dict[str, Any]:
         """撤销所有待确认的更改"""
         if not self._check_session():
             return {"success": False, "message": "会话上下文未设置"}
         return revert_all_changes(self._dir_id, self._conv_id)
-    
+
     def show_pending_changes(self):
         """显示待确认的更改"""
         if not self._check_session():
             return None
         return show_pending_changes(self._dir_id, self._conv_id)
-    
-    # ===== 兼容性方法（已废弃） =====
-    def set_current_dialog_id(self, dialog_id: str):
-        """已废弃：请使用 set_session()"""
-        log.warning("set_current_dialog_id() 已废弃，请使用 set_session()")
-    
-    def end_dialog_backup(self):
-        """已废弃：新架构无需清理内存缓存"""
-        log.debug("end_dialog_backup() 已废弃，新架构无需清理内存缓存")
+
 
 def get_backup_manager() -> BackupManager:
     global _backup_manager
