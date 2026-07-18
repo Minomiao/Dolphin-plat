@@ -97,13 +97,19 @@ def _process_changes_input(bm, console):
             choice = input("\n请选择操作: ").lower().strip()
 
             if choice == 'y':
+                start = time.perf_counter()
                 result = bm.apply_all_changes()
+                elapsed = time.perf_counter() - start
+                log.info(f"应用更改完成: 耗时={elapsed:.3f}s, 成功={result.get('success', False)}")
                 _show_operation_result(console, result, "应用")
                 break
             elif choice == 'n':
                 confirm = input("⚠️  确认撤销所有更改？此操作不可恢复 (yes/no): ").lower().strip()
                 if confirm == 'yes':
+                    start = time.perf_counter()
                     result = bm.revert_all_changes()
+                    elapsed = time.perf_counter() - start
+                    log.info(f"撤销更改完成: 耗时={elapsed:.3f}s, 成功={result.get('success', False)}")
                     _show_operation_result(console, result, "撤销")
                     break
                 else:
@@ -168,6 +174,7 @@ def handle_pending_changes():
 
     bm = backup_manager.get_backup_manager()
     pending_count = bm.get_pending_changes_count()
+    log.info(f"待确认文件变更数: {pending_count}")
     if pending_count == 0:
         return
 

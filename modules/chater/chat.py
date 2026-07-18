@@ -1,3 +1,8 @@
+import json
+import asyncio
+import time
+import uuid
+
 from openai import OpenAI
 from modules.main_server import config
 from modules.chater import conversation
@@ -8,9 +13,6 @@ from modules.loader import plugin_skill_loader
 from modules.main_server.middleware import request_manager
 from modules.functions import backup_manager, powershell_manager
 from modules.logger import get_logger, log_thinking
-import json
-import asyncio
-import uuid
 
 log = get_logger("Dolphin.chat")
 
@@ -271,6 +273,7 @@ class DolphinChat:
     async def _execute_tool(self, tool_name: str, arguments: dict) -> tuple:
         """执行工具，返回 (result_str, had_user_output, user_output)。"""
         log.info(f"执行工具: {tool_name}, 参数: {arguments}")
+        start = time.perf_counter()
         had_user_output = False
         user_output = None
         try:
@@ -307,11 +310,13 @@ class DolphinChat:
                 result_str = json.dumps(result, ensure_ascii=False)
             else:
                 result_str = str(result)
-            log.debug(f"工具执行结果: {result_str}")
+            elapsed = time.perf_counter() - start
+            log.debug(f"工具执行完成: {tool_name}, 耗时={elapsed:.3f}s, 结果长度={len(result_str)}")
             return result_str, had_user_output, user_output
         except Exception as e:
+            elapsed = time.perf_counter() - start
             error_msg = json.dumps({"error": str(e)}, ensure_ascii=False)
-            log.error(f"工具执行失败: {tool_name}, 错误: {str(e)}")
+            log.error(f"工具执行失败: {tool_name}, 耗时={elapsed:.3f}s, 错误: {str(e)}")
             return error_msg, False, None
     
     async def _execute_powershell_script(self, script: str, timeout: int = 30, wait_time: int = 10) -> dict:
@@ -411,6 +416,7 @@ class DolphinChat:
 
     async def _run_tool_calls(self, tool_calls: list) -> list:
         """统一执行一批 tool_calls，返回生成的 tool 角色消息列表。"""
+        start = time.perf_counter()
         tool_responses = []
         displayed_calls = []
         displayed_results = []
@@ -481,6 +487,8 @@ class DolphinChat:
                     'formatted': formatted
                 })
 
+        elapsed = time.perf_counter() - start
+        log.info(f"工具调用批次完成: {len(tool_calls)} 个, 耗时={elapsed:.3f}s")
         return tool_responses
 
     def _apply_effort_params(self, kwargs):
@@ -494,6 +502,7 @@ class DolphinChat:
 
     async def chat(self, user_input):
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
+        chat_start = time.perf_counter()
 
         self.add_message("user", user_input)
         
@@ -509,7 +518,10 @@ class DolphinChat:
         
         self._apply_effort_params(kwargs)
         
+        api_start = time.perf_counter()
         response = self.client.chat.completions.create(**kwargs)
+        api_elapsed = time.perf_counter() - api_start
+        log.info(f"API 调用完成 (非流式): 耗时={api_elapsed:.3f}s")
         # 保存 API 返回的精确 token 用量
         if hasattr(response, 'usage') and response.usage:
             self.context.update_usage_from_api(response.usage)
@@ -546,14 +558,18 @@ class DolphinChat:
             await self._run_tool_calls(tool_calls_list)
 
             kwargs["messages"] = self.context.prepare_messages(self.messages)
+            api_start = time.perf_counter()
             response = self.client.chat.completions.create(**kwargs)
+            api_elapsed = time.perf_counter() - api_start
+            log.info(f"API 调用完成 (非流式, 工具后): 耗时={api_elapsed:.3f}s")
             # 保存 API 返回的精确 token 用量
             if hasattr(response, 'usage') and response.usage:
                 self.context.update_usage_from_api(response.usage)
             assistant_message = response.choices[0].message
 
         final_content = assistant_message.content or ""
-        log.info(f"聊天完成: 响应长度={len(final_content)}")
+        total_elapsed = time.perf_counter() - chat_start
+        log.info(f"聊天完成: 响应长度={len(final_content)}, 总耗时={total_elapsed:.3f}s")
         self.add_message("assistant", final_content)
         self._flush_auto_save()
 
@@ -636,6 +652,7 @@ class DolphinChat:
 
     async def chat_stream(self, user_input):
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
+        chat_start = time.perf_counter()
 
         self.add_message("user", user_input)
         
@@ -653,8 +670,11 @@ class DolphinChat:
         
         self._apply_effort_params(kwargs)
         
+        api_start = time.perf_counter()
         stream = self.client.chat.completions.create(**kwargs)
         full_response, full_reasoning, tool_calls_buffer, has_tool_calls, last_usage = await self._process_stream(stream)
+        api_elapsed = time.perf_counter() - api_start
+        log.info(f"API 流式调用完成: 耗时={api_elapsed:.3f}s")
 
         # 保存 API 返回的精确 token 用量
         if last_usage:
@@ -731,7 +751,8 @@ class DolphinChat:
 
         await self._check_context_usage()
 
-        log.info(f"流式聊天完成: 响应长度={len(full_response)}")
+        total_elapsed = time.perf_counter() - chat_start
+        log.info(f"流式聊天完成: 响应长度={len(full_response)}, 总耗时={total_elapsed:.3f}s")
         return full_response
     
     def clear_history(self):

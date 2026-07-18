@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 from modules.logger import get_logger
@@ -54,8 +55,8 @@ def _resolve_and_validate(work_path: Path, file_path: str) -> Tuple[Optional[Pat
             if current.is_symlink():
                 return None, f"路径包含符号链接，不允许: {current}"
             current = current.parent
-    except OSError:
-        pass
+    except OSError as e:
+        log.warning(f"符号链接检查失败: {e}")
     
     return resolved_path, None
 
@@ -82,6 +83,7 @@ class FileOperation:
     
     def create_file(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """创建文件"""
+        start = time.perf_counter()
         try:
             # 获取参数
             file_path = request_data.get('file_path')
@@ -163,6 +165,8 @@ class FileOperation:
             except Exception as e:
                 log.warning(f"备份操作失败: {e}")
             
+            elapsed = time.perf_counter() - start
+            log.info(f"创建文件完成: {file_path}, 耗时={elapsed:.3f}s, 大小={content_size}字节")
             return {
                 "success": True,
                 "file_path": str(resolved_path.relative_to(work_path)),
@@ -174,13 +178,16 @@ class FileOperation:
                 "message": f"文件已创建: {file_path}"
             }
         except Exception as e:
-            log.error(f"创建文件失败: {e}")
+            elapsed = time.perf_counter() - start
+            log.error(f"创建文件失败: {file_path}, 耗时={elapsed:.3f}s, 错误: {e}")
             return {
                 "error": f"创建文件失败: {str(e)}"
             }
     
     def read_file(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """读取文件"""
+        start = time.perf_counter()
+        file_path = request_data.get('file_path', '')
         try:
             # 获取参数
             file_path = request_data.get('file_path')
@@ -247,6 +254,8 @@ class FileOperation:
             lines_out = [line.rstrip('\n\r') if line else '' for line in selected_lines]
             content = "\n".join(lines_out)
 
+            elapsed = time.perf_counter() - start
+            log.info(f"读取文件完成: {file_path}, 耗时={elapsed:.3f}s, 行数={len(selected_lines)}/{total_lines}")
             return {
                 "success": True,
                 "file_path": str(resolved_path.relative_to(work_path)),
@@ -264,7 +273,8 @@ class FileOperation:
                 "message": f"读取第 {offset + 1}-{end_line} 行，共 {total_lines} 行"
             }
         except Exception as e:
-            log.error(f"读取文件失败: {e}")
+            elapsed = time.perf_counter() - start
+            log.error(f"读取文件失败: {file_path}, 耗时={elapsed:.3f}s, 错误: {e}")
             return {
                 "error": f"读取文件失败: {str(e)}"
             }
@@ -342,6 +352,8 @@ class FileOperation:
 
     def modify_file(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """修改文件 - 基于字符串查找替换"""
+        start = time.perf_counter()
+        file_path = request_data.get('file_path', '')
         try:
             # 获取参数
             file_path = request_data.get('file_path')
@@ -427,6 +439,8 @@ class FileOperation:
             
             new_content_size = len(new_content.encode(encoding))
             
+            elapsed = time.perf_counter() - start
+            log.info(f"修改文件完成: {file_path}, 耗时={elapsed:.3f}s, 新大小={new_content_size}字节")
             return {
                 "success": True,
                 "file_path": str(resolved_path.relative_to(work_path)),
@@ -439,13 +453,16 @@ class FileOperation:
                 "message": f"文件已修改: {file_path}"
             }
         except Exception as e:
-            log.error(f"修改文件失败: {e}")
+            elapsed = time.perf_counter() - start
+            log.error(f"修改文件失败: {file_path}, 耗时={elapsed:.3f}s, 错误: {e}")
             return {
                 "error": f"修改文件失败: {str(e)}"
             }
     
     def delete_file(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """删除文件"""
+        start = time.perf_counter()
+        file_path = request_data.get('file_path', '')
         try:
             # 获取参数
             file_path = request_data.get('file_path')
@@ -500,6 +517,8 @@ class FileOperation:
             except Exception as e:
                 log.warning(f"记录变更失败: {e}")
             
+            elapsed = time.perf_counter() - start
+            log.info(f"删除文件完成: {file_path}, 耗时={elapsed:.3f}s, 大小={file_size}字节")
             return {
                 "success": True,
                 "file_path": str(resolved_path.relative_to(work_path)),
@@ -509,7 +528,8 @@ class FileOperation:
                 "message": f"文件已删除: {file_path}"
             }
         except Exception as e:
-            log.error(f"删除文件失败: {e}")
+            elapsed = time.perf_counter() - start
+            log.error(f"删除文件失败: {file_path}, 耗时={elapsed:.3f}s, 错误: {e}")
             return {
                 "error": f"删除文件失败: {str(e)}"
             }

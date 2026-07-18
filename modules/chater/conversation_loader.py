@@ -1,4 +1,5 @@
 import json
+import time
 from modules.chater import conversation
 from modules.chater import dpc_manager
 from modules.logger import get_logger
@@ -54,15 +55,19 @@ def format_user_output_line(uo: dict) -> str:
 
 
 def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):
+    start = time.perf_counter()
     loaded = chat_instance.load_conversation(dir_id, conv_id)
     if not loaded:
         chat_instance.clear_history()
         conversation.init_conversation(dir_id, conv_id, conv_name, work_dir)
         log.info(f"初始化空对话文件: {conv_name} ({conv_id})")
+    else:
+        log.info(f"加载对话成功: {conv_name} ({conv_id})")
 
     dpc_manager.set_current_by_id(work_dir, conv_id)
 
-    log.info(f"加载对话: {conv_name} ({conv_id})")
+    elapsed = time.perf_counter() - start
+    log.info(f"加载并激活对话完成: {conv_name} ({conv_id}), 耗时={elapsed:.3f}s")
 
     return {
         'conv_name': conv_name,
@@ -72,6 +77,7 @@ def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):
 
 
 def format_conversation_history(messages, show_thinking):
+    start = time.perf_counter()
     if not messages:
         return ""
 
@@ -125,4 +131,7 @@ def format_conversation_history(messages, show_thinking):
                     lines.append(f"{Fore.GREEN}--结果:{Style.RESET_ALL}")
                     lines.append(f"{Fore.GREEN}{tool_content}{Style.RESET_ALL}")
 
-    return "\n".join(lines)
+    result = "\n".join(lines)
+    elapsed = time.perf_counter() - start
+    log.debug(f"渲染对话历史完成: {len(messages)} 条消息, 耗时={elapsed:.3f}s")
+    return result

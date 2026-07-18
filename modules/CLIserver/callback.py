@@ -103,6 +103,7 @@ def chat_callback(event_type, data):
         clear_tool_pending()
         ui._tool_pending = True
         ui._spinner_task = asyncio.ensure_future(run_spinner(data['name']))
+        log.info(f"工具开始执行: {data.get('name', 'unknown')}")
     elif event_type == 'thinking_start':
         if ui.turn_first_output:
             print()
@@ -111,6 +112,7 @@ def chat_callback(event_type, data):
             print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}")
         else:
             ui.thinking_start_time = time.time()
+            log.debug("思考开始")
             print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - 0s{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_chunk':
         if state.show_thinking:
@@ -123,6 +125,7 @@ def chat_callback(event_type, data):
             print(f"\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
         else:
             elapsed = int(time.time() - ui.thinking_start_time)
+            log.info(f"思考完成, 耗时={elapsed}s")
             print(f"\r\033[K{Fore.LIGHTBLACK_EX}[思考完成 {elapsed}s]{Style.RESET_ALL}")
     elif event_type == 'response_chunk':
         if ui.turn_first_output:
@@ -135,6 +138,7 @@ def chat_callback(event_type, data):
         clear_tool_pending()
         sys.stdout.write("\n")
         sys.stdout.flush()
+        log.info(f"工具调用列表: {[call.get('name', 'unknown') for call in data.get('calls', [])]}")
         print(f"{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
         for call in data['calls']:
             print(f"{Fore.BLUE}  - {call['name']}{Style.RESET_ALL}")
@@ -154,6 +158,7 @@ def chat_callback(event_type, data):
         clear_tool_pending()
         sys.stdout.write("\n")
         sys.stdout.flush()
+        log.info("需要用户输入")
         print(f"{Fore.YELLOW}[需要输入]{Style.RESET_ALL}")
         print(f"  {data.get('prompt', '请输入信息')}")
         if data.get('default_value'):
@@ -166,6 +171,7 @@ def chat_callback(event_type, data):
         clear_tool_pending()
         sys.stdout.write("\n")
         sys.stdout.flush()
+        log.info(f"需要用户确认: {data.get('action', 'unknown')}")
         print(f"{Fore.YELLOW}[需要确认]{Style.RESET_ALL}")
         print(f"  操作: {data.get('action', 'unknown')}")
         if data.get('script_preview'):
@@ -179,8 +185,10 @@ def chat_callback(event_type, data):
             print(f"  原因: {data.get('error')}")
         return input("\n是否确认此操作? (y/n): ").lower()
     elif event_type == 'operation_canceled':
+        log.info("操作已取消")
         print("操作已取消")
     elif event_type == 'operation_confirmed':
+        log.info("操作已确认，正在执行")
         print("操作已确认，正在执行...")
     elif event_type == 'console_output':
         content = data.get('content', '')
@@ -195,6 +203,7 @@ def chat_callback(event_type, data):
         current_iterations = data.get('iterations', 0)
         hard_limit = data.get('hard_limit', 100)
         remaining = hard_limit - current_iterations
+        log.warning(f"工具调用达到迭代上限: {current_iterations}/{hard_limit}")
         print(f"\n{Fore.YELLOW}工具调用已达 {current_iterations} 次 (上限 {hard_limit} 次，剩余 {remaining} 次){Style.RESET_ALL}")
         return input("是否继续对话? (y/n): ").lower()
     elif event_type == 'context_usage':

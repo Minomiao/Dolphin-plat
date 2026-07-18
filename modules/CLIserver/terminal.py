@@ -3,7 +3,10 @@ import os
 import sys
 
 from modules.bootstrap import constants
+from modules.logger import get_logger
 from .state import ui
+
+log = get_logger("Dolphin.terminal")
 
 _SCREEN_ALT_ENTER = constants.SCREEN_ALT_ENTER
 _SCREEN_ALT_EXIT = constants.SCREEN_ALT_EXIT
@@ -26,7 +29,8 @@ def supports_ansi():
                 return True
             new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
             return kernel32.SetConsoleMode(stdout_handle, new_mode) != 0
-        except Exception:
+        except Exception as e:
+            log.debug(f"ANSI 检测失败: {e}")
             return False
     term = os.environ.get('TERM', '')
     return term not in ('', 'dumb')

@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from modules.logger import get_logger
 from modules import bootstrap as app_paths
 from modules.bootstrap import constants
@@ -225,6 +226,7 @@ def save_conversation(messages, dir_id, conv_id):
     - 备份管理：{conv_id}/backup_registry.json（由 backup_manager 管理）
     - 备份文件：{conv_id}/backups/{dialog_id}/...
     """
+    start = time.perf_counter()
     conv_base_dir = os.path.join(CONVERSATIONS_DIR, dir_id)
     conv_folder = os.path.join(conv_base_dir, conv_id)
     
@@ -236,7 +238,8 @@ def save_conversation(messages, dir_id, conv_id):
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
     
-    log.info(f"保存对话: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
+    elapsed = time.perf_counter() - start
+    log.info(f"保存对话: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}, 耗时={elapsed:.3f}s")
 
 
 def load_conversation(dir_id, conv_id):
@@ -246,12 +249,14 @@ def load_conversation(dir_id, conv_id):
     - 新格式：{dir_id}/{conv_id}/{conv_id}.json
     - 旧格式：{dir_id}/{conv_id}.json（兼容现有数据）
     """
+    start = time.perf_counter()
     # 尝试新格式
     new_filepath = os.path.join(CONVERSATIONS_DIR, dir_id, conv_id, f"{conv_id}.json")
     if os.path.exists(new_filepath):
         with open(new_filepath, 'r', encoding='utf-8') as f:
             messages = json.load(f)
-            log.info(f"加载对话（新格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
+            elapsed = time.perf_counter() - start
+            log.info(f"加载对话（新格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}, 耗时={elapsed:.3f}s")
             return messages
     
     # 尝试旧格式（兼容现有数据）

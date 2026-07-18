@@ -6,6 +6,8 @@
 - 预留上下文压缩、token 预算管理、滑动窗口等扩展点
 """
 
+import time
+
 from modules.logger import get_logger
 from modules.bootstrap import constants
 
@@ -39,6 +41,7 @@ class ContextManager:
         - 上下文压缩: 对 messages 做裁剪/摘要
         - 滑动窗口: 只保留最近 N 轮
         """
+        start = time.perf_counter()
         system_message = {"role": "system", "content": self._get_system_prompt()}
 
         # ---- 上下文压缩注入点 ----
@@ -46,10 +49,13 @@ class ContextManager:
 
         # 确保 system 在最前面且不重复
         if messages and messages[0].get("role") == "system":
-            # 替换原 system 为最新，但不在原列表上修改
-            return [system_message] + messages[1:]
+            result = [system_message] + messages[1:]
         else:
-            return [system_message] + messages
+            result = [system_message] + messages
+
+        elapsed = time.perf_counter() - start
+        log.debug(f"准备消息完成: {len(result)} 条, 耗时={elapsed:.3f}s")
+        return result
 
     def check_context_usage(self, messages: list, context_window: int) -> dict | None:
         """检查当前上下文用量，在接近窗口上限时返回告警信息。

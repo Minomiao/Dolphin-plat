@@ -354,6 +354,7 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
         work_path.mkdir(parents=True, exist_ok=True)
 
     log.info(f"执行脚本: command_id={command_id}, timeout={timeout}s, wait={wait_time}s")
+    exec_start = time.time()
 
     try:
         process = await _start_process(script, work_path, command_id)
@@ -397,7 +398,8 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
             })
             del _running_processes[command_id]
 
-            log.info(f"命令完成: command_id={command_id}, returncode={process.returncode}")
+            elapsed = time.time() - exec_start
+            log.info(f"命令完成: command_id={command_id}, returncode={process.returncode}, 耗时={elapsed:.3f}s")
 
             return {
                 "success": True,
@@ -415,7 +417,8 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
             # 注册后台超时自动清理，防止进程永久泄漏
             asyncio.create_task(_auto_kill_background(command_id))
 
-            log.info(f"命令仍在运行: command_id={command_id}, stdout={len(stdout)}字")
+            elapsed = time.time() - exec_start
+            log.info(f"命令仍在运行: command_id={command_id}, stdout={len(stdout)}字, 已耗时={elapsed:.3f}s")
 
             return {
                 "success": True,
@@ -457,6 +460,7 @@ async def check_script(command_id: str, wait_time: int = DEFAULT_WAIT_TIME) -> D
     process = proc_info['process']
 
     log.info(f"check_script: command_id={command_id}, wait={wait_time}s")
+    check_start = time.time()
 
     try:
         await asyncio.wait_for(process.wait(), timeout=wait_time)
@@ -475,7 +479,8 @@ async def check_script(command_id: str, wait_time: int = DEFAULT_WAIT_TIME) -> D
         })
         del _running_processes[command_id]
 
-        log.info(f"命令完成: command_id={command_id}, returncode={return_code}")
+        elapsed = time.time() - check_start
+        log.info(f"命令完成: command_id={command_id}, returncode={return_code}, 耗时={elapsed:.3f}s")
 
         lines = stdout.split('\n')
         if len(lines) > MAX_OUTPUT_LINES:
@@ -495,7 +500,8 @@ async def check_script(command_id: str, wait_time: int = DEFAULT_WAIT_TIME) -> D
         if len(lines) > MAX_OUTPUT_LINES:
             stdout = '\n'.join(lines[-MAX_OUTPUT_LINES:]) + f"\n... (输出已截断，共 {len(lines)} 行)"
 
-        log.info(f"命令仍在运行: command_id={command_id}")
+        elapsed = time.time() - check_start
+        log.info(f"命令仍在运行: command_id={command_id}, 已耗时={elapsed:.3f}s")
 
         return {
             "status": "running",

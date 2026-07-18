@@ -7,6 +7,7 @@
 """
 import os
 import threading
+import time
 from typing import List, Dict, Any, Optional
 
 # 抑制 sentence-transformers / transformers 的 tqdm 输出
@@ -71,6 +72,7 @@ class EmbeddingModel:
 
     def _load_onnx(self) -> bool:
         """加载 ONNX Runtime 模型。"""
+        start = time.perf_counter()
         onnx_path = os.path.join(app_paths.MODELS_DIR, ONNX_DIR_NAME, MODEL_DIR_NAME, ONNX_FILENAME)
         model_dir = os.path.join(app_paths.MODELS_DIR, MODEL_DIR_NAME)
 
@@ -82,14 +84,17 @@ class EmbeddingModel:
             self._tokenizer = AutoTokenizer.from_pretrained(model_dir)
             self._use_onnx = True
             self._ready = True
-            log.info("ONNX 模型加载完成")
+            elapsed = time.perf_counter() - start
+            log.info(f"ONNX 模型加载完成, 耗时={elapsed:.3f}s")
             return True
         except Exception as e:
-            log.warning(f"ONNX 加载失败: {e}，回退 torch")
+            elapsed = time.perf_counter() - start
+            log.warning(f"ONNX 加载失败: {e}, 耗时={elapsed:.3f}s, 回退 torch")
             return self._load_torch()
 
     def _load_torch(self) -> bool:
         """加载 SentenceTransformer (torch) 模型。"""
+        start = time.perf_counter()
         model_dir = os.path.join(app_paths.MODELS_DIR, MODEL_DIR_NAME)
         if not os.path.isdir(model_dir):
             log.warning(f"模型目录不存在: {model_dir}")
@@ -100,10 +105,12 @@ class EmbeddingModel:
             self._model = SentenceTransformer(model_dir)
             self._use_onnx = False
             self._ready = True
-            log.info("torch 模型加载完成")
+            elapsed = time.perf_counter() - start
+            log.info(f"torch 模型加载完成, 耗时={elapsed:.3f}s")
             return True
         except Exception as e:
-            log.error(f"模型加载失败: {e}")
+            elapsed = time.perf_counter() - start
+            log.error(f"模型加载失败: {e}, 耗时={elapsed:.3f}s")
             return False
 
     def encode(self, texts: List[str]):
@@ -126,6 +133,7 @@ class EmbeddingModel:
         if not texts:
             return None
 
+        start = time.perf_counter()
         if self._use_onnx:
             import numpy as np
             encoded = self._tokenizer(texts, padding=True, truncation=True, return_tensors="np")
@@ -136,8 +144,12 @@ class EmbeddingModel:
             last_hidden = outputs[0]          # [batch, seq_len, 512]
             cls_emb = last_hidden[:, 0, :]     # [batch, 512]
             norm = np.linalg.norm(cls_emb, axis=1, keepdims=True)
-            return cls_emb / np.maximum(norm, 1e-9)
+            result = cls_emb / np.maximum(norm, 1e-9)
         else:
             import numpy as np
             embs = self._model.encode(texts, normalize_embeddings=True)
-            return np.array(embs)
+            result = np.array(embs)
+
+        elapsed = time.perf_counter() - start
+        log.debug(f"encode 完成: {len(texts)} 条文本, 耗时={elapsed:.3f}s")
+        return result

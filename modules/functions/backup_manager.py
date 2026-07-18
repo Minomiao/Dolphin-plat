@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
@@ -108,6 +109,7 @@ def backup_file(
     Returns:
         备份文件路径（成功）或 None（失败或跳过）
     """
+    start = time.perf_counter()
     try:
         full_path = Path(work_dir) / file_path
         
@@ -163,10 +165,12 @@ def backup_file(
         # 保存备份注册表
         _save_backup_registry(dir_id, conv_id, registry)
         
-        log.debug(f"备份完成: {file_path}, action={action}, file_id={file_id}")
+        elapsed = time.perf_counter() - start
+        log.debug(f"备份完成: {file_path}, action={action}, file_id={file_id}, 耗时={elapsed:.3f}s")
         return str(backup_path)
     except Exception as e:
-        log.error(f"备份文件失败: {file_path}, 错误: {e}")
+        elapsed = time.perf_counter() - start
+        log.error(f"备份文件失败: {file_path}, 耗时={elapsed:.3f}s, 错误: {e}")
         return None
 
 def record_change(
@@ -264,6 +268,7 @@ def get_pending_changes_list(dir_id: str, conv_id: str) -> List[Dict[str, Any]]:
 
 def apply_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
     """应用所有待确认的更改"""
+    start = time.perf_counter()
     log.info(f"开始应用所有待确认的更改: conv={conv_id}")
     registry = _load_backup_registry(dir_id, conv_id)
     results = []
@@ -284,7 +289,8 @@ def apply_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
     
     _save_backup_registry(dir_id, conv_id, registry)
     
-    log.info(f"应用更改完成: {applied_count} 个")
+    elapsed = time.perf_counter() - start
+    log.info(f"应用更改完成: {applied_count} 个, 耗时={elapsed:.3f}s")
     return {
         "success": True,
         "applied_count": applied_count,
@@ -297,6 +303,7 @@ def revert_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
 
     撤销时不保留备份文件，直接删除。
     """
+    start = time.perf_counter()
     log.info(f"开始撤销所有待确认的更改: conv={conv_id}")
     registry = _load_backup_registry(dir_id, conv_id)
     results = []
@@ -374,7 +381,8 @@ def revert_all_changes(dir_id: str, conv_id: str) -> Dict[str, Any]:
     
     _save_backup_registry(dir_id, conv_id, registry)
     
-    log.info(f"撤销更改完成: {reverted_count} 个")
+    elapsed = time.perf_counter() - start
+    log.info(f"撤销更改完成: {reverted_count} 个, 耗时={elapsed:.3f}s")
     return {
         "success": True,
         "reverted_count": reverted_count,
