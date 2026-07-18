@@ -153,6 +153,12 @@ def convert_to_onnx(progress_callback=None) -> bool:
                 dynamo=False,
             )
 
+        if not os.path.isfile(onnx_path):
+            raise FileNotFoundError("ONNX 导出失败，文件不存在")
+
+        # 先记录转换成功，再清理原始权重，避免中间崩溃导致状态不一致
+        _mark_converted(True)
+
         size_mb = os.path.getsize(onnx_path) / 1024 / 1024
         log.info(f"ONNX 导出完成，文件大小: {size_mb:.1f}MB")
 
@@ -161,8 +167,6 @@ def convert_to_onnx(progress_callback=None) -> bool:
 
         # 转换成功，清理原始权重
         _cleanup_original_weights(model_dir)
-
-        _mark_converted(True)
 
         if progress_callback:
             progress_callback(1.0, "ONNX 转换完成")

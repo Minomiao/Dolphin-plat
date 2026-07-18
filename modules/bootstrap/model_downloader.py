@@ -31,9 +31,10 @@ def is_model_downloaded() -> bool:
     if not os.path.isdir(model_dir):
         return False
 
-    # 如果 ONNX 已转换，不检查原始权重文件
+    # 如果 ONNX 已转换且 ONNX 文件确实存在，不检查原始权重文件
     if cfg.get("onnx_converted", False):
-        return True
+        onnx_path = os.path.join(app_paths.MODELS_DIR, "onnx", MODEL_DIR_NAME, "model.onnx")
+        return os.path.isfile(onnx_path)
 
     safetensors = os.path.join(model_dir, "model.safetensors")
     if not os.path.isfile(safetensors):
