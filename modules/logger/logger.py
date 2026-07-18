@@ -3,26 +3,10 @@ import os
 from datetime import datetime
 from modules import bootstrap as app_paths
 
-_dpc_initialized = False
-
-
-def _init_date_dpc():
-    global _dpc_initialized
-    if _dpc_initialized:
-        return
-    _dpc_initialized = True
-    try:
-        from modules.chater import dpc_manager
-        dpc_manager.ensure_restriction(app_paths.DATE_DIR, ["*"])
-    except Exception as e:
-        logging.getLogger("Dolphin.logger").error(f"DPC 初始化失败: {e}")
-
 
 def setup_logger(name="Dolphin", level=logging.DEBUG):
     if not os.path.exists(app_paths.LOG_DIR):
         os.makedirs(app_paths.LOG_DIR)
-
-    _init_date_dpc()
 
     logger = logging.getLogger(name)
     logger.setLevel(level)

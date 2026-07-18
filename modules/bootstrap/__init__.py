@@ -18,6 +18,16 @@ BACKUP_DIR = None
 MODELS_DIR = None
 
 
+def _init_date_dpc():
+    """初始化 date 目录的 DPC 保护，避免 logger 模块与 dpc_manager 循环依赖。"""
+    try:
+        from modules.chater import dpc_manager
+        dpc_manager.ensure_restriction(DATE_DIR, ["*"])
+    except Exception as e:
+        import logging
+        logging.getLogger("Dolphin.bootstrap").error(f"DPC 初始化失败: {e}")
+
+
 def init(root_path: str):
     """由 main.py 调用，传入项目根目录绝对路径。"""
     global PROJECT_ROOT, DATE_DIR, LOG_DIR
@@ -29,3 +39,4 @@ def init(root_path: str):
         return
 
     globals().update(compute(root_path))
+    _init_date_dpc()

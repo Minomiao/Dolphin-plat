@@ -142,9 +142,8 @@ class QuickAIChat:
         # 从配置读取默认工作目录
         self.default_work_directory = _cfg.get('work_directory', 'workplace')
         self.current_work_directory = self.default_work_directory
-        from modules.main_server.middleware import request_manager as rm
-        rm.reset_ai_work_directory()
-        
+        request_manager.reset_ai_work_directory()
+
         log.info(f"初始化 QuickAIChat: model={model}, temperature={temperature}, max_tokens={max_tokens}, enable_tools={enable_tools}")
     
     def add_message(self, role, content, tool_calls=None, reasoning_content=None):
@@ -211,8 +210,7 @@ class QuickAIChat:
     def reset_work_directory(self):
         """重置工作目录到默认配置"""
         self.current_work_directory = self.default_work_directory
-        from modules.main_server.middleware import request_manager as rm
-        rm.reset_ai_work_directory()
+        request_manager.reset_ai_work_directory()
         log.info(f"工作目录已重置为: {self.current_work_directory}")
     
     def get_system_prompt(self) -> str:
@@ -303,8 +301,7 @@ class QuickAIChat:
                 # 拦截 set_work_directory 成功结果，同步更新 AI 临时工作目录
                 if result.get("success") and "set_work_directory" in tool_name and result.get("work_directory"):
                     self.current_work_directory = result["work_directory"]
-                    from modules.main_server.middleware import request_manager as rm
-                    rm.set_ai_work_directory(result["work_directory"])
+                    request_manager.set_ai_work_directory(result["work_directory"])
                     self.skill_mgr.set_work_dir(result["work_directory"])
                     log.info(f"AI 临时工作目录已更新: {self.current_work_directory}")
                 result_str = json.dumps(result, ensure_ascii=False)
