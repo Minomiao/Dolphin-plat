@@ -1,10 +1,15 @@
-"""设置模式、模型设置和工具切换。"""
-from colorama import Fore, Style
+"""设置模式、模型设置和工具切换界面。"""
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.table import Table
 
 from modules.logger import get_logger
 from .state import state
+from .screen_refresh import create_header_panel, create_footer_panel
 
 log = get_logger("Dolphin.settings")
+_console = Console()
 
 
 def _rebuild_client_and_chat():
@@ -32,130 +37,187 @@ def _chat_callback_proxy(event_type, data):
 
 
 def settings_mode():
-    """进入设置模式。"""
+    """进入设置界面。"""
     cmd = state.cmd
     config = state.config
     log.info("进入设置模式")
-    print("\n=== 设置模式 ===")
-    print(f"输入 '{cmd.get_command('back')}' 返回主界面")
-    print("其他配置可使用以下命令:")
-    print(f"  {cmd.get_command('model')} - 切换模型和配置 API 密钥")
-    print(f"  {cmd.get_command('open')}  - 切换工作目录")
-    print()
-    print(f"当前最大Token数: {state.current_config.get('max_tokens', 18000)}")
-    print("推荐值: 18000 (适合大多数场景)")
-    new_max_tokens = input("\n输入新的最大Token数 (留空保持当前值): ")
-    if new_max_tokens == cmd.get_command_keyword('back'):
-        log.info("用户取消设置，返回主界面")
-        print("返回主界面")
-        return
-    if new_max_tokens:
-        try:
-            new_max_tokens = int(new_max_tokens)
-            if new_max_tokens < 1:
-                log.warning(f"Token数过小: {new_max_tokens}")
-                print("Token数至少为 1，保持当前值")
-                new_max_tokens = state.current_config.get('max_tokens', 18000)
-            elif new_max_tokens > 200000:
-                log.warning(f"Token数过大: {new_max_tokens}")
-                print("Token数最大不超过 200000，保持当前值")
-                new_max_tokens = state.current_config.get('max_tokens', 18000)
-        except ValueError:
-            log.warning(f"无效的Token数: {new_max_tokens}")
-            print("请输入有效数字，保持当前值")
-            new_max_tokens = state.current_config.get('max_tokens', 18000)
-    else:
-        new_max_tokens = state.current_config.get('max_tokens', 18000)
 
-    current_prefix = state.current_config.get('command_prefix', '/')
-    print(f"\n当前命令前缀: {current_prefix}")
-    print("修改后将统一更改所有命令的唤起前缀 (例如 /help → .help)")
-    new_prefix = input("输入新的命令前缀 (留空保持当前值, 最长10字符): ")
-    if new_prefix == cmd.get_command_keyword('back'):
-        log.info("用户取消设置，返回主界面")
-        print("返回主界面")
-        return
-    new_prefix = new_prefix.strip()
-    if new_prefix:
-        if len(new_prefix) > 10:
-            log.warning(f"命令前缀过长: {len(new_prefix)}字符")
-            print(f"命令前缀最长 10 个字符，已截断为: {new_prefix[:10]}")
-            new_prefix = new_prefix[:10]
-        state.current_config['command_prefix'] = new_prefix
-        log.info(f"命令前缀已更改: {current_prefix} -> {new_prefix}")
+    def _render():
+        while True:
+            current_max_tokens = state.current_config.get('max_tokens', 18000)
+            current_prefix = state.current_config.get('command_prefix', '/')
 
-    state.current_config['max_tokens'] = new_max_tokens
+            # 构建当前配置表格
+            table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 2))
+            table.add_column("配置项", style="bold white", width=15)
+            table.add_column("当前值", style="dim")
+            table.add_row("最大 Token 数", str(current_max_tokens))
+            table.add_row("命令前缀", current_prefix)
 
-    config.save_config(state.current_config)
-    cmd.save_commands()
-    log.info(f"配置已保存: max_tokens={new_max_tokens}")
-    print("\n配置已保存")
+            # 渲染界面
+            _console.print()
+            _console.print(create_header_panel("设置模式", "配置 Dolphin 的运行参数"))
+            _console.print()
+            _console.print(table)
+            _console.print()
+            _console.print("[bold]操作选项:[/bold]")
+            _console.print("  [cyan]1[/cyan] - 修改最大 Token 数")
+            _console.print("  [cyan]2[/cyan] - 修改命令前缀")
+            _console.print(f"  [dim]{cmd.get_command_keyword('back')}[/dim] - 返回主界面")
+            _console.print()
+            _console.print(create_footer_panel("输入对应选项进行配置"))
 
-    _rebuild_client_and_chat()
+            choice = input("\n> ").strip()
+
+            if choice == cmd.get_command_keyword('back') or not choice:
+                return
+
+            if choice == '1':
+                # 修改最大 Token 数
+                _console.print()
+                _console.print(Panel(Text("当前值: " + str(current_max_tokens) + "\n推荐值: 18000 (适合大多数场景)\n范围: 1-200000"), title="最大 Token 数", border_style="cyan"))
+                new_value = input("输入新的最大 Token 数 (留空保持当前值): ").strip()
+
+                if not new_value:
+                    continue
+
+                try:
+                    new_max_tokens = int(new_value)
+                    if new_max_tokens < 1:
+                        _console.print("[red]Token 数至少为 1[/red]")
+                        input("按 Enter 键继续...")
+                        continue
+                    elif new_max_tokens > 200000:
+                        _console.print("[red]Token 数最大不超过 200000[/red]")
+                        input("按 Enter 键继续...")
+                        continue
+                    state.current_config['max_tokens'] = new_max_tokens
+                    config.save_config(state.current_config)
+                    log.info(f"最大 Token 数已更改: {new_max_tokens}")
+                    _console.print(f"[green]已更新: {new_max_tokens}[/green]")
+                    input("按 Enter 键继续...")
+                except ValueError:
+                    _console.print("[red]请输入有效数字[/red]")
+                    input("按 Enter 键继续...")
+
+            elif choice == '2':
+                # 修改命令前缀
+                _console.print()
+                _console.print(Panel(Text(f"当前前缀: {current_prefix}\n修改后将统一更改所有命令的唤起前缀\n例如: /help → .help"), title="命令前缀", border_style="cyan"))
+                new_prefix = input("输入新的命令前缀 (最长10字符): ").strip()
+
+                if not new_prefix:
+                    continue
+
+                if len(new_prefix) > 10:
+                    new_prefix = new_prefix[:10]
+                    _console.print(f"[yellow]命令前缀已截断为: {new_prefix}[/yellow]")
+
+                state.current_config['command_prefix'] = new_prefix
+                config.save_config(state.current_config)
+                cmd.save_commands()
+                log.info(f"命令前缀已更改: {current_prefix} -> {new_prefix}")
+                _console.print(f"[green]已更新: {new_prefix}[/green]")
+                input("按 Enter 键继续...")
+
+            else:
+                _console.print("[red]无效选项[/red]")
+                input("按 Enter 键继续...")
+
+        # 退出前重建客户端
+        _rebuild_client_and_chat()
+
+    from .screen_refresh import enter_screen
+    enter_screen(_render)
 
 
 def model_settings():
-    """模型设置。"""
+    """模型设置界面。"""
     cmd = state.cmd
     config = state.config
     log.info("进入模型设置")
-    print("=== 模型设置 ===")
-    print(f"输入 '{cmd.get_command('back')}' 返回主界面")
-    print(f"当前模型: {state.current_config.get('model', 'deepseek-v4-flash')}")
 
-    print("\n可用模型:")
     from modules.main_server.config import get_available_models
     available_models = get_available_models()
 
-    new_models = [m for m in available_models if not m["deprecated"]]
-    deprecated_models = [m for m in available_models if m["deprecated"]]
+    def _render():
+        current_model = state.current_config.get('model', 'deepseek-v4-flash')
 
-    idx = 1
-    choice_map = {}
+        while True:
+            # 构建模型列表表格
+            table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 2))
+            table.add_column("#", style="dim", width=4)
+            table.add_column("模型名称", style="bold white", width=30)
+            table.add_column("状态", width=12)
 
-    for model_info in new_models:
-        print(f"{idx}. {model_info['name']}")
-        choice_map[str(idx)] = model_info["name"]
-        idx += 1
+            new_models = [m for m in available_models if not m["deprecated"]]
+            deprecated_models = [m for m in available_models if m["deprecated"]]
 
-    if deprecated_models:
-        print(f"\n--- 已废弃模型 ---")
-        for model_info in deprecated_models:
-            date = model_info.get("deprecation_date", "")
-            date_str = f" (废弃: {date})" if date else ""
-            print(f"{idx}. {model_info['name']}{date_str}")
-            choice_map[str(idx)] = model_info["name"]
-            idx += 1
+            choice_map = {}
+            idx = 1
 
-    model_choice = input(f"\n请选择模型 (1-{idx - 1}): ")
-    if model_choice == cmd.get_command_keyword('back'):
-        log.info("用户取消模型设置，返回主界面")
-        print("返回主界面")
-        return
+            for model_info in new_models:
+                marker = "✓" if model_info['name'] == current_model else ""
+                table.add_row(str(idx), model_info['name'], Text(marker, style="green"))
+                choice_map[str(idx)] = model_info["name"]
+                idx += 1
 
-    if model_choice in choice_map:
-        new_model = choice_map[model_choice]
-    else:
-        log.warning(f"无效的模型选择: {model_choice}")
-        print("无效选择，保持当前模型")
-        new_model = state.current_config.get('model', 'deepseek-v4-flash')
+            if deprecated_models:
+                table.add_row("", "", "")
+                for model_info in deprecated_models:
+                    date = model_info.get("deprecation_date", "")
+                    table.add_row(str(idx), model_info['name'], Text(f"已废弃 ({date})", style="red"))
+                    choice_map[str(idx)] = model_info["name"]
+                    idx += 1
 
-    print(f"\n当前 API 密钥: {'***' if state.current_config.get('api_key') else '未设置'}")
-    new_api_key = input("API 密钥 (留空保持当前值): ")
-    if new_api_key == cmd.get_command_keyword('back'):
-        log.info("用户取消模型设置，返回主界面")
-        print("返回主界面")
-        return
-    new_api_key = new_api_key or state.current_config.get('api_key')
+            # 渲染界面
+            _console.print()
+            _console.print(create_header_panel("模型设置", f"当前模型: {current_model}"))
+            _console.print()
+            _console.print(table)
+            _console.print()
+            _console.print("[bold]操作选项:[/bold]")
+            _console.print(f"  [cyan]1-{idx-1}[/cyan] - 选择模型")
+            _console.print(f"  [cyan]k[/cyan] - 修改 API 密钥")
+            _console.print(f"  [dim]{cmd.get_command_keyword('back')}[/dim] - 返回主界面")
+            _console.print()
+            api_key = state.current_config.get('api_key', '')
+            _console.print(create_footer_panel(f"API 密钥: {'***' + api_key[-4:] if len(api_key) > 4 else ('已设置' if api_key else '未设置')}"))
 
-    state.current_config['api_key'] = new_api_key
-    state.current_config['model'] = new_model
+            choice = input("\n> ").strip()
 
-    config.save_config(state.current_config)
-    log.info(f"模型配置已保存: model={new_model}")
-    print(f"\n模型已切换至: {new_model}")
+            if choice == cmd.get_command_keyword('back') or not choice:
+                return
 
-    _rebuild_client_and_chat()
+            if choice == 'k':
+                # 修改 API 密钥
+                _console.print()
+                new_api_key = input("API 密钥 (留空保持当前值): ").strip()
+                if new_api_key:
+                    state.current_config['api_key'] = new_api_key
+                    config.save_config(state.current_config)
+                    log.info("API 密钥已更新")
+                    _console.print("[green]API 密钥已更新[/green]")
+                    _rebuild_client_and_chat()
+                    input("按 Enter 键继续...")
+                continue
+
+            if choice not in choice_map:
+                _console.print("[red]无效选择[/red]")
+                input("按 Enter 键继续...")
+                continue
+
+            new_model = choice_map[choice]
+            state.current_config['model'] = new_model
+            config.save_config(state.current_config)
+            log.info(f"模型已切换: {new_model}")
+            current_model = new_model
+            _rebuild_client_and_chat()
+            _console.print(f"[green]已切换至: {new_model}[/green]")
+            input("按 Enter 键继续...")
+
+    from .screen_refresh import enter_screen
+    enter_screen(_render)
 
 
 def toggle_tools():

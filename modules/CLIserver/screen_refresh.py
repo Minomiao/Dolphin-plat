@@ -5,9 +5,17 @@
 """
 
 import os
+from typing import Callable, Optional
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.table import Table
+
 from modules.logger import get_logger
 
 log = get_logger("Dolphin.screen_refresh")
+
+_console = Console()
 
 
 def clear_screen():
@@ -31,6 +39,54 @@ def refresh(header_fn, history_fn=None, message=None, show_history=True):
         print(message)
     if show_history and history_fn:
         history_fn()
+
+
+def enter_screen(render_fn: Callable, message: Optional[str] = None):
+    """
+    进入独立界面的统一入口。
+    清屏 -> 调用渲染函数 -> 退出时返回主界面。
+
+    参数:
+        render_fn:   callable, 负责渲染界面内容，可返回任意值
+        message:     str | None, 退出时显示的消息
+
+    返回:
+        render_fn 的返回值
+    """
+    from .header import print_header, print_conversation_history
+
+    clear_screen()
+    result = render_fn()
+    refresh(print_header, print_conversation_history, message)
+    return result
+
+
+def create_header_panel(title: str, subtitle: Optional[str] = None) -> Panel:
+    """创建带标题的面板头部。
+
+    Args:
+        title: 标题文本
+        subtitle: 可选的副标题
+
+    Returns:
+        Rich Panel 对象
+    """
+    content = Text(title, style="bold cyan")
+    if subtitle:
+        content.append(f"\n{subtitle}", style="dim")
+    return Panel(content, border_style="cyan")
+
+
+def create_footer_panel(hint: str) -> Panel:
+    """创建底部提示面板。
+
+    Args:
+        hint: 提示文本
+
+    Returns:
+        Rich Panel 对象
+    """
+    return Panel(Text(hint, style="dim"), border_style="dim")
 
 
 def refresh_with_header(header_fn, message=None, show_history=True, history_fn=None):

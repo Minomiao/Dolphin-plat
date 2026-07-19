@@ -2,13 +2,18 @@
 import os
 import importlib
 
-from colorama import Fore, Style
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.table import Table
 
 from modules import bootstrap
 from modules.logger import get_logger
 from .state import state
+from .screen_refresh import create_header_panel, create_footer_panel
 
 log = get_logger("Dolphin.conversation_ops")
+_console = Console()
 
 
 def _chat_callback_proxy(event_type, data):
@@ -172,16 +177,40 @@ def load_conversation(load_name):
 
 
 def list_conversations():
-    """列出当前目录的所有对话。"""
+    """列出当前目录的所有对话界面。"""
     config = state.config
     from modules.chater import dpc_manager
     work_dir = state.current_config.get('work_directory', 'workplace')
     dpc_convs = dpc_manager.get_conversations(work_dir)
     log.info(f"列出对话（当前目录: {work_dir}），共 {len(dpc_convs)} 个")
-    if dpc_convs:
-        print(f"\n=== 当前目录 '{work_dir}' 的对话 ===")
-        for conv in dpc_convs:
-            marker = " *" if conv["id"] == state.current_conv_id else "  "
-            print(f"  {marker} {conv['name']}")
-    else:
-        print(f"当前目录 '{work_dir}' 没有关联的对话")
+
+    def _render():
+        if dpc_convs:
+            # 构建对话列表表格
+            table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 2))
+            table.add_column("#", style="dim", width=4)
+            table.add_column("对话名称", style="bold white", width=30)
+            table.add_column("状态", width=10)
+
+            for i, conv in enumerate(dpc_convs, 1):
+                if conv["id"] == state.current_conv_id:
+                    table.add_row(str(i), conv['name'], Text("当前", style="green"))
+                else:
+                    table.add_row(str(i), conv['name'], "")
+
+            _console.print()
+            _console.print(create_header_panel("对话列表", f"工作目录: {work_dir}"))
+            _console.print()
+            _console.print(table)
+        else:
+            _console.print()
+            _console.print(create_header_panel("对话列表", f"工作目录: {work_dir}"))
+            _console.print()
+            _console.print(Panel(Text(f"当前目录 '{work_dir}' 没有关联的对话", style="yellow"), border_style="yellow"))
+
+        _console.print()
+        _console.print(create_footer_panel(f"共 {len(dpc_convs)} 个对话 | 按 Enter 键返回主界面"))
+        input()
+
+    from .screen_refresh import enter_screen
+    enter_screen(_render)
