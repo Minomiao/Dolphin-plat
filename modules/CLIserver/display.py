@@ -54,7 +54,7 @@ def show_skills():
     print(f"输入 '{cmd.get_command('back')}' 返回主界面")
     while True:
         choice = input("输入编号切换状态: ").strip()
-        if not choice or choice == cmd.get_command('back'):
+        if not choice or choice == cmd.get_command_keyword('back'):
             return
 
         try:

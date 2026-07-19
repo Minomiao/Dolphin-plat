@@ -76,6 +76,10 @@ def _get_default_commands():
             "effort": {
                 "input": "effort",
                 "description": "设置 AI 思考深度 (fine/normal/high)"
+            },
+            "changes": {
+                "input": "changes",
+                "description": "处理待处理的文件变更"
             }
         }
     }
@@ -212,6 +216,22 @@ def get_command(cmd_key):
     if cmd_key in cmd_list:
         return prefix + cmd_list[cmd_key].get("input", cmd_key)
     return prefix + cmd_key
+
+
+def get_command_keyword(cmd_key):
+    """返回命令的关键词（不含前缀），用于匹配用户输入。
+
+    Args:
+        cmd_key: 命令键名（如 'help', 'set', 'model'）
+
+    Returns:
+        命令关键词（如 'help', 'set', 'model'）
+    """
+    defaults = _get_default_commands()
+    cmd_list = defaults.get("commands", {})
+    if cmd_key in cmd_list:
+        return cmd_list[cmd_key].get("input", cmd_key)
+    return cmd_key
 
 
 def get_command_description(cmd_key):

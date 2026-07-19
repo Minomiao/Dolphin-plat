@@ -45,7 +45,7 @@ def settings_mode():
     print(f"当前最大Token数: {state.current_config.get('max_tokens', 18000)}")
     print("推荐值: 18000 (适合大多数场景)")
     new_max_tokens = input("\n输入新的最大Token数 (留空保持当前值): ")
-    if new_max_tokens == cmd.get_command('back'):
+    if new_max_tokens == cmd.get_command_keyword('back'):
         log.info("用户取消设置，返回主界面")
         print("返回主界面")
         return
@@ -71,7 +71,7 @@ def settings_mode():
     print(f"\n当前命令前缀: {current_prefix}")
     print("修改后将统一更改所有命令的唤起前缀 (例如 /help → .help)")
     new_prefix = input("输入新的命令前缀 (留空保持当前值, 最长10字符): ")
-    if new_prefix == cmd.get_command('back'):
+    if new_prefix == cmd.get_command_keyword('back'):
         log.info("用户取消设置，返回主界面")
         print("返回主界面")
         return
@@ -128,7 +128,7 @@ def model_settings():
             idx += 1
 
     model_choice = input(f"\n请选择模型 (1-{idx - 1}): ")
-    if model_choice == cmd.get_command('back'):
+    if model_choice == cmd.get_command_keyword('back'):
         log.info("用户取消模型设置，返回主界面")
         print("返回主界面")
         return
@@ -142,7 +142,7 @@ def model_settings():
 
     print(f"\n当前 API 密钥: {'***' if state.current_config.get('api_key') else '未设置'}")
     new_api_key = input("API 密钥 (留空保持当前值): ")
-    if new_api_key == cmd.get_command('back'):
+    if new_api_key == cmd.get_command_keyword('back'):
         log.info("用户取消模型设置，返回主界面")
         print("返回主界面")
         return

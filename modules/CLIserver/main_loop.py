@@ -45,60 +45,60 @@ async def main():
 
             current_prefix = state.current_config.get('command_prefix', '/')
             if user_input.startswith(current_prefix):
-                command = user_input[1:].strip()
+                raw = user_input[len(current_prefix):].strip()
+                parts = raw.split(maxsplit=1)
+                keyword = parts[0].lower()
+                args = parts[1] if len(parts) > 1 else ""
 
-                if command == cmd.get_command('help'):
+                if keyword == cmd.get_command_keyword('help'):
                     show_help()
                     continue
-                elif command == cmd.get_command('clear'):
+                elif keyword == cmd.get_command_keyword('clear'):
                     state.chat_instance.clear_history()
                     screen_refresh.refresh(print_header, print_conversation_history, "对话历史已清空", show_history=False)
                     continue
-                elif command == cmd.get_command('model'):
+                elif keyword == cmd.get_command_keyword('model'):
                     model_settings()
                     continue
-                elif command == cmd.get_command('settings'):
+                elif keyword == cmd.get_command_keyword('set'):
                     settings_mode()
                     continue
-                elif command == cmd.get_command('open'):
+                elif keyword == cmd.get_command_keyword('open'):
                     open_work_directory()
                     continue
-                elif command == cmd.get_command('new'):
-                    name = user_input[len(current_prefix) + len(command):].strip()
-                    new_conversation(name)
+                elif keyword == cmd.get_command_keyword('new'):
+                    new_conversation(args)
                     continue
-                elif command == cmd.get_command('list'):
+                elif keyword == cmd.get_command_keyword('list'):
                     list_conversations()
                     continue
-                elif command == cmd.get_command('load'):
-                    name = user_input[len(current_prefix) + len(command):].strip()
-                    load_conversation(name)
+                elif keyword == cmd.get_command_keyword('load'):
+                    load_conversation(args)
                     continue
-                elif command == cmd.get_command('back'):
+                elif keyword == cmd.get_command_keyword('back'):
                     continue
-                elif command == cmd.get_command('exit'):
+                elif keyword == cmd.get_command_keyword('quit'):
                     log.info("用户退出程序")
                     print("再见!")
                     break
-                elif command == cmd.get_command('tools'):
+                elif keyword == cmd.get_command_keyword('tools'):
                     show_tools()
                     continue
-                elif command == cmd.get_command('skills'):
+                elif keyword == cmd.get_command_keyword('skills'):
                     show_skills()
                     continue
-                elif command == cmd.get_command('changes'):
+                elif keyword == cmd.get_command_keyword('changes'):
                     from .changes import handle_pending_changes
                     handle_pending_changes()
                     continue
-                elif command == cmd.get_command('thinking'):
+                elif keyword == cmd.get_command_keyword('showthinking'):
                     state.show_thinking = not state.show_thinking
                     status = "开启" if state.show_thinking else "关闭"
                     print(f"思考过程显示已{status}")
                     continue
-                elif command == cmd.get_command('effort'):
-                    parts = user_input.split()
-                    if len(parts) >= 2:
-                        level = parts[1].lower()
+                elif keyword == cmd.get_command_keyword('effort'):
+                    if args:
+                        level = args.lower()
                         if level in ['normal', 'fine', 'high']:
                             state.effort_level = level
                             state.chat_instance.effort_level = level
@@ -108,11 +108,11 @@ async def main():
                     else:
                         print(f"当前思考强度: {state.effort_level} (可选: normal, fine, high)")
                     continue
-                elif command == cmd.get_command('toggle_tools'):
+                elif keyword == cmd.get_command_keyword('toggle'):
                     toggle_tools()
                     continue
                 else:
-                    print(f"未知命令: {command}")
+                    print(f"未知命令: {keyword}")
                     continue
 
             # 发送消息前检查
