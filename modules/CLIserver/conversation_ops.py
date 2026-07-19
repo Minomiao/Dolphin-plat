@@ -119,21 +119,22 @@ def new_conversation(new_name):
     if not new_name:
         return
 
-    if state.current_conversation == "main" and state.chat_instance.messages:
-        save_choice = input("是否保存当前main对话? (y/n): ").lower()
-        if save_choice == 'y':
-            save_name = input("请输入保存名称: ") or state.current_conversation
-            from modules.chater import dpc_manager
-            work_dir = state.current_config.get('work_directory', 'workplace')
-            save_dir_id = dpc_manager.ensure_dir_id(work_dir)
-            save_conv_id = dpc_manager.add_conversation(work_dir, save_name)
-            state.chat_instance.save_conversation(save_dir_id, save_conv_id)
-            log.info(f"对话已保存: {save_name}")
-            print(f"对话已保存为: {save_name}")
+    # 检查是否已存在同名对话
+    from modules.chater import dpc_manager
+    work_dir = state.current_config.get('work_directory', 'workplace')
+    existing_conv_id = dpc_manager.get_id_by_name(work_dir, new_name)
+    if existing_conv_id:
+        print(f"对话 '{new_name}' 已存在，请使用其他名称（加载已有对话请使用 {cmd.get_command('load')}）")
+        log.warning(f"新建对话被阻止：同名对话已存在 '{new_name}' ({existing_conv_id})")
+        return
+
+    # 自动保存当前对话
+    if state.chat_instance.messages and state.current_dir_id and state.current_conv_id:
+        state.chat_instance.save_conversation(state.current_dir_id, state.current_conv_id)
+        log.info(f"自动保存当前对话: {state.current_conversation}")
 
     state.chat_instance.clear_history()
     from modules.chater import conversation
-    work_dir = state.current_config.get('work_directory', 'workplace')
     dir_id, conv_id = conversation.init_conversation(None, None, new_name, work_dir)
     state.current_conversation = new_name
     state.current_dir_id = dir_id
