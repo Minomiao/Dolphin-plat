@@ -16,6 +16,8 @@ class UIState:
         self._tool_pending = False
         self._spinner_task = None
         self._pending_context_usage = None  # 暂存的 token 用量，在回显中显示
+        self._indented_after_thinking = False  # 思考结束后进入缩进模式
+        self._fold_corner_used = False  # 当前缩进轮次是否已输出折角符号
 
 
 class AppState:

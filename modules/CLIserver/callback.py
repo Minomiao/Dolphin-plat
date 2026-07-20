@@ -19,7 +19,8 @@ async def run_spinner(prefix: str):
     i = 0
     while True:
         frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
-        sys.stdout.write(f"\r\033[K{Fore.CYAN}[{prefix}]{Style.RESET_ALL} {frame}")
+        indent = "  " if ui._indented_after_thinking else ""
+        sys.stdout.write(f"\r\033[K{indent}{Fore.CYAN}[{prefix}]{Style.RESET_ALL} {frame}")
         sys.stdout.flush()
         i += 1
         await asyncio.sleep(0.12)
@@ -31,6 +32,16 @@ def clear_tool_pending():
         ui._spinner_task.cancel()
         ui._spinner_task = None
     ui._tool_pending = False
+
+
+def _get_indent_prefix():
+    """获取思考后内容的缩进前缀，首次调用返回折角符号 ╰─。"""
+    if not ui._indented_after_thinking:
+        return ""
+    if not ui._fold_corner_used:
+        ui._fold_corner_used = True
+        return "╰─ "
+    return "  "
 
 
 def rollback_last_message():
@@ -98,13 +109,17 @@ def chat_callback(event_type, data):
             print()
             ui.turn_first_output = False
         if state.show_thinking:
-            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}\n")
+            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
+            ui._indented_after_thinking = True
+            ui._fold_corner_used = False
     elif event_type == 'tool_start':
         clear_tool_pending()
         ui._tool_pending = True
         ui._spinner_task = asyncio.ensure_future(run_spinner(data['name']))
         log.info(f"工具开始执行: {data.get('name', 'unknown')}")
     elif event_type == 'thinking_start':
+        ui._indented_after_thinking = False
+        ui._fold_corner_used = False
         if ui.turn_first_output:
             print()
             ui.turn_first_output = False
@@ -127,28 +142,51 @@ def chat_callback(event_type, data):
             elapsed = int(time.time() - ui.thinking_start_time)
             log.info(f"思考完成, 耗时={elapsed}s")
             print(f"\r\033[K{Fore.LIGHTBLACK_EX}[思考完成 {elapsed}s]{Style.RESET_ALL}")
+        ui._indented_after_thinking = True
+        ui._fold_corner_used = False
     elif event_type == 'response_chunk':
         if ui.turn_first_output:
             print()
             ui.turn_first_output = False
-        print(data['content'], end="", flush=True)
+        content = data['content']
+        if ui._indented_after_thinking:
+            if '\n' in content:
+                lines = content.split('\n')
+                for line in lines[:-1]:
+                    prefix = _get_indent_prefix()
+                    if line:
+                        print(f"{prefix}{line}")
+                last = lines[-1]
+                if last:
+                    prefix = _get_indent_prefix()
+                    print(f"{prefix}{last}", end="", flush=True)
+            else:
+                prefix = _get_indent_prefix()
+                print(f"{prefix}{content}", end="", flush=True)
+        else:
+            print(content, end="", flush=True)
     elif event_type == 'response_end':
+        ui._indented_after_thinking = False
+        ui._fold_corner_used = False
         print()
     elif event_type == 'tool_calls':
         clear_tool_pending()
         sys.stdout.write("\n")
         sys.stdout.flush()
         log.info(f"工具调用列表: {[call.get('name', 'unknown') for call in data.get('calls', [])]}")
-        print(f"{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
+        prefix = _get_indent_prefix()
+        print(f"{prefix}{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
         for call in data['calls']:
-            print(f"{Fore.BLUE}  - {call['name']}{Style.RESET_ALL}")
+            indent = "  " if ui._indented_after_thinking else ""
+            print(f"{indent}{Fore.BLUE}  - {call['name']}{Style.RESET_ALL}")
             if call.get('arguments'):
-                print(f"{Fore.BLUE}    参数: {call['arguments']}{Style.RESET_ALL}")
+                print(f"{indent}{Fore.BLUE}    参数: {call['arguments']}{Style.RESET_ALL}")
     elif event_type == 'tool_result':
+        indent = "  " if ui._indented_after_thinking else ""
         if data['formatted']:
-            print(f"{Fore.GREEN}--结果:\n{data['formatted']}{Style.RESET_ALL}")
+            print(f"{indent}{Fore.GREEN}--结果:\n{indent}{data['formatted']}{Style.RESET_ALL}")
         else:
-            print(f"{Fore.GREEN}--结果: {data['raw']}{Style.RESET_ALL}")
+            print(f"{indent}{Fore.GREEN}--结果: {data['raw']}{Style.RESET_ALL}")
     elif event_type == 'user_output':
         clear_tool_pending()
         line = format_user_output_line(data)
