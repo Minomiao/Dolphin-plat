@@ -101,7 +101,7 @@ class DolphinChat:
         self.max_tokens = max_tokens
         self.effort_level = "fine"  # fine / normal / high
         self.messages = []
-        self.context = ContextManager(self.get_system_prompt)
+        self.context = ContextManager(self.get_system_prompt, self.get_context_prompt)
         self.enable_tools = enable_tools
         self.callback = callback or (lambda *args, **kwargs: None)
         self.client = OpenAI(
@@ -216,9 +216,20 @@ class DolphinChat:
         log.info(f"工作目录已重置为: {self.current_work_directory}")
     
     def get_system_prompt(self) -> str:
-        """获取系统提示词，由 PromptManager 组合并注入动态信息"""
+        """获取静态系统提示词（仅行为规则，用于 prompt caching）"""
+        prompt_request = self.request_manager.create_prompt_request("system")
+        result = self.request_manager.handle_request(prompt_request, None)
+
+        if result.get("success"):
+            return result.get("prompt", "")
+
+        log.warning("PromptManager 获取系统提示词失败，使用最小化 fallback")
+        return "你是一个AI助手。"
+
+    def get_context_prompt(self) -> str:
+        """获取每轮动态上下文（工作目录 + 目录结构 + 努力程度）"""
         prompt_request = self.request_manager.create_prompt_request(
-            "system",
+            "context",
             work_directory=self.current_work_directory,
             directory_structure=self.get_directory_structure(),
             effort_level=self.effort_level
@@ -228,9 +239,8 @@ class DolphinChat:
         if result.get("success"):
             return result.get("prompt", "")
 
-        # 极端情况下的最小化 fallback
-        log.warning("PromptManager 获取系统提示词失败，使用最小化 fallback")
-        return f"你是一个AI助手。当前工作目录：{self.current_work_directory}。"
+        log.warning("PromptManager 获取上下文提示词失败，使用最小化 fallback")
+        return f"当前工作目录：{self.current_work_directory}。"
     
     def get_directory_structure(self) -> str:
         """获取当前工作目录的目录结构"""

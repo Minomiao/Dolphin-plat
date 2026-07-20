@@ -9,6 +9,7 @@ _PROMPT_FILES = {
     "system": "system.txt",
     "work_directory": "work_directory.txt",
     "directory_structure": "directory_structure.txt",
+    "turn_reminder": "turn_reminder.txt",
 }
 
 _EFFORT_FILES = {
@@ -202,6 +203,15 @@ _DEFAULTS = {
         "- After completing the task, review your own work: verify logical correctness,\n"
         "  check for edge cases, and ensure no regressions were introduced."
     ),
+    "turn_reminder.txt": (
+        "<reminder>\n"
+        "Before responding, remember these rules for THIS turn:\n"
+        "- Lead with the outcome. Be concise and direct.\n"
+        "- Do NOT begin with \"Done\", \"Got it\", \"Great question\", or \"Sure\".\n"
+        "- After working on a file, stop. No explanation unless asked.\n"
+        "- Plain text ONLY. No Markdown, no emojis.\n"
+        "- Default to ASCII when editing files."
+    ),
 }
 
 
@@ -291,13 +301,17 @@ class PromptManager:
                 log.error(f"格式化提示词失败: {e}")
         return prompt
 
-    def compose_system_prompt(self, **kwargs):
-        """组合完整的系统提示词 (system + work_directory + directory_structure + effort)"""
+    def compose_system_prompt(self):
+        """返回静态系统提示词（仅 system.txt，用于 prompt caching）"""
+        return self.prompts.get("system", "")
+
+    def compose_context(self, **kwargs):
+        """组合每轮动态上下文 (turn_reminder + work_directory + directory_structure + effort)"""
         effort_level = kwargs.pop("effort_level", "fine")
         effort_prompt = self.effort_prompts.get(effort_level, "")
 
         parts = [
-            self.get_prompt("system"),
+            self.prompts.get("turn_reminder", ""),
             self.get_prompt("work_directory", **kwargs),
             self.get_prompt("directory_structure", **kwargs),
             effort_prompt,
@@ -339,7 +353,9 @@ class PromptManager:
             kwargs = request.get("kwargs", {})
 
             if prompt_key == "system":
-                prompt = self.compose_system_prompt(**kwargs)
+                prompt = self.compose_system_prompt()
+            elif prompt_key == "context":
+                prompt = self.compose_context(**kwargs)
             else:
                 prompt = self.get_prompt(prompt_key, **kwargs)
 

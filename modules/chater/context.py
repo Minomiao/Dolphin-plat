@@ -23,8 +23,9 @@ _CRITICAL_THRESHOLD = constants.CRITICAL_THRESHOLD
 class ContextManager:
     """管理发送给 API 的上下文消息列表。"""
 
-    def __init__(self, get_system_prompt):
+    def __init__(self, get_system_prompt, get_context_prompt=None):
         self._get_system_prompt = get_system_prompt
+        self._get_context_prompt = get_context_prompt
         # API 返回的精确 token 用量缓存
         self._api_usage = None
         self._cumulative_prompt_tokens = 0
@@ -37,21 +38,21 @@ class ContextManager:
 
         Args:
             messages: 当前的对话历史列表 (self.messages)
-        扩展点:
-        - 上下文压缩: 对 messages 做裁剪/摘要
-        - 滑动窗口: 只保留最近 N 轮
         """
         start = time.perf_counter()
         system_message = {"role": "system", "content": self._get_system_prompt()}
-
-        # ---- 上下文压缩注入点 ----
-        # messages = self._compress(messages)
 
         # 确保 system 在最前面且不重复
         if messages and messages[0].get("role") == "system":
             result = [system_message] + messages[1:]
         else:
             result = [system_message] + messages
+
+        # 每轮注入动态上下文（工作目录、目录结构、努力程度）
+        if self._get_context_prompt:
+            context = self._get_context_prompt()
+            if context:
+                result.insert(1, {"role": "system", "content": context})
 
         elapsed = time.perf_counter() - start
         log.debug(f"准备消息完成: {len(result)} 条, 耗时={elapsed:.3f}s")
