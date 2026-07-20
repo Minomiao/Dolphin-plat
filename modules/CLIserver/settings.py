@@ -16,6 +16,12 @@ def _rebuild_client_and_chat():
     """根据当前配置重建 OpenAI 客户端和 chat 实例。"""
     config = state.config
     chat = state.chat
+
+    # 保留旧实例的消息，避免对话历史丢失
+    old_messages = []
+    if state.chat_instance is not None:
+        old_messages = state.chat_instance.messages
+
     state.client = state.OpenAI(
         api_key=state.current_config.get("api_key"),
         base_url=state.current_config.get("base_url")
@@ -26,6 +32,7 @@ def _rebuild_client_and_chat():
         callback=_chat_callback_proxy
     )
     state.chat_instance.effort_level = state.effort_level
+    state.chat_instance.messages = old_messages
     log.info("客户端已更新")
     print("客户端已更新")
 
@@ -70,6 +77,7 @@ def settings_mode():
             choice = input("\n> ").strip()
 
             if choice == cmd.get_command_keyword('back') or not choice:
+                _rebuild_client_and_chat()
                 return
 
             if choice == '1':
@@ -123,9 +131,6 @@ def settings_mode():
             else:
                 _console.print("[red]无效选项[/red]")
                 input("按 Enter 键继续...")
-
-        # 退出前重建客户端
-        _rebuild_client_and_chat()
 
     from .screen_refresh import enter_screen
     enter_screen(_render)
@@ -211,10 +216,10 @@ def model_settings():
             state.current_config['model'] = new_model
             config.save_config(state.current_config)
             log.info(f"模型已切换: {new_model}")
-            current_model = new_model
             _rebuild_client_and_chat()
             _console.print(f"[green]已切换至: {new_model}[/green]")
             input("按 Enter 键继续...")
+            return
 
     from .screen_refresh import enter_screen
     enter_screen(_render)
