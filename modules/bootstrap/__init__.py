@@ -10,7 +10,6 @@ DATE_DIR = None
 LOG_DIR = None
 CONVERSATIONS_DIR = None
 PROMPT_DIR = None
-PROMPT_FILE = None
 CONFIG_FILE = None
 ENV_FILE = None
 COMMANDS_FILE = None
@@ -31,7 +30,7 @@ def _init_date_dpc():
 def init(root_path: str):
     """由 main.py 调用，传入项目根目录绝对路径。"""
     global PROJECT_ROOT, DATE_DIR, LOG_DIR
-    global CONVERSATIONS_DIR, PROMPT_DIR, PROMPT_FILE
+    global CONVERSATIONS_DIR, PROMPT_DIR
     global CONFIG_FILE, ENV_FILE, COMMANDS_FILE
     global MODELS_DIR
 

@@ -11,7 +11,6 @@ def compute(root_path: str) -> dict:
         "LOG_DIR": os.path.join(date_dir, "log"),
         "CONVERSATIONS_DIR": os.path.join(date_dir, "conversations"),
         "PROMPT_DIR": os.path.join(date_dir, "prompts"),
-        "PROMPT_FILE": os.path.join(date_dir, "prompts", "system_prompts.json"),
         "CONFIG_FILE": os.path.join(date_dir, "config.json"),
         "ENV_FILE": os.path.join(date_dir, ".env"),
         "COMMANDS_FILE": os.path.join(date_dir, "commands.json"),

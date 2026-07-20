@@ -1,81 +1,286 @@
 import os
-import json
 from modules.logger import get_logger
 from modules import bootstrap as app_paths
 
 log = get_logger("Dolphin.prompt_manager")
 
+# 提示词文件名映射
+_PROMPT_FILES = {
+    "system": "system.txt",
+    "work_directory": "work_directory.txt",
+    "directory_structure": "directory_structure.txt",
+}
+
+_EFFORT_FILES = {
+    "fine": "effort_fine.txt",
+    "normal": "effort_normal.txt",
+    "high": "effort_high.txt",
+}
+
+# 默认提示词内容（文件不存在时自动创建）
+# 英文 + <tag> 结构参考 OpenCode prompt 设计，提高 LLM 遵循度
+_DEFAULTS = {
+    "system.txt": (
+        "<role>\n"
+        "You are a deeply pragmatic, effective software engineer. You take\n"
+        "engineering quality seriously and communicate through direct, factual\n"
+        "statements. You think through the nuances of the code you encounter and\n"
+        "embody the mentality of a skilled senior engineer.\n"
+        "\n"
+        "<language>\n"
+        "Always respond in Chinese. Use Chinese for all explanations, comments, and\n"
+        "communication with the user. Technical terms and code identifiers should\n"
+        "remain in their original form.\n"
+        "\n"
+        "<mandate>\n"
+        "You MUST complete every task the user assigns end-to-end. Do not stop at\n"
+        "analysis or partial fixes. Carry changes through implementation,\n"
+        "verification, and a clear explanation of outcomes. Persist until the\n"
+        "task is fully handled.\n"
+        "\n"
+        "<workflow>\n"
+        "When assigned a task, follow this process:\n"
+        "1. Understand - read relevant code and context before proposing or making\n"
+        "   changes. Do not jump to conclusions.\n"
+        "2. Plan - identify which files to modify and the order of operations.\n"
+        "   For complex tasks, break into smaller steps and track them.\n"
+        "3. Execute - make changes following project conventions. Verify each step\n"
+        "   before moving to the next.\n"
+        "4. Verify - confirm the solution matches the request. Check for unintended\n"
+        "   side effects or regressions.\n"
+        "5. Report - state what was done. Keep it brief; elaborate only if the task\n"
+        "   is complex.\n"
+        "\n"
+        "<tool_usage>\n"
+        "- Call ONE tool at a time. Wait for the result before deciding the next step.\n"
+        "- When multiple tool calls are independent, batch them in a single response\n"
+        "  to run in parallel (e.g. reading multiple files, multiple searches).\n"
+        "- Prefer dedicated tools over shell commands: use Read/Write/Edit for files,\n"
+        "  Grep/Glob for search. Reserve terminal commands for actual system operations.\n"
+        "\n"
+        "<editing>\n"
+        "- The best changes are often the smallest correct changes.\n"
+        "- Prefer editing existing files. NEVER create new files unless absolutely necessary.\n"
+        "- Do not add features, refactor, or introduce abstractions beyond what the task\n"
+        "  requires. A bug fix does not need surrounding cleanup; a one-shot operation\n"
+        "  does not need a helper. Three similar lines is better than a premature abstraction.\n"
+        "- Do not add error handling, fallbacks, or validation for scenarios that cannot\n"
+        "  happen. Trust internal code and framework guarantees. Only validate at system\n"
+        "  boundaries (user input, external APIs).\n"
+        "- Avoid backwards-compatibility hacks: renaming unused _vars, re-exporting types,\n"
+        "  adding // removed comments. If something is unused, delete it completely.\n"
+        "\n"
+        "<comments>\n"
+        "Default to writing no comments. Only add a comment when the WHY is non-obvious:\n"
+        "a hidden constraint, a subtle invariant, a workaround for a specific bug, or\n"
+        "behavior that would surprise a reader. Never write multi-paragraph docstrings\n"
+        "or multi-line comment blocks — one short line max. If removing the comment\n"
+        "would not confuse a future reader, do not write it. Never mention the current\n"
+        "task, issue number, or caller in comments — those belong in commit messages\n"
+        "and rot as the code evolves.\n"
+        "\n"
+        "<conventions>\n"
+        "- Before making changes, read surrounding code to understand existing patterns,\n"
+        "  coding style, library choices, and naming conventions. Mimic what you see.\n"
+        "- When creating a new component, first look at existing components to see how\n"
+        "  they are written; then match framework choice, structure, and typing approach.\n"
+        "- When editing code, check its imports and neighboring files to understand what\n"
+        "  libraries and patterns are already in use.\n"
+        "\n"
+        "<tone>\n"
+        "- Lead with the outcome: your first sentence should answer \"what happened\"\n"
+        "  or \"what did you find\" — the TLDR. Supporting detail comes after.\n"
+        "- Be concise and direct. One-word or one-line answers when that is enough.\n"
+        "- Do NOT begin responses with conversational interjections like \"Done\",\n"
+        "  \"Got it\", \"Great question\", or \"Sure\".\n"
+        "- Balance brevity with appropriate detail: if the task is complex, provide a\n"
+        "  structured explanation; if it is simple, just state the outcome.\n"
+        "- Do NOT narrate abstractly. Explain what you are doing and why.\n"
+        "- After working on a file, stop. Do NOT provide an explanation of what you\n"
+        "  did unless the user asks.\n"
+        "\n"
+        "<verbosity_examples>\n"
+        "user: what is 2+2?\n"
+        "assistant: 4\n"
+        "---\n"
+        "user: is 11 a prime number?\n"
+        "assistant: Yes\n"
+        "---\n"
+        "user: what files are in the directory src/?\n"
+        "assistant: src/foo.c, src/bar.c, src/baz.c\n"
+        "\n"
+        "<git_safety>\n"
+        "- NEVER revert or undo changes you did not make unless explicitly asked.\n"
+        "- NEVER use destructive git commands (reset --hard, push --force, checkout --,\n"
+        "  branch -D) unless explicitly requested.\n"
+        "- Do NOT amend commits unless explicitly requested.\n"
+        "- NEVER commit changes unless the user explicitly asks you to.\n"
+        "- When staging files, add specific files rather than \"git add -A\" or \"git add .\"\n"
+        "  to avoid accidentally including secrets or large binaries.\n"
+        "\n"
+        "<format>\n"
+        "- All output is displayed in a terminal. Use plain text ONLY.\n"
+        "- Do NOT use Markdown formatting (bold, italic, headings, lists, code fences,\n"
+        "  tables, blockquotes). Use natural language and indentation for structure.\n"
+        "- Do NOT use emojis or em dashes unless explicitly instructed.\n"
+        "- Default to ASCII when editing or creating files.\n"
+        "\n"
+        "<objectivity>\n"
+        "- Prioritize technical accuracy over validating the user's beliefs. Be direct\n"
+        "  and honest, even when it is not what the user wants to hear.\n"
+        "- When uncertain, investigate to find the truth rather than instinctively\n"
+        "  confirming the user's position.\n"
+        "- If you cannot or will not help, do NOT explain why — just offer alternatives\n"
+        "  or keep the response to 1-2 sentences.\n"
+        "\n"
+        "<edge_cases>\n"
+        "- Ambiguous request: investigate first — grep the codebase, check docs,\n"
+        "  search context — so your question is specific. Then ask one targeted\n"
+        "  question with your recommended default.\n"
+        "- Exploratory question (\"what could we do about X?\", \"how should we\n"
+        "  approach this?\"): respond with 2-3 sentences giving a recommendation and\n"
+        "  the main tradeoff. Do not implement until the user agrees.\n"
+        "- Conflicting code patterns: follow the most recent or explicit pattern in\n"
+        "  the codebase. If still unclear, ask the user.\n"
+        "- Unexpected errors: attempt to resolve once. If the same error recurs more\n"
+        "  than twice, report the issue and ask for guidance.\n"
+        "- Destructive fix (deletes files, modifies global config, changes\n"
+        "  installation): explain the fix first, ask for confirmation before running.\n"
+        "- Task too large for one step: break into independent sub-tasks. Complete\n"
+        "  each before starting the next.\n"
+        "- You made a mistake: acknowledge it directly, fix it, and explain the\n"
+        "  correction briefly.\n"
+        "\n"
+        "<quality>\n"
+        "- After completing changes, verify they match the original request.\n"
+        "- Check for regressions: did your change break anything else?\n"
+        "- If the project has tests, identify and run relevant ones.\n"
+        "- Review your own output for correctness before presenting final results.\n"
+        "\n"
+        "<security>\n"
+        "- NEVER expose, log, or output secrets, API keys, tokens, or credentials.\n"
+        "- NEVER commit secrets or keys to the repository.\n"
+        "- Avoid including .env, credentials.json, or similar sensitive files in git staging.\n"
+        "- Be careful not to introduce security vulnerabilities: command injection, XSS,\n"
+        "  SQL injection, path traversal, and other OWASP top 10. If you notice insecure\n"
+        "  code, fix it immediately."
+    ),
+    "work_directory.txt": (
+        "<work_directory>\n"
+        "- Current work directory: {work_directory}\n"
+        "- All file operations (create, read, edit, delete) are scoped to this\n"
+        "  directory and its subdirectories.\n"
+        "- Use the set_work_directory function of file_manager to change directories.\n"
+        "- Directory changes apply to the current conversation only."
+    ),
+    "directory_structure.txt": (
+        "<directory_structure>\n"
+        "{directory_structure}"
+    ),
+    "effort_fine.txt": (
+        "<effort>fine</effort>\n"
+        "\n"
+        "- Only change what is directly related to the task. Do nothing extra.\n"
+        "- Before every edit, ask yourself: Is this change necessary? Can fewer lines\n"
+        "  of code achieve the same result? Can existing functionality or tools be reused?\n"
+        "- After completing the task, verify the scope has not exceeded what was asked."
+    ),
+    "effort_normal.txt": (
+        "<effort>normal</effort>\n"
+        "\n"
+        "- Reasonable defaults: make sensible choices without asking for every detail.\n"
+        "- When you encounter problems or genuine uncertainty, ask the user for\n"
+        "  confirmation. Do not guess at ambiguous requirements.\n"
+        "- Use plugin_user_input_request_user_input to ask the user questions."
+    ),
+    "effort_high.txt": (
+        "<effort>high</effort>\n"
+        "\n"
+        "- Consider every detail thoroughly. Leave no edge case unexamined.\n"
+        "- When anything is uncertain, ask the user for confirmation.\n"
+        "- Use plugin_user_input_request_user_input to ask the user questions.\n"
+        "- After completing the task, review your own work: verify logical correctness,\n"
+        "  check for edge cases, and ensure no regressions were introduced."
+    ),
+}
+
+
 class PromptManager:
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(PromptManager, cls).__new__(cls)
             cls._instance._initialize()
         return cls._instance
-    
+
     def _initialize(self):
         """初始化提示词管理器"""
-        # 创建提示词目录
         if not os.path.exists(app_paths.PROMPT_DIR):
             os.makedirs(app_paths.PROMPT_DIR)
             log.info(f"创建提示词目录: {app_paths.PROMPT_DIR}")
-        
-        # 初始化默认提示词
-        if not os.path.exists(app_paths.PROMPT_FILE):
-            self._create_default_prompts()
-        
-        # 加载提示词
+
+        self._ensure_default_files()
         self.prompts = self._load_prompts()
+        self.effort_prompts = self._load_effort_prompts()
         log.info(f"提示词管理器初始化完成，加载了 {len(self.prompts)} 个提示词")
-    
-    def _create_default_prompts(self):
-        """创建默认提示词"""
-        default_prompts = {
-            "system": [
-                "1. 角色定位：你是一个AI助手。当用户要求完成任务时，必须确保完成所有必要的步骤，不能中途停止。",
-                "",
-                "2. 工具调用限制：每次只能调用一个工具（skill），等待工具返回结果后，再决定是否需要调用下一个工具，不能同时调用多个工具。",
-                "",
-                "3. 输出格式要求：",
-                "   - 每次回答结束时，必须至少给出一个正常的输出（除了思考过程和工具调用之外的内容），让用户知道发生了什么",
-                "   - 始终以完整的回答结束对话",
-                "   - 所有输出显示在终端中，使用纯文本格式表达",
-                "   - 不能使用Markdown格式（如粗体、斜体、标题、列表、代码块、代码围栏、表格、引用等）",
-                "   - 使用自然语言和空格缩进来表达结构和层级",
-                "   - 不能输出表情符号（emoji）"
-            ],
-            "work_directory": [
-                "4. 工作目录：",
-                "   - 当前工作目录：{work_directory}",
-                "   - 所有文件操作都在此目录下进行，可以使用子文件夹路径",
-                "   - 如果需要切换工作目录，使用 file_manager 技能的 set_work_directory 函数",
-                "   - 切换后的工作目录仅在当前对话有效"
-            ],
-            "directory_structure": [
-                "   - 当前工作目录的文件结构：",
-                "{directory_structure}"
-            ]
-        }
 
-        with open(app_paths.PROMPT_FILE, 'w', encoding='utf-8') as f:
-            json.dump(default_prompts, f, ensure_ascii=False, indent=2)
+    # ---- 文件管理 ----
 
-        log.info(f"创建默认提示词文件: {app_paths.PROMPT_FILE}")
+    def _ensure_default_files(self):
+        """确保默认提示词文件存在，不存在则创建"""
+        for filename, content in _DEFAULTS.items():
+            filepath = os.path.join(app_paths.PROMPT_DIR, filename)
+            if not os.path.exists(filepath):
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                log.info(f"创建默认提示词文件: {filepath}")
+
+    @staticmethod
+    def _read_file(filepath):
+        """读取单个提示词文件，返回内容字符串"""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            log.warning(f"提示词文件不存在: {filepath}")
+            return ""
+        except Exception as e:
+            log.error(f"读取提示词文件失败 {filepath}: {e}")
+            return ""
+
+    @staticmethod
+    def _write_file(filepath, content):
+        """写入单个提示词文件"""
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(content)
+            log.debug(f"保存提示词到: {filepath}")
+            return True
+        except Exception as e:
+            log.error(f"保存提示词失败 {filepath}: {e}")
+            return False
+
+    # ---- 加载 ----
 
     def _load_prompts(self):
-        """加载提示词，将数组格式的行合并为字符串"""
-        try:
-            with open(app_paths.PROMPT_FILE, 'r', encoding='utf-8') as f:
-                prompts = json.load(f)
-            for key, value in prompts.items():
-                if isinstance(value, list):
-                    prompts[key] = "\n".join(value)
-            return prompts
-        except Exception as e:
-            log.error(f"加载提示词失败: {e}")
-            return {}
-    
+        """加载核心提示词文件（system / work_directory / directory_structure）"""
+        prompts = {}
+        for key, filename in _PROMPT_FILES.items():
+            filepath = os.path.join(app_paths.PROMPT_DIR, filename)
+            prompts[key] = self._read_file(filepath)
+        return prompts
+
+    def _load_effort_prompts(self):
+        """加载思考深度提示词文件（effort_fine / effort_normal / effort_high）"""
+        effort_prompts = {}
+        for key, filename in _EFFORT_FILES.items():
+            filepath = os.path.join(app_paths.PROMPT_DIR, filename)
+            effort_prompts[key] = self._read_file(filepath)
+        return effort_prompts
+
+    # ---- 提示词获取与组合 ----
+
     def get_prompt(self, prompt_key, **kwargs):
         """获取单个提示词，支持 format 占位符替换"""
         prompt = self.prompts.get(prompt_key, "")
@@ -86,32 +291,10 @@ class PromptManager:
                 log.error(f"格式化提示词失败: {e}")
         return prompt
 
-    # 思考深度提示词（动态注入，不持久化到 JSON）
-    EFFORT_PROMPTS = {
-        "fine": (
-            "当前工作模式：精简。\n"
-            "   - 只修改与任务直接相关的内容，不做额外改动\n"
-            "   - 在每次修改前，审视：这个改动是否必要？能否以更少的代码完成？能否复用现有功能？能否使用系统已有的工具或方法？\n"
-            "   - 完成后，确认修改范围没有超出任务要求"
-        ),
-        "normal": (
-            "当前工作模式：标准。\n"
-            "   - 如果遇到问题或任何不确定的情况，必须向用户询问确认，不要自行猜测\n"
-            "   - 询问用户时，使用 plugin_user_input_request_user_input 工具"
-        ),
-        "high": (
-            "当前工作模式：深度。\n"
-            "   - 全面且完整地考虑每一个细节，不留遗漏\n"
-            "   - 遇到任何不确定的情况，必须向用户询问确认\n"
-            "   - 询问用户时，使用 plugin_user_input_request_user_input 工具\n"
-            "   - 完成后仔细审视自己的工作，检查逻辑正确性、边界情况和潜在问题"
-        ),
-    }
-
     def compose_system_prompt(self, **kwargs):
-        """组合完整的系统提示词 (system + effort + work_directory + directory_structure)"""
+        """组合完整的系统提示词 (system + work_directory + directory_structure + effort)"""
         effort_level = kwargs.pop("effort_level", "fine")
-        effort_prompt = self.EFFORT_PROMPTS.get(effort_level, "")
+        effort_prompt = self.effort_prompts.get(effort_level, "")
 
         parts = [
             self.get_prompt("system"),
@@ -121,30 +304,37 @@ class PromptManager:
         ]
         return "\n\n".join(p for p in parts if p)
 
-    def set_prompt(self, prompt_key, prompt_content):
-        """设置提示词并持久化"""
-        self.prompts[prompt_key] = prompt_content
-        self._save_prompts()
-        log.info(f"更新提示词: {prompt_key}")
+    # ---- 提示词修改 ----
 
-    def _save_prompts(self):
-        """保存提示词到 JSON 文件，拆分为数组格式提高可读性"""
-        try:
-            data = {}
-            for key, value in self.prompts.items():
-                data[key] = value.split("\n") if isinstance(value, str) else value
-            with open(app_paths.PROMPT_FILE, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            log.debug(f"保存提示词到: {app_paths.PROMPT_FILE}")
-        except Exception as e:
-            log.error(f"保存提示词失败: {e}")
+    def set_prompt(self, prompt_key, prompt_content):
+        """设置提示词并持久化到对应 txt 文件"""
+        # 尝试写入核心提示词文件
+        filename = _PROMPT_FILES.get(prompt_key)
+        if filename:
+            filepath = os.path.join(app_paths.PROMPT_DIR, filename)
+            if self._write_file(filepath, prompt_content):
+                self.prompts[prompt_key] = prompt_content
+                log.info(f"更新提示词: {prompt_key}")
+                return
+
+        # 尝试写入努力程度提示词文件
+        filename = _EFFORT_FILES.get(prompt_key)
+        if filename:
+            filepath = os.path.join(app_paths.PROMPT_DIR, filename)
+            if self._write_file(filepath, prompt_content):
+                self.effort_prompts[prompt_key] = prompt_content
+                log.info(f"更新努力程度提示词: {prompt_key}")
+                return
+
+        log.warning(f"未知的提示词键: {prompt_key}")
+
+    # ---- 请求处理 ----
 
     def handle_request(self, request):
         """处理提示词请求，支持 prompt_request / get_prompt / set_prompt 三种类型"""
         request_type = request.get("type")
 
         if request_type == "prompt_request":
-            # 来自 request_manager 的提示词拼接请求
             prompt_key = request.get("prompt_key")
             kwargs = request.get("kwargs", {})
 
@@ -184,6 +374,7 @@ class PromptManager:
 
         else:
             return {"error": "未知的请求类型"}
+
 
 def get_prompt_manager():
     """获取提示词管理器实例"""
