@@ -19,7 +19,7 @@ async def run_spinner(prefix: str):
     i = 0
     while True:
         frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
-        indent = "  " if ui._indented_after_thinking else ""
+        indent = "  " if (ui._indented_after_thinking and state.show_thinking) else ""
         sys.stdout.write(f"\r\033[K{indent}{Fore.CYAN}[{prefix}]{Style.RESET_ALL} {frame}")
         sys.stdout.flush()
         i += 1
@@ -35,12 +35,16 @@ def clear_tool_pending():
 
 
 def _get_indent_prefix():
-    """获取思考后内容的缩进前缀，首次调用返回折角符号 ╰─。"""
+    """获取思考后内容的缩进前缀，返回统一的 2 空格缩进。
+
+    折角符号已在思考结束时直接输出，因此后续内容只需缩进即可。
+    仅当思考过程实际显示（show_thinking=True）时才返回缩进，
+    否则返回空字符串，保持隐藏思考模式下的正常布局。
+    """
     if not ui._indented_after_thinking:
         return ""
-    if not ui._fold_corner_used:
-        ui._fold_corner_used = True
-        return "╰─ "
+    if not state.show_thinking:
+        return ""
     return "  "
 
 
@@ -109,8 +113,8 @@ def chat_callback(event_type, data):
             print()
             ui.turn_first_output = False
         if state.show_thinking:
-            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
-            ui._indented_after_thinking = True
+            print(f"{Fore.LIGHTBLACK_EX}╰─ 思考过程:{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}")
+            ui._indented_after_thinking = False
             ui._fold_corner_used = False
     elif event_type == 'tool_start':
         clear_tool_pending()
@@ -124,26 +128,24 @@ def chat_callback(event_type, data):
             print()
             ui.turn_first_output = False
         if state.show_thinking:
-            print(f"{Fore.LIGHTBLACK_EX}[思考过程]{Style.RESET_ALL}")
+            print(f"{Fore.LIGHTBLACK_EX}╰─ 思考过程:{Style.RESET_ALL}")
         else:
             ui.thinking_start_time = time.time()
             log.debug("思考开始")
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - 0s{Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 -0s{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_chunk':
         if state.show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}", end="", flush=True)
         else:
             elapsed = int(time.time() - ui.thinking_start_time)
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 - {elapsed}s{Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 -{elapsed}s{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_end':
-        if state.show_thinking:
-            print(f"\n{Fore.LIGHTBLACK_EX}--- 思考过程结束 ---{Style.RESET_ALL}")
-        else:
+        if not state.show_thinking:
             elapsed = int(time.time() - ui.thinking_start_time)
             log.info(f"思考完成, 耗时={elapsed}s")
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}[思考完成 {elapsed}s]{Style.RESET_ALL}")
-        ui._indented_after_thinking = True
-        ui._fold_corner_used = False
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}╰─ 已完成思考 -{elapsed}s{Style.RESET_ALL}")
+        ui._indented_after_thinking = not state.show_thinking
+        ui._fold_corner_used = not state.show_thinking
     elif event_type == 'response_chunk':
         if ui.turn_first_output:
             print()
@@ -177,12 +179,12 @@ def chat_callback(event_type, data):
         prefix = _get_indent_prefix()
         print(f"{prefix}{Fore.BLUE}--工具调用:{Style.RESET_ALL}")
         for call in data['calls']:
-            indent = "  " if ui._indented_after_thinking else ""
+            indent = "  " if (ui._indented_after_thinking and state.show_thinking) else ""
             print(f"{indent}{Fore.BLUE}  - {call['name']}{Style.RESET_ALL}")
             if call.get('arguments'):
                 print(f"{indent}{Fore.BLUE}    参数: {call['arguments']}{Style.RESET_ALL}")
     elif event_type == 'tool_result':
-        indent = "  " if ui._indented_after_thinking else ""
+        indent = "  " if (ui._indented_after_thinking and state.show_thinking) else ""
         if data['formatted']:
             print(f"{indent}{Fore.GREEN}--结果:\n{indent}{data['formatted']}{Style.RESET_ALL}")
         else:

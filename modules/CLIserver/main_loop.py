@@ -92,9 +92,24 @@ async def main():
                     handle_pending_changes()
                     continue
                 elif keyword == cmd.get_command_keyword('showthinking'):
-                    state.show_thinking = not state.show_thinking
-                    status = "开启" if state.show_thinking else "关闭"
-                    print(f"思考过程显示已{status}")
+                    if args:
+                        arg = args.lower()
+                        if arg not in ('on', 'off'):
+                            print(f"无效参数: {arg}，可用参数: on, off")
+                            continue
+                        target = (arg == 'on')
+                        if state.show_thinking == target:
+                            status = "开启" if state.show_thinking else "关闭"
+                            print(f"思考过程显示已经是{status}状态")
+                            continue
+                        state.show_thinking = target
+                        state.current_config['show_thinking'] = target
+                        state.config.save_config(state.current_config)
+                        status = "开启" if state.show_thinking else "关闭"
+                        screen_refresh.refresh(print_header, print_conversation_history, f"思考过程显示已{status}")
+                    else:
+                        status = "开启" if state.show_thinking else "关闭"
+                        print(f"当前思考过程显示:{status}")
                     continue
                 elif keyword == cmd.get_command_keyword('effort'):
                     if args:
@@ -102,6 +117,8 @@ async def main():
                         if level in ['normal', 'fine', 'high']:
                             state.effort_level = level
                             state.chat_instance.effort_level = level
+                            state.current_config['effort_level'] = level
+                            state.config.save_config(state.current_config)
                             print(f"思考强度已设置为: {level}")
                         else:
                             print(f"无效的思考强度，可选: normal, fine, high")
