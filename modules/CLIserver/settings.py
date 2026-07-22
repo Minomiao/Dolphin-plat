@@ -133,7 +133,9 @@ def settings_mode():
                 input("按 Enter 键继续...")
 
     from .screen_refresh import enter_screen
-    enter_screen(_render)
+    enter_screen(_render,
+                 command_input=cmd.get_command('set'),
+                 command_info=f"╰─{cmd.get_command_description('set')}")
 
 
 def model_settings():
@@ -222,7 +224,9 @@ def model_settings():
             return
 
     from .screen_refresh import enter_screen
-    enter_screen(_render)
+    enter_screen(_render,
+                 command_input=cmd.get_command('model'),
+                 command_info=f"╰─{cmd.get_command_description('model')}")
 
 
 def toggle_tools():

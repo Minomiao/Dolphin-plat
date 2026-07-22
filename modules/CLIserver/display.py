@@ -14,8 +14,9 @@ _console = Console()
 
 def show_help():
     """显示命令帮助界面。"""
+    cmd = state.cmd
+
     def _render():
-        cmd = state.cmd
         commands_config = cmd.load_commands()
         cmd_list = commands_config.get("commands", {})
 
@@ -41,11 +42,15 @@ def show_help():
         input()
 
     from .screen_refresh import enter_screen
-    enter_screen(_render)
+    enter_screen(_render,
+                 command_input=cmd.get_command('help'),
+                 command_info=f"╰─{cmd.get_command_description('help')}")
 
 
 def show_tools():
     """显示可用工具界面。"""
+    cmd = state.cmd
+
     def _render():
         tools = state.chat_instance.list_available_tools()
         log.info(f"显示可用工具，共 {len(tools)} 个")
@@ -73,7 +78,9 @@ def show_tools():
         input()
 
     from .screen_refresh import enter_screen
-    enter_screen(_render)
+    enter_screen(_render,
+                 command_input=cmd.get_command('tools'),
+                 command_info=f"╰─{cmd.get_command_description('tools')}")
 
 
 def show_skills():
@@ -147,4 +154,6 @@ def show_skills():
             input("按 Enter 键继续...")
 
     from .screen_refresh import enter_screen
-    enter_screen(_render)
+    enter_screen(_render,
+                 command_input=cmd.get_command('skills'),
+                 command_info=f"╰─{cmd.get_command_description('skills')}")

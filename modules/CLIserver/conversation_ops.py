@@ -179,6 +179,7 @@ def load_conversation(load_name):
 
 def list_conversations():
     """列出当前目录的所有对话界面。"""
+    cmd = state.cmd
     config = state.config
     from modules.chater import dpc_manager
     work_dir = state.current_config.get('work_directory', 'workplace')
@@ -214,4 +215,6 @@ def list_conversations():
         input()
 
     from .screen_refresh import enter_screen
-    enter_screen(_render)
+    enter_screen(_render,
+                 command_input=cmd.get_command('list'),
+                 command_info=f"╰─{cmd.get_command_description('list')}")

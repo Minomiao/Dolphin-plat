@@ -6,6 +6,7 @@
 
 import os
 from typing import Callable, Optional
+from colorama import Fore, Style
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -41,14 +42,18 @@ def refresh(header_fn, history_fn=None, message=None, show_history=True):
         history_fn()
 
 
-def enter_screen(render_fn: Callable, message: Optional[str] = None):
+def enter_screen(render_fn: Callable, message: Optional[str] = None,
+                 command_input: Optional[str] = None,
+                 command_info: Optional[str] = None):
     """
     进入独立界面的统一入口。
     清屏 -> 调用渲染函数 -> 退出时返回主界面。
 
     参数:
-        render_fn:   callable, 负责渲染界面内容，可返回任意值
-        message:     str | None, 退出时显示的消息
+        render_fn:     callable, 负责渲染界面内容，可返回任意值
+        message:       str | None, 退出时显示的消息
+        command_input: str | None, 触发该界面的命令文本（如 '/help'）
+        command_info:  str | None, 命令的描述信息
 
     返回:
         render_fn 的返回值
@@ -58,6 +63,11 @@ def enter_screen(render_fn: Callable, message: Optional[str] = None):
     clear_screen()
     result = render_fn()
     refresh(print_header, print_conversation_history, message)
+    if command_input:
+        print()
+        print(f"{Fore.WHITE}>{Fore.CYAN}{command_input}{Style.RESET_ALL}")
+    if command_info:
+        print(f"{Style.DIM}{command_info}{Style.RESET_ALL}")
     return result
 
 
