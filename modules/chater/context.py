@@ -3,6 +3,7 @@
 
 职责:
 - 将 system prompt + 对话历史拼接为 API 所需的 messages 格式
+- 将动态上下文追加到末尾 user message 以保持前缀稳定，提高缓存命中率
 - 预留上下文压缩、token 预算管理、滑动窗口等扩展点
 """
 
@@ -32,9 +33,18 @@ class ContextManager:
         self._cumulative_completion_tokens = 0
         # 上一轮的 prompt_tokens（用于计算本轮增量）
         self._previous_prompt_tokens = 0
+        # DeepSeek 硬盘缓存命中统计
+        self._cache_hit_tokens = 0
+        self._cache_miss_tokens = 0
+        self._total_cache_hit_tokens = 0
+        self._total_cache_miss_tokens = 0
+        self._turn_count = 0
 
     def prepare_messages(self, messages: list) -> list:
         """构建最终发送给 API 的完整消息列表。
+
+        动态上下文（工作目录、目录结构、努力程度）追加到末尾 user message，
+        而非作为独立 system 消息插入，以保持前缀稳定，提高 DeepSeek 缓存命中率。
 
         Args:
             messages: 当前的对话历史列表 (self.messages)
@@ -48,11 +58,25 @@ class ContextManager:
         else:
             result = [system_message] + messages
 
-        # 每轮注入动态上下文（工作目录、目录结构、努力程度）
+        # 每轮注入动态上下文：追加到最后一条 user message 末尾
+        # 同步写回原 messages 列表，使 context 固化到对话历史中
+        # 这样下一轮的前缀（system + 全部历史）才能精确匹配本轮生成的缓存单元
         if self._get_context_prompt:
             context = self._get_context_prompt()
             if context:
-                result.insert(1, {"role": "system", "content": context})
+                for i in range(len(result) - 1, -1, -1):
+                    if result[i].get("role") == "user":
+                        result[i] = dict(result[i])
+                        result[i]["content"] = result[i]["content"] + "\n\n" + context
+                        # 同步写回原 messages，使本轮 context 固化
+                        msg_idx = i if (messages and messages[0].get("role") == "system") else i - 1
+                        if 0 <= msg_idx < len(messages):
+                            messages[msg_idx] = dict(messages[msg_idx])
+                            messages[msg_idx]["content"] = result[i]["content"]
+                        break
+                else:
+                    result.append({"role": "user", "content": context})
+                    messages.append({"role": "user", "content": context})
 
         elapsed = time.perf_counter() - start
         log.debug(f"准备消息完成: {len(result)} 条, 耗时={elapsed:.3f}s")
@@ -67,6 +91,7 @@ class ContextManager:
 
         Returns:
             None 表示使用率正常；dict 包含 usage_ratio / context_window / estimated_tokens / level
+            以及 cache_hit_tokens / cache_miss_tokens / cache_hit_ratio 等缓存统计
         """
         # 优先使用 API 返回的精确值
         if self._cumulative_prompt_tokens > 0:
@@ -92,6 +117,10 @@ class ContextManager:
                 f"上下文用量告警: {ratio:.1%} ({estimated}/{context_window} tokens), level={level}, source={source}"
             )
 
+        # 计算本轮缓存命中率
+        cache_total = self._cache_hit_tokens + self._cache_miss_tokens
+        cache_hit_ratio = self._cache_hit_tokens / cache_total if cache_total > 0 else 0
+
         return {
             "usage_ratio": ratio,
             "context_window": context_window,
@@ -103,30 +132,49 @@ class ContextManager:
             # 本轮增量
             "turn_prompt_tokens": max(0, self._cumulative_prompt_tokens - self._previous_prompt_tokens),
             "turn_completion_tokens": self._cumulative_completion_tokens,
+            # 缓存命中统计
+            "cache_hit_tokens": self._cache_hit_tokens,
+            "cache_miss_tokens": self._cache_miss_tokens,
+            "cache_hit_ratio": cache_hit_ratio,
+            "turn_count": self._turn_count,
         }
 
     def update_usage_from_api(self, usage) -> None:
         """从 API 响应更新 token 用量（精确值）。
 
         Args:
-            usage: OpenAI API 返回的 usage 对象，包含 prompt_tokens, completion_tokens 等
+            usage: OpenAI API 返回的 usage 对象，包含 prompt_tokens, completion_tokens,
+                   DeepSeek 的 prompt_cache_hit_tokens / prompt_cache_miss_tokens 等
         """
         if usage is None:
             return
 
         self._api_usage = usage
+        self._turn_count += 1
 
         # 更新累计值：prompt_tokens 代表当前完整上下文，completion_tokens 是本轮输出
         if hasattr(usage, 'prompt_tokens') and usage.prompt_tokens:
-            # 记录上一轮的值，用于计算本轮增量
             self._previous_prompt_tokens = self._cumulative_prompt_tokens
             self._cumulative_prompt_tokens = usage.prompt_tokens
         if hasattr(usage, 'completion_tokens') and usage.completion_tokens:
             self._cumulative_completion_tokens = usage.completion_tokens
 
+        # 捕获 DeepSeek 硬盘缓存命中统计
+        # prompt_cache_hit_tokens: 缓存命中的 token 数
+        # prompt_cache_miss_tokens: 缓存未命中的 token 数（需重新计算）
+        hit = getattr(usage, 'prompt_cache_hit_tokens', None)
+        miss = getattr(usage, 'prompt_cache_miss_tokens', None)
+        if hit is not None:
+            self._cache_hit_tokens = hit
+            self._total_cache_hit_tokens += hit
+        if miss is not None:
+            self._cache_miss_tokens = miss
+            self._total_cache_miss_tokens += miss
+
         log.debug(
             f"Token 用量已更新: prompt={self._cumulative_prompt_tokens}, "
-            f"completion={self._cumulative_completion_tokens}"
+            f"completion={self._cumulative_completion_tokens}, "
+            f"cache_hit={self._cache_hit_tokens}, cache_miss={self._cache_miss_tokens}"
         )
 
     def reset_usage(self) -> None:
@@ -135,6 +183,11 @@ class ContextManager:
         self._cumulative_prompt_tokens = 0
         self._cumulative_completion_tokens = 0
         self._previous_prompt_tokens = 0
+        self._cache_hit_tokens = 0
+        self._cache_miss_tokens = 0
+        self._total_cache_hit_tokens = 0
+        self._total_cache_miss_tokens = 0
+        self._turn_count = 0
 
     def _estimate_tokens(self, messages: list) -> int:
         """估算消息列表的 token 数量 (近似算法)。

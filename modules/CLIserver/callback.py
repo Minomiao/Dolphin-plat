@@ -81,15 +81,15 @@ def flush_context_usage():
 
     # 圆形进度条
     if ratio < 0.25:
-        circle = "○"
+        circle = "\u25cb"
     elif ratio < 0.5:
-        circle = "◔"
+        circle = "\u25d4"
     elif ratio < 0.75:
-        circle = "◑"
+        circle = "\u25d1"
     elif ratio < 0.95:
-        circle = "◕"
+        circle = "\u25d5"
     else:
-        circle = "●"
+        circle = "\u25cf"
 
     # 告警提示
     if level == 'critical':
