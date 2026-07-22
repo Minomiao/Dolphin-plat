@@ -95,7 +95,6 @@ def format_conversation_history(messages, show_thinking):
         elif role == 'user':
             lines.append("")
             lines.append(f"{Fore.WHITE}>{Style.RESET_ALL} {content}")
-            lines.append("")
         elif role == 'assistant':
             has_reasoning = bool(msg.get('reasoning_content'))
             if has_reasoning:
