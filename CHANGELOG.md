@@ -1,5 +1,95 @@
 # Change Log
 
+## v1.1.7 (2026-07-22)
+
+CLI module architecture, Rich command interfaces, prompt caching, thinking display refinement, and conversation UX improvements.
+
+### Architecture: CLIserver Module Split
+
+/ Split `main.py` into `modules/CLIserver/` submodules (`245be79`)
+  - `main_loop.py` — command parsing and dispatch
+  - `callback.py` — chat event callbacks
+  - `display.py` — /help, /tools, /skills interfaces
+  - `settings.py` — /set, /model interfaces
+  - `conversation_ops.py` — /new, /load, /list, /open
+  - `changes.py` — pending file changes confirmation
+  - `screen_refresh.py` — unified clear/refresh/enter_screen
+  - `header.py` — header and history rendering
+  - `state.py` — UIState and AppState containers
++ Extract `BaseSkillLoader` from duplicated skill loading logic (`245be79`)
+/ Decouple logger from dpc_manager and clean chat imports (`b8c5649`)
++ Add missing logs and performance timing logs (`ab6c1ca`)
+/ Unify code style per Dolphin naming conventions (`245be79`)
+
+### Startup Performance
+
++ Defer heavy module imports to startup progress stages (`4451d10`)
+  - OpenAI, chat, conversation_loader loaded after splash screen
+  - Progress bar feedback for each import stage
+  - Module references stored in `AppState` for lazy access
+
+### Rich Command Interfaces
+
++ Add independent screen UI for all command interfaces (`3cc3efa`)
+  - /help — Rich Panel header + Table of commands + footer prompt
+  - /tools — Rich Panel header + Table of available tools + footer prompt
+  - /skills — Rich Panel header + interactive toggle Table
+  - /set — Rich Panel header + config Table + interactive options
+  - /model — Rich Panel header + model selection Table + API key management
+  - /list — Rich Panel header + conversation Table with current marker
+  - Unified `enter_screen()` → clear → render → restore pattern
++ Show command echo in cyan with dim description after exiting screen (`4ac0aff`)
+  - `> /help` in cyan, `╰─显示此帮助信息` in dim gray
+  - Consistent visual style across all command exits
+
+### Prompt Management & Caching
+
+/ Migrate system prompts from JSON to individual TXT files with English tag structure (`b133285`)
+  - One file per prompt section (identity, tools, guidelines, etc.)
+  - English tag names for bilingual content organization
+/ Separate static system prompt from per-turn dynamic context for prompt caching (`b06621f`)
+  - Static prompt: identity + tools + guidelines (cacheable prefix)
+  - Dynamic context: effort level, work directory, skill status (per-turn)
+/ Store per-turn context in `_context` field instead of polluting content (`e88696a`)
+/ Move dynamic context to last user message and sync back for cache prefix matching (`e368966`)
+
+### Thinking Display Refinement
+
+/ Refine thinking display with fold-corner prefix and on/off toggle (`2b3c327`)
++ Add fold-corner symbol (`╰─`) and indent for response after thinking (`8632a7b`)
+  - After thinking ends, first response line indented with fold-corner
+  - Subsequent lines aligned with indent for visual grouping
+  - Indent cleared on next user message for clean transitions
+
+### Conversation UX
+
++ Fix: return to main after model selection and preserve messages on client rebuild (`e28c8ba`)
++ Prevent /new from creating duplicate-named conversations (`7926045`)
+  - Auto-save current conversation before creating new one
++ Resolve command matching failures caused by prefixed-keyword mismatch (`c57416a`)
+/ Remove redundant blank lines between user input and thinking/response output (`89dedfd`)
+  - Remove empty line after `>` user input in live callback
+  - Remove empty line after `>` user input in history formatting
+  - Remove empty line after `response_end`
+  - Keep one blank line before each conversation turn for separation
+
+### Confirmation UI
+
+/ Refactor change confirmation UI with Rich components and conversation context (`dccb09e`)
++ Fix scroll and token display timing in confirmation screen (`9a69599`)
+
+### Token Usage & Context
+
++ Use API-provided token usage instead of estimation (`3a188a0`)
++ Fix create_file backup issue and enhance tool guidance (`896bd47`)
+
+### ONNX Model
+
+/ Persist `onnx_converted` flag before cleaning original weights (`40b1e51`)
+  - Prevents repeated conversion attempts on restart
+
+---
+
 ## v1.1.6 (2026-07-11)
 
 User Output parts protocol, web search embedding model with ONNX runtime, web page fetching, tool spinner animation, and packaging updates.
