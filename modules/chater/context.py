@@ -43,8 +43,10 @@ class ContextManager:
     def prepare_messages(self, messages: list) -> list:
         """构建最终发送给 API 的完整消息列表。
 
-        动态上下文（工作目录、目录结构、努力程度）追加到末尾 user message，
-        而非作为独立 system 消息插入，以保持前缀稳定，提高 DeepSeek 缓存命中率。
+        动态上下文（工作目录、目录结构、努力程度）通过独立 _context 字段存储，
+        发送时从 content + _context 拼接，写回时只写 _context 不污染 content。
+        末尾 user message 额外追加本轮 context。
+        保持前缀稳定以提高 DeepSeek 缓存命中率。
 
         Args:
             messages: 当前的对话历史列表 (self.messages)
@@ -54,13 +56,20 @@ class ContextManager:
 
         # 确保 system 在最前面且不重复
         if messages and messages[0].get("role") == "system":
-            result = [system_message] + messages[1:]
+            source = messages[1:]
         else:
-            result = [system_message] + messages
+            source = messages
+
+        # 构建发送用列表：对有 _context 的 user 消息还原完整 content
+        result = [system_message]
+        for msg in source:
+            if msg.get("role") == "user" and msg.get("_context"):
+                msg = dict(msg)
+                msg["content"] = msg["content"] + "\n\n" + msg.pop("_context")
+            result.append(msg)
 
         # 每轮注入动态上下文：追加到最后一条 user message 末尾
-        # 同步写回原 messages 列表，使 context 固化到对话历史中
-        # 这样下一轮的前缀（system + 全部历史）才能精确匹配本轮生成的缓存单元
+        # 同步写回 _context 字段，保持 content 为原始用户输入
         if self._get_context_prompt:
             context = self._get_context_prompt()
             if context:
@@ -68,11 +77,13 @@ class ContextManager:
                     if result[i].get("role") == "user":
                         result[i] = dict(result[i])
                         result[i]["content"] = result[i]["content"] + "\n\n" + context
-                        # 同步写回原 messages，使本轮 context 固化
-                        msg_idx = i if (messages and messages[0].get("role") == "system") else i - 1
+                        # 写回 _context，content 保持不变
+                        msg_idx = i - 1  # result[0] 是 system_message，result[1:] 对应 source(=messages[1:] or messages)
+                        if (messages and messages[0].get("role") == "system"):
+                            msg_idx = i  # result[i] 直接对应 messages[i]
                         if 0 <= msg_idx < len(messages):
                             messages[msg_idx] = dict(messages[msg_idx])
-                            messages[msg_idx]["content"] = result[i]["content"]
+                            messages[msg_idx]["_context"] = context
                         break
                 else:
                     result.append({"role": "user", "content": context})
