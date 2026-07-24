@@ -42,9 +42,10 @@ def open_work_directory(path=None, silent=False):
         path = os.path.normpath(os.path.join(bootstrap.PROJECT_ROOT, path))
 
     old_work_directory = state.current_config.get('work_directory', 'workplace')
-    state.current_config['work_directory'] = path
-    config.save_config(state.current_config)
-    log.info(f"工作目录已更改: {old_work_directory} -> {path}")
+    if path != old_work_directory:
+        state.current_config['work_directory'] = path
+        config.save_config(state.current_config)
+        log.info(f"工作目录已更改: {old_work_directory} -> {path}")
 
     if path != old_work_directory:
         print(f"工作目录已更改，正在重新加载技能模块...")

@@ -32,19 +32,18 @@ def _get_onnx_path() -> str:
 
 
 def is_onnx_converted() -> bool:
-    """检查 ONNX 模型是否已转换（config 标记 + 文件存在性双重验证）。"""
-    from modules.main_server import config
-    try:
-        if not config.load_config().get("onnx_converted", False):
-            return False
-    except Exception:
-        return False
-
-    # 二次验证：ONNX 文件是否存在
+    """检查 ONNX 模型是否已转换（基于文件存在性，配置标志仅作辅助修复）。"""
     onnx_path = _get_onnx_path()
     if not os.path.isfile(onnx_path):
         return False
 
+    # 如果配置标志与实际状态不一致，自动修复（修复失败不影响判断结果）
+    try:
+        from modules.main_server import config
+        if not config.load_config().get("onnx_converted", False):
+            _mark_converted(True)
+    except Exception:
+        pass
     return True
 
 
@@ -57,7 +56,7 @@ def _mark_converted(success: bool):
         config.save_config(cfg)
         log.info(f"ONNX 转换状态已记录: {success}")
     except Exception as e:
-        log.warning(f"记录 ONNX 转换状态失败: {e}")
+        log.error(f"记录 ONNX 转换状态失败: {e}", exc_info=True)
 
 
 def _cleanup_original_weights(model_dir: str):
@@ -174,6 +173,13 @@ def convert_to_onnx(progress_callback=None) -> bool:
         return True
 
     except Exception as e:
+        # 如果 ONNX 文件存在，说明导出已成功，后续清理/日志异常不影响转换结果
+        if os.path.isfile(onnx_path):
+            log.warning(f"ONNX 转换后处理异常（转换本身已成功）: {e}")
+            if progress_callback:
+                progress_callback(1.0, "ONNX 转换完成")
+            return True
+
         log.error(f"ONNX 转换失败: {e}")
 
         # 清理不完整的 ONNX 文件

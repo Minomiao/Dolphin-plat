@@ -17,30 +17,37 @@ HF_MIRROR = "https://hf-mirror.com"
 
 def get_model_dir() -> str:
     """返回模型存放的本地绝对路径。"""
-    return os.path.join(app_paths.PROJECT_ROOT, "models", MODEL_DIR_NAME)
+    return os.path.join(app_paths.MODELS_DIR, MODEL_DIR_NAME)
 
 
 def is_model_downloaded() -> bool:
-    """检查模型是否已下载完成（通过 config 标记 + 文件存在性双重验证）。"""
-    from modules.main_server import config
-    cfg = config.load_config()
-    if not cfg.get("embedding_model_downloaded", False):
-        return False
+    """检查模型是否已下载（基于文件存在性，配置标志仅作辅助修复）。
 
+    不依赖 config 标志做分支判断：只要 ONNX 文件或 safetensors 任一存在即认为已下载。
+    若配置标志与实际文件状态不一致，自动修复标志。
+    """
     model_dir = get_model_dir()
     if not os.path.isdir(model_dir):
         return False
 
-    # 如果 ONNX 已转换且 ONNX 文件确实存在，不检查原始权重文件
-    if cfg.get("onnx_converted", False):
-        onnx_path = os.path.join(app_paths.MODELS_DIR, "onnx", MODEL_DIR_NAME, "model.onnx")
-        return os.path.isfile(onnx_path)
-
+    onnx_path = os.path.join(app_paths.MODELS_DIR, "onnx", MODEL_DIR_NAME, "model.onnx")
     safetensors = os.path.join(model_dir, "model.safetensors")
-    if not os.path.isfile(safetensors):
-        return False
 
-    return True
+    if os.path.isfile(onnx_path) or os.path.isfile(safetensors):
+        # 如果配置标志与实际状态不一致，自动修复（修复失败不影响判断结果）
+        try:
+            from modules.main_server import config
+            cfg = config.load_config()
+            if not cfg.get("embedding_model_downloaded", False):
+                _mark_downloaded(True)
+            if os.path.isfile(onnx_path) and not cfg.get("onnx_converted", False):
+                from modules.bootstrap.onnx_converter import _mark_converted
+                _mark_converted(True)
+        except Exception:
+            pass
+        return True
+
+    return False
 
 
 def _mark_downloaded(success: bool):
@@ -52,7 +59,7 @@ def _mark_downloaded(success: bool):
         config.save_config(cfg)
         log.info(f"模型下载状态已记录: {success}")
     except Exception as e:
-        log.warning(f"记录模型下载状态失败: {e}")
+        log.error(f"记录模型下载状态失败: {e}", exc_info=True)
 
 
 def download_model(progress_callback=None) -> bool:
@@ -79,12 +86,10 @@ def download_model(progress_callback=None) -> bool:
         if progress_callback:
             progress_callback(0.1, "正在加载下载工具...")
 
-        from huggingface_hub import snapshot_download
+        from huggingface_hub import hf_hub_download, list_repo_files
 
         if progress_callback:
             progress_callback(0.2, "正在下载嵌入模型...")
-
-        from huggingface_hub import hf_hub_download, list_repo_files
 
         # 获取所有文件列表
         files = list_repo_files(MODEL_NAME)

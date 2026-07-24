@@ -32,12 +32,15 @@ env/
 skills/*/__init__.py
 beta/
 modules/old_version/
+.gitignore
 
 
 # Build files
 dist_pyinstaller/
 dist_dolphin/
 dist_server/
+build_temp/
+included_models/
 *.spec
 *.exe
 build.py

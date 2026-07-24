@@ -11,8 +11,11 @@ import asyncio
 from modules import bootstrap
 
 # 入口文件确定项目根目录（兼容 PyInstaller 打包）
-if getattr(sys, 'frozen', False):
+_is_frozen = getattr(sys, 'frozen', False)
+if _is_frozen:
     bootstrap.init(os.path.dirname(os.path.abspath(sys.executable)))
+    # 预打包的模型文件在 _internal/models/ 下（由 package.py --add-data 引入）
+    bootstrap.MODELS_DIR = os.path.join(sys._MEIPASS, "models")
 else:
     bootstrap.init(os.path.dirname(os.path.abspath(__file__)))
 
@@ -79,8 +82,15 @@ def _load_core_modules():
 
 
 def _download_embedding_model_if_needed():
-    """嵌入模型下载 + ONNX 转换（仅在 web_search 启用时执行）。"""
+    """嵌入模型下载 + ONNX 转换（仅在 web_search 启用时执行）。
+
+    打包环境中模型已预置，跳过下载和转换。
+    """
     if not state.current_config.get('skills', {}).get('web_search', False):
+        return
+
+    # 打包环境：模型已通过 package.py 预转换并随 --add-data 打包
+    if _is_frozen:
         return
 
     from modules.bootstrap.model_downloader import is_model_downloaded, download_model
