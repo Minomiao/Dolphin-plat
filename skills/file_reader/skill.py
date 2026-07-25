@@ -7,6 +7,7 @@ MAX_FILES_TO_READ = constants.MAX_FILES_TO_READ
 MAX_FILE_SIZE = constants.MAX_FILE_SIZE
 MAX_SEARCH_RESULTS = constants.MAX_SEARCH_RESULTS
 MAX_FILES_TO_SEARCH_IN_CONTENT = constants.MAX_FILES_TO_SEARCH_IN_CONTENT
+MAX_MATCHES_PER_FILE = constants.MAX_MATCHES_PER_FILE
 
 
 def _check_dpc_restriction(absolute_path: str, work_dir: str) -> tuple:
@@ -144,8 +145,6 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
                     continue
                 if file_extension and file_path.suffix != file_extension:
                     continue
-                if len(results) >= MAX_SEARCH_RESULTS:
-                    break
                 if files_searched >= MAX_FILES_TO_SEARCH_IN_CONTENT:
                     break
                 files_searched += 1
@@ -156,15 +155,27 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
                     allowed, _ = _check_dpc_restriction(str(file_path), wd)
                     if not allowed:
                         continue
+                    matched_lines = []
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        if pattern.lower() in content.lower():
-                            relative_path = file_path.relative_to(Path(wd))
-                            results.append({
-                                "name": file_path.name,
-                                "path": str(relative_path),
-                                "size": file_size
-                            })
+                        for line_num, line in enumerate(f, 1):
+                            if len(matched_lines) >= MAX_MATCHES_PER_FILE:
+                                break
+                            if pattern.lower() in line.lower():
+                                matched_lines.append({
+                                    "line": line_num,
+                                    "content": line.rstrip('\n\r')
+                                })
+                    if matched_lines:
+                        relative_path = file_path.relative_to(Path(wd))
+                        results.append({
+                            "name": file_path.name,
+                            "path": str(relative_path),
+                            "size": file_size,
+                            "matches": matched_lines,
+                            "match_count": len(matched_lines)
+                        })
+                        if len(results) >= MAX_SEARCH_RESULTS:
+                            break
                 except Exception:
                     pass
         else:
