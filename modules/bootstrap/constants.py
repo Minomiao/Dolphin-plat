@@ -16,6 +16,9 @@ MAX_MATCHES_PER_FILE = 20  # 内容搜索时每个文件最多返回的匹配行
 # ===== 网页抓取限制 =====
 MAX_WEB_CONTENT_LENGTH = 8000  # 单个网页内容最大字符数
 
+# ===== 网页搜索限制 =====
+WEB_SEARCH_DEFAULT_RESULTS = 15     # 默认返回结果数量
+
 # ===== PowerShell 执行限制 =====
 MAX_SCRIPT_LENGTH = 10000
 MAX_OUTPUT_LENGTH = 50000

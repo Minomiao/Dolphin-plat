@@ -115,33 +115,6 @@ class SkillContext:
             return self._powershell_manager.kill_command(command_id)
         return {"error": "powershell_manager 不可用"}
 
-    # ===== 嵌入模型（仅提供向量化，不做匹配判断）=====
-    def encode_texts(self, texts: List[str]):
-        """使用嵌入模型将文本编码为向量。
-
-        Args:
-            texts: 要编码的文本列表
-
-        Returns:
-            numpy array (n, 512) L2 归一化，模型不可用时返回 None
-        """
-        try:
-            from modules.functions.embedding import EmbeddingModel
-            return EmbeddingModel.get_instance().encode(texts)
-        except Exception as e:
-            if self._logger:
-                self._logger.warning(f"嵌入编码不可用: {e}")
-            return None
-
-    @property
-    def embedding_ready(self) -> bool:
-        """嵌入模型是否已就绪。"""
-        try:
-            from modules.functions.embedding import EmbeddingModel
-            return EmbeddingModel.get_instance().is_ready
-        except Exception:
-            return False
-
 
 def create_default_context(work_directory: str) -> SkillContext:
     """创建包含默认依赖的 SkillContext。"""
