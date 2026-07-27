@@ -8,7 +8,7 @@
 #
 # 添加项目相关术语，提高分词准确性：
 
-# 技术领域常用词
+# ===== 机器学习/深度学习 =====
 深度学习 10 n
 机器学习 10 n
 人工智能 10 n
@@ -19,25 +19,234 @@
 计算机视觉 8 n
 强化学习 8 n
 迁移学习 8 n
+监督学习 6 n
+无监督学习 6 n
+半监督学习 6 n
+特征工程 6 n
+梯度下降 6 n
+反向传播 6 n
+损失函数 6 n
+激活函数 6 n
+优化算法 6 n
+过拟合 6 n
+欠拟合 6 n
+正则化 6 n
+超参数 6 n
+权重衰减 6 n
+批量归一化 6 n
+注意力机制 6 n
+Transformer 8 n
+BERT 6 n
+GPT 6 n
+大语言模型 8 n
+生成式AI 6 n
 
-# 编程相关
+# ===== 编程语言 =====
+Python 10 n
+JavaScript 8 n
+TypeScript 6 n
+Java 8 n
+C语言 6 n
+C++ 8 n
+C Sharp 6 n
+Go语言 6 n
+Rust 6 n
+Swift 6 n
+Kotlin 6 n
+Ruby 6 n
+PHP 6 n
+Perl 6 n
+Scala 6 n
+R语言 6 n
+Julia 6 n
+MATLAB 6 n
+汇编语言 6 n
+
+# ===== 前端开发 =====
+前端开发 8 n
+React 8 n
+Vue 8 n
+Angular 6 n
+Next.js 6 n
+Nuxt.js 6 n
+Svelte 6 n
+响应式设计 6 n
+单页应用 6 n
+渐进式框架 6 n
+状态管理 6 n
+虚拟DOM 6 n
+组件化开发 6 n
+前端工程化 6 n
+Webpack 6 n
+Vite 6 n
+Rollup 6 n
+
+# ===== 后端开发 =====
+后端开发 8 n
+RESTful 6 n
+API接口 6 n
+微服务架构 8 n
+服务端渲染 6 n
+中间件 6 n
+消息队列 6 n
+负载均衡 6 n
+反向代理 6 n
+Spring Boot 6 n
+Django 8 n
+Flask 8 n
+FastAPI 8 n
+Express 6 n
+Nest.js 6 n
+Koa 6 n
+Gin 6 n
+Echo 6 n
+
+# ===== 数据库 =====
+数据库 8 n
+关系型数据库 6 n
+非关系型数据库 6 n
+MySQL 8 n
+PostgreSQL 6 n
+SQLite 6 n
+Oracle 6 n
+SQL Server 6 n
+MongoDB 6 n
+Redis 6 n
+Elasticsearch 6 n
+数据建模 6 n
+索引优化 6 n
+事务处理 6 n
+主从复制 6 n
+分库分表 6 n
+读写分离 6 n
+
+# ===== 云计算/DevOps =====
+云计算 8 n
+容器化 8 n
+容器编排 6 n
+Docker 10 n
+Kubernetes 8 n
+持续集成 8 n
+持续部署 8 n
+CI/CD 8 n
+自动化部署 6 n
+基础设施即代码 6 n
+配置管理 6 n
+服务网格 6 n
+AWS 6 n
+Azure 6 n
+Google Cloud 6 n
+阿里云 6 n
+腾讯云 6 n
+华为云 6 n
+
+# ===== 移动开发 =====
+移动开发 6 n
+iOS开发 6 n
+Android开发 6 n
+跨平台开发 6 n
+React Native 6 n
+Flutter 6 n
+原生应用 6 n
+混合应用 6 n
+移动端适配 6 n
+
+# ===== 数据科学/分析 =====
+数据科学 8 n
+数据分析 8 n
+数据挖掘 6 n
+数据可视化 6 n
+统计分析 6 n
+特征提取 6 n
+数据清洗 6 n
+数据预处理 6 n
+探索性分析 6 n
+A/B测试 6 n
+商业智能 6 n
+Pandas 8 n
+NumPy 8 n
+Matplotlib 6 n
+Seaborn 6 n
+Plotly 6 n
+
+# ===== 网络安全 =====
+网络安全 8 n
+渗透测试 6 n
+漏洞扫描 6 n
+安全审计 6 n
+加密算法 6 n
+身份认证 6 n
+访问控制 6 n
+防火墙 6 n
+入侵检测 6 n
+安全加固 6 n
+SQL注入 6 n
+跨站脚本 6 n
+跨站请求伪造 6 n
+
+# ===== 区块链 =====
+区块链 8 n
+智能合约 6 n
+去中心化 6 n
+以太坊 6 n
+比特币 6 n
+共识算法 6 n
+加密货币 6 n
+分布式账本 6 n
+
+# ===== 物联网/嵌入式 =====
+物联网 8 n
+嵌入式开发 6 n
+传感器 6 n
+单片机 6 n
+边缘计算 6 n
+实时系统 6 n
+
+# ===== 软件工程 =====
+软件工程 8 n
+敏捷开发 6 n
+Scrum 6 n
+看板方法 6 n
+代码审查 6 n
+版本控制 6 n
+单元测试 6 n
+集成测试 6 n
+端到端测试 6 n
+测试驱动开发 6 n
+行为驱动开发 6 n
+重构 6 n
+设计模式 6 n
 面向对象 8 n
-函数式编程 6 n
-异步编程 6 n
-并发编程 6 n
+函数式编程 8 n
+异步编程 8 n
+并发编程 8 n
 分布式系统 8 n
-微服务架构 6 n
-容器化部署 6 n
-持续集成 6 n
-持续部署 6 n
 
-# 框架/工具
-PyTorch 8 n
-TensorFlow 8 n
+# ===== 框架/工具 =====
+PyTorch 10 n
+TensorFlow 10 n
 Keras 6 n
-Scikit-learn 6 n
-OpenCV 6 n
-Transformers 6 n
-FastAPI 6 n
-Django 6 n
-Flask 6 n
+Scikit-learn 8 n
+OpenCV 8 n
+Transformers 8 n
+Git 8 n
+GitHub 8 n
+GitLab 6 n
+Jenkins 6 n
+Jupyter 6 n
+VS Code 6 n
+Vim 6 n
+Emacs 6 n
+
+# ===== 操作系统 =====
+操作系统 8 n
+Linux 10 n
+Windows 8 n
+macOS 8 n
+Ubuntu 6 n
+CentOS 6 n
+Debian 6 n
+Red Hat 6 n
+Unix 6 n
+命令行 6 n
+Shell脚本 6 n
