@@ -62,11 +62,125 @@ def _ensure_env_file():
 
 MODEL_REGISTRY = constants.MODEL_REGISTRY
 
+# 自定义模型缓存
+_custom_models_cache = None
+
+
+def _load_custom_models():
+    """从 custom_models.json 加载用户自定义模型列表。"""
+    global _custom_models_cache
+    if _custom_models_cache is not None:
+        return _custom_models_cache
+
+    if not os.path.exists(app_paths.CUSTOM_MODELS_FILE):
+        _custom_models_cache = []
+        return _custom_models_cache
+
+    try:
+        with open(app_paths.CUSTOM_MODELS_FILE, 'r', encoding='utf-8') as f:
+            _custom_models_cache = json.load(f)
+    except FileNotFoundError:
+        _custom_models_cache = []
+    except (PermissionError, json.JSONDecodeError) as e:
+        log.warning(f"读取自定义模型文件失败: {e}")
+        _custom_models_cache = []
+    except Exception as e:
+        log.warning(f"读取自定义模型文件发生意外错误: {e}")
+        _custom_models_cache = []
+
+    return _custom_models_cache
+
+
+def _save_custom_models(models):
+    """保存用户自定义模型列表到 custom_models.json。"""
+    global _custom_models_cache
+    try:
+        if not os.path.exists(app_paths.DATE_DIR):
+            os.makedirs(app_paths.DATE_DIR)
+        with open(app_paths.CUSTOM_MODELS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(models, f, ensure_ascii=False, indent=2)
+        _custom_models_cache = models
+        log.info(f"已保存 {len(models)} 个自定义模型")
+    except (PermissionError, OSError) as e:
+        log.warning(f"保存自定义模型文件失败: {e}")
+    except Exception as e:
+        log.warning(f"保存自定义模型文件发生意外错误: {e}")
+
+
+def add_custom_model(name, description, base_url, api_key, context_window=128000):
+    """添加一个自定义模型。
+
+    Args:
+        name: 模型名称（唯一标识）
+        description: 模型描述
+        base_url: API 地址
+        api_key: API 密钥
+        context_window: 上下文窗口大小
+
+    Returns:
+        (True, "") 成功 / (False, 错误信息) 失败
+    """
+    # 检查是否与内置模型重名
+    if name in MODEL_REGISTRY:
+        return False, f"模型名 '{name}' 与内置模型冲突"
+
+    custom_models = _load_custom_models()
+    for m in custom_models:
+        if m.get("name") == name:
+            return False, f"模型名 '{name}' 已存在"
+
+    new_model = {
+        "name": name,
+        "description": description,
+        "base_url": base_url,
+        "api_key": api_key,
+        "context_window": context_window,
+        "custom": True,
+    }
+    custom_models.append(new_model)
+    _save_custom_models(custom_models)
+    return True, ""
+
+
+def remove_custom_model(name):
+    """删除一个自定义模型。
+
+    Returns:
+        (True, "") 成功 / (False, 错误信息) 失败
+    """
+    custom_models = _load_custom_models()
+    for i, m in enumerate(custom_models):
+        if m.get("name") == name:
+            custom_models.pop(i)
+            _save_custom_models(custom_models)
+            return True, ""
+    return False, f"未找到自定义模型 '{name}'"
+
+
+def get_custom_model(name):
+    """根据名称查找自定义模型，返回模型信息或 None。"""
+    custom_models = _load_custom_models()
+    for m in custom_models:
+        if m.get("name") == name:
+            return m
+    return None
+
+
+def _find_model(name):
+    """在内置和自定义模型中查找模型信息。"""
+    if name in MODEL_REGISTRY:
+        return MODEL_REGISTRY[name]
+    return get_custom_model(name)
+
+
 def get_available_models():
-    """获取可用模型列表，返回带有废弃信息的模型列表"""
+    """获取可用模型列表（内置 + 自定义），返回带有模型信息的列表"""
     models = []
     for model_name, model_info in MODEL_REGISTRY.items():
         models.append(model_info)
+    custom_models = _load_custom_models()
+    for m in custom_models:
+        models.append(m)
     return models
 
 def get_context_window(model_name: str) -> int:

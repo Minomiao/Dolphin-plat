@@ -133,30 +133,6 @@ MODEL_REGISTRY = {
         "context_window": 1000000,
         "deprecated": False,
     },
-    "deepseek-chat": {
-        "name": "deepseek-chat",
-        "description": "DeepSeek Chat (已废弃)",
-        "context_window": 128000,
-        "deprecated": True,
-        "deprecation_date": "2026-07-24",
-        "replacement": "deepseek-v4-flash",
-    },
-    "deepseek-reasoner": {
-        "name": "deepseek-reasoner",
-        "description": "DeepSeek Reasoner(已废弃)",
-        "context_window": 128000,
-        "deprecated": True,
-        "deprecation_date": "2026-07-24",
-        "replacement": "deepseek-v4-flash",
-    },
-    "deepseek-coder": {
-        "name": "deepseek-coder",
-        "description": "DeepSeek Coder (已废弃)",
-        "context_window": 128000,
-        "deprecated": True,
-        "deprecation_date": "2026-07-24",
-        "replacement": "deepseek-v4-flash",
-    },
 }
 
 # ===== 启动动画 =====

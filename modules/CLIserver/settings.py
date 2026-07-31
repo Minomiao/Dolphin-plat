@@ -138,44 +138,54 @@ def settings_mode():
                  command_info=f"╰─{cmd.get_command_description('set')}")
 
 
+def _apply_model_config(model_info):
+    """将模型专属配置写入 current_config 并保存。"""
+    # 自定义模型有专属的 base_url 和 api_key
+    if model_info.get("custom"):
+        if model_info.get("base_url"):
+            state.current_config["base_url"] = model_info["base_url"]
+        if model_info.get("api_key"):
+            state.current_config["api_key"] = model_info["api_key"]
+
+
 def model_settings():
     """模型设置界面。"""
     cmd = state.cmd
     config = state.config
     log.info("进入模型设置")
 
-    from modules.main_server.config import get_available_models
-    available_models = get_available_models()
+    from modules.main_server.config import (
+        get_available_models, add_custom_model, remove_custom_model,
+        get_custom_model
+    )
 
     def _render():
         current_model = state.current_config.get('model', 'deepseek-v4-flash')
 
         while True:
+            available_models = get_available_models()
+
             # 构建模型列表表格
             table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 2))
             table.add_column("#", style="dim", width=4)
             table.add_column("模型名称", style="bold white", width=30)
+            table.add_column("描述", style="dim", width=20)
             table.add_column("状态", width=12)
 
-            new_models = [m for m in available_models if not m["deprecated"]]
-            deprecated_models = [m for m in available_models if m["deprecated"]]
-
             choice_map = {}
+            custom_indices = set()
             idx = 1
 
-            for model_info in new_models:
+            for model_info in available_models:
                 marker = "✓" if model_info['name'] == current_model else ""
-                table.add_row(str(idx), model_info['name'], Text(marker, style="green"))
-                choice_map[str(idx)] = model_info["name"]
+                desc = model_info.get('description', '')
+                name_display = model_info['name']
+                if model_info.get("custom"):
+                    name_display = f"* {name_display}"
+                    custom_indices.add(str(idx))
+                table.add_row(str(idx), name_display, desc, Text(marker, style="green"))
+                choice_map[str(idx)] = model_info
                 idx += 1
-
-            if deprecated_models:
-                table.add_row("", "", "")
-                for model_info in deprecated_models:
-                    date = model_info.get("deprecation_date", "")
-                    table.add_row(str(idx), model_info['name'], Text(f"已废弃 ({date})", style="red"))
-                    choice_map[str(idx)] = model_info["name"]
-                    idx += 1
 
             # 渲染界面
             _console.print()
@@ -186,7 +196,11 @@ def model_settings():
             _console.print("[bold]操作选项:[/bold]")
             _console.print(f"  [cyan]1-{idx-1}[/cyan] - 选择模型")
             _console.print(f"  [cyan]k[/cyan] - 修改 API 密钥")
+            _console.print(f"  [cyan]a[/cyan] - 添加自定义模型")
+            if custom_indices:
+                _console.print(f"  [cyan]d[/cyan] - 删除自定义模型")
             _console.print(f"  [dim]{cmd.get_command_keyword('back')}[/dim] - 返回主界面")
+            _console.print("  ([dim]*[/dim] 标记表示自定义模型)")
             _console.print()
             api_key = state.current_config.get('api_key', '')
             _console.print(create_footer_panel(f"API 密钥: {'***' + api_key[-4:] if len(api_key) > 4 else ('已设置' if api_key else '未设置')}"))
@@ -209,13 +223,25 @@ def model_settings():
                     input("按 Enter 键继续...")
                 continue
 
+            if choice == 'a':
+                # 添加自定义模型
+                _add_custom_model_flow()
+                continue
+
+            if choice == 'd':
+                # 删除自定义模型
+                _delete_custom_model_flow(custom_indices, choice_map)
+                continue
+
             if choice not in choice_map:
                 _console.print("[red]无效选择[/red]")
                 input("按 Enter 键继续...")
                 continue
 
-            new_model = choice_map[choice]
+            model_info = choice_map[choice]
+            new_model = model_info["name"]
             state.current_config['model'] = new_model
+            _apply_model_config(model_info)
             config.save_config(state.current_config)
             log.info(f"模型已切换: {new_model}")
             _rebuild_client_and_chat()
@@ -227,6 +253,78 @@ def model_settings():
     enter_screen(_render,
                  command_input=cmd.get_command('model'),
                  command_info=f"╰─{cmd.get_command_description('model')}")
+
+
+def _add_custom_model_flow():
+    """自定义模型添加流程。"""
+    from modules.main_server.config import add_custom_model
+
+    _console.print()
+    _console.print(create_header_panel("添加自定义模型", "输入新模型的配置信息"))
+
+    name = input("模型名称 (如 gpt-4o): ").strip()
+    if not name:
+        _console.print("[red]模型名称不能为空[/red]")
+        input("按 Enter 键继续...")
+        return
+
+    description = input("模型描述 (如 OpenAI GPT-4o): ").strip()
+    if not description:
+        description = name
+
+    base_url = input("API 地址 (如 https://api.openai.com/v1): ").strip()
+    if not base_url:
+        _console.print("[red]API 地址不能为空[/red]")
+        input("按 Enter 键继续...")
+        return
+
+    api_key = input("API 密钥: ").strip()
+    if not api_key:
+        _console.print("[red]API 密钥不能为空[/red]")
+        input("按 Enter 键继续...")
+        return
+
+    context_str = input("上下文窗口大小 (留空默认 128000): ").strip()
+    context_window = 128000
+    if context_str:
+        try:
+            context_window = int(context_str)
+        except ValueError:
+            _console.print("[yellow]输入无效，使用默认值 128000[/yellow]")
+
+    success, error = add_custom_model(name, description, base_url, api_key, context_window)
+    if success:
+        _console.print(f"[green]自定义模型 '{name}' 已添加[/green]")
+    else:
+        _console.print(f"[red]{error}[/red]")
+    input("按 Enter 键继续...")
+
+
+def _delete_custom_model_flow(custom_indices, choice_map):
+    """自定义模型删除流程。"""
+    from modules.main_server.config import remove_custom_model
+
+    _console.print()
+    _console.print(create_header_panel("删除自定义模型", "选择要删除的自定义模型"))
+    _console.print(f"[bold]可删除的模型序号:[/bold] {', '.join(sorted(custom_indices))}")
+
+    idx_input = input("输入要删除的模型序号 (留空取消): ").strip()
+    if not idx_input or idx_input not in custom_indices:
+        return
+
+    model_info = choice_map[idx_input]
+    name = model_info["name"]
+
+    # 如果当前正在使用该模型，切回默认模型
+    if state.current_config.get('model') == name:
+        state.current_config['model'] = 'deepseek-v4-flash'
+
+    success, error = remove_custom_model(name)
+    if success:
+        _console.print(f"[green]自定义模型 '{name}' 已删除[/green]")
+    else:
+        _console.print(f"[red]{error}[/red]")
+    input("按 Enter 键继续...")
 
 
 def toggle_tools():
