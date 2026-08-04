@@ -65,7 +65,7 @@ async def main():
                     settings_mode()
                     continue
                 elif keyword == cmd.get_command_keyword('open'):
-                    open_work_directory()
+                    open_work_directory(args or None)
                     continue
                 elif keyword == cmd.get_command_keyword('new'):
                     new_conversation(args)

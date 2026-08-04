@@ -40,6 +40,29 @@ def open_work_directory(path=None, silent=False):
     if not os.path.isabs(path):
         path = os.path.normpath(os.path.join(bootstrap.PROJECT_ROOT, path))
 
+    # 校验目录存在性：不存在时提示是否自动创建（silent 模式直接创建，幂等）
+    if not os.path.exists(path):
+        if silent:
+            try:
+                os.makedirs(path, exist_ok=True)
+                log.info(f"创建工作目录: {path}")
+            except Exception as e:
+                log.warning(f"创建工作目录失败: {e}")
+                return
+        else:
+            _console.print(f"[yellow]目录不存在: {path}[/yellow]")
+            choice = input("是否创建该目录? (y/n): ").strip().lower()
+            if choice not in ('y', 'yes'):
+                print("取消操作")
+                return
+            try:
+                os.makedirs(path, exist_ok=True)
+                _console.print(f"[green]已创建: {path}[/green]")
+            except Exception as e:
+                log.error(f"创建工作目录失败: {e}")
+                _console.print(f"[red]创建工作目录失败: {e}[/red]")
+                return
+
     old_work_directory = state.current_config.get('work_directory', 'workplace')
     if path != old_work_directory:
         state.current_config['work_directory'] = path

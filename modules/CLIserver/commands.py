@@ -62,7 +62,7 @@ def _get_default_commands():
                 "description": "切换工具启用/禁用状态"
             },
             "open": {
-                "input": "open",
+                "input": "workdir",
                 "description": "打开/切换工作目录"
             },
             "model": {
