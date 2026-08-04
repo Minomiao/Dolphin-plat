@@ -7,6 +7,7 @@ from colorama import Fore, Style
 
 from modules.bootstrap import constants
 from modules.logger import get_logger
+from . import i18n
 from .state import ui, state
 
 log = get_logger("Dolphin.callback")
@@ -112,7 +113,7 @@ def chat_callback(event_type, data):
         if ui.turn_first_output:
             ui.turn_first_output = False
         if state.show_thinking:
-            print(f"{Fore.LIGHTBLACK_EX}╰─ 思考过程:{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}")
+            print(f"{Fore.LIGHTBLACK_EX}╰─ {i18n.t('chat.thinking_header')}{Style.RESET_ALL}\n{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}")
             ui._indented_after_thinking = False
             ui._fold_corner_used = False
     elif event_type == 'tool_start':
@@ -126,22 +127,22 @@ def chat_callback(event_type, data):
         if ui.turn_first_output:
             ui.turn_first_output = False
         if state.show_thinking:
-            print(f"{Fore.LIGHTBLACK_EX}╰─ 思考过程:{Style.RESET_ALL}")
+            print(f"{Fore.LIGHTBLACK_EX}╰─ {i18n.t('chat.thinking_header')}{Style.RESET_ALL}")
         else:
             ui.thinking_start_time = time.time()
             log.debug("思考开始")
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 -0s{Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}{i18n.t('chat.thinking_in_progress', elapsed=0)}{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_chunk':
         if state.show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}", end="", flush=True)
         else:
             elapsed = int(time.time() - ui.thinking_start_time)
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}正在思考中 -{elapsed}s{Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}{i18n.t('chat.thinking_in_progress', elapsed=elapsed)}{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_end':
         if not state.show_thinking:
             elapsed = int(time.time() - ui.thinking_start_time)
             log.info(f"思考完成, 耗时={elapsed}s")
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}╰─ 已完成思考 -{elapsed}s{Style.RESET_ALL}")
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}╰─ {i18n.t('chat.thinking_done', elapsed=elapsed)}{Style.RESET_ALL}")
         ui._indented_after_thinking = not state.show_thinking
         ui._fold_corner_used = not state.show_thinking
     elif event_type == 'response_chunk':

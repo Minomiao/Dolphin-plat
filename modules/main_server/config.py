@@ -220,6 +220,7 @@ def _get_default_config():
     return {
         "base_url": os.getenv("QUICKAI_BASE_URL", "https://api.deepseek.com"),
         "model": "deepseek-v4-flash",
+        "language": "zh-CN",
         "command_prefix": "/",
         "max_tokens": 18000,
         "reasoning": True,

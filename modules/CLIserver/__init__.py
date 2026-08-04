@@ -1,5 +1,6 @@
 from . import commands
 from . import state
+from . import i18n
 from . import terminal
 from . import splash
 from . import header

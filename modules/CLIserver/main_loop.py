@@ -4,6 +4,7 @@ import sys
 from colorama import Fore, Style
 
 from modules.logger import get_logger
+from . import i18n
 from .state import ui, state
 from .callback import chat_callback, clear_tool_pending, rollback_last_message
 from .changes import handle_post_chat_changes
@@ -55,7 +56,7 @@ async def main():
                     continue
                 elif keyword == cmd.get_command_keyword('clear'):
                     state.chat_instance.clear_history()
-                    screen_refresh.refresh(print_header, print_conversation_history, "对话历史已清空", show_history=False)
+                    screen_refresh.refresh(print_header, print_conversation_history, i18n.t("main.history_cleared"), show_history=False)
                     continue
                 elif keyword == cmd.get_command_keyword('model'):
                     model_settings()
@@ -79,7 +80,7 @@ async def main():
                     continue
                 elif keyword == cmd.get_command_keyword('quit'):
                     log.info("用户退出程序")
-                    print("再见!")
+                    print(i18n.t("main.goodbye"))
                     break
                 elif keyword == cmd.get_command_keyword('tools'):
                     show_tools()
@@ -95,21 +96,21 @@ async def main():
                     if args:
                         arg = args.lower()
                         if arg not in ('on', 'off'):
-                            print(f"无效参数: {arg}，可用参数: on, off")
+                            print(i18n.t("main.invalid_arg", arg=arg))
                             continue
                         target = (arg == 'on')
                         if state.show_thinking == target:
-                            status = "开启" if state.show_thinking else "关闭"
-                            print(f"思考过程显示已经是{status}状态")
+                            status = i18n.t("main.on") if state.show_thinking else i18n.t("main.off")
+                            print(i18n.t("main.thinking_already", status=status))
                             continue
                         state.show_thinking = target
                         state.current_config['show_thinking'] = target
                         state.config.save_config(state.current_config)
-                        status = "开启" if state.show_thinking else "关闭"
-                        screen_refresh.refresh(print_header, print_conversation_history, f"思考过程显示已{status}")
+                        status = i18n.t("main.on") if state.show_thinking else i18n.t("main.off")
+                        screen_refresh.refresh(print_header, print_conversation_history, i18n.t("main.thinking_set", status=status))
                     else:
-                        status = "开启" if state.show_thinking else "关闭"
-                        print(f"当前思考过程显示:{status}")
+                        status = i18n.t("main.on") if state.show_thinking else i18n.t("main.off")
+                        print(i18n.t("main.thinking_current", status=status))
                     continue
                 elif keyword == cmd.get_command_keyword('effort'):
                     if args:
@@ -119,24 +120,28 @@ async def main():
                             state.chat_instance.effort_level = level
                             state.current_config['effort_level'] = level
                             state.config.save_config(state.current_config)
-                            print(f"思考强度已设置为: {level}")
+                            print(i18n.t("main.effort_set", level=level))
                         else:
-                            print(f"无效的思考强度，可选: normal, fine, high")
+                            print(i18n.t("main.effort_invalid"))
                     else:
-                        print(f"当前思考强度: {state.effort_level} (可选: normal, fine, high)")
+                        print(i18n.t("main.effort_current", level=state.effort_level))
                     continue
                 elif keyword == cmd.get_command_keyword('toggle'):
                     toggle_tools()
                     continue
+                elif keyword == cmd.get_command_keyword('language'):
+                    from .language import language_settings
+                    language_settings()
+                    continue
                 else:
-                    print(f"未知命令: {keyword}")
+                    print(i18n.t("main.unknown_command", keyword=keyword))
                     continue
 
             # 发送消息前检查
             missing = _pre_send_check()
             if missing:
-                missing_text = "、".join(missing)
-                print(f"{Fore.RED}错误: 未设置{missing_text}，无法发送消息。输入 '{cmd.get_command('model')}' 进行配置。可前往模型服务官网申请 API key{Style.RESET_ALL}")
+                missing_text = i18n.t("main.list_separator").join(missing)
+                print(f"{Fore.RED}{i18n.t('main.missing_config', missing=missing_text, command=cmd.get_command('model'))}{Style.RESET_ALL}")
                 log.warning(f"发送消息前检查失败: 缺少{missing_text}")
                 continue
 
@@ -145,26 +150,26 @@ async def main():
                 handle_post_chat_changes()
             except (state.AuthenticationError, state.RateLimitError,
                     state.APIConnectionError, state.APIError) as e:
-                print(f"\n{Fore.RED}API 错误: {e}{Style.RESET_ALL}")
+                print(f"\n{Fore.RED}{i18n.t('main.api_error', error=e)}{Style.RESET_ALL}")
                 log.error(f"API 错误: {e}", exc_info=True)
                 rollback_last_message()
                 clear_tool_pending()
             except Exception as e:
-                print(f"\n{Fore.RED}错误: {e}{Style.RESET_ALL}")
+                print(f"\n{Fore.RED}{i18n.t('main.error', error=e)}{Style.RESET_ALL}")
                 log.error(f"聊天错误: {e}", exc_info=True)
                 clear_tool_pending()
 
         except KeyboardInterrupt:
-            print(f"\n{Fore.YELLOW}已中断当前操作{Style.RESET_ALL}")
+            print(f"\n{Fore.YELLOW}{i18n.t('main.interrupted')}{Style.RESET_ALL}")
             clear_tool_pending()
             try:
-                input("按 Enter 键继续...")
+                input(i18n.t("main.press_enter"))
             except (EOFError, KeyboardInterrupt):
-                print("\n再见!")
+                print(f"\n{i18n.t('main.goodbye')}")
                 break
         except EOFError:
-            print("\n再见!")
+            print(f"\n{i18n.t('main.goodbye')}")
             break
         except Exception as e:
-            print(f"{Fore.RED}错误: {e}{Style.RESET_ALL}")
+            print(f"{Fore.RED}{i18n.t('main.error', error=e)}{Style.RESET_ALL}")
             log.error(f"主循环错误: {e}", exc_info=True)

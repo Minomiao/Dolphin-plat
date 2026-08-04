@@ -3,6 +3,7 @@ import time
 from modules.chater import conversation
 from modules.chater import dpc_manager
 from modules.logger import get_logger
+from modules.CLIserver import i18n
 from colorama import Fore, Style
 
 log = get_logger("Dolphin.conversation_loader")
@@ -99,10 +100,10 @@ def format_conversation_history(messages, show_thinking):
             has_reasoning = bool(msg.get('reasoning_content'))
             if has_reasoning:
                 if show_thinking:
-                    lines.append(f"{Fore.LIGHTBLACK_EX}╰─ 思考过程:{Style.RESET_ALL}")
+                    lines.append(f"{Fore.LIGHTBLACK_EX}╰─ {i18n.t('chat.thinking_header')}{Style.RESET_ALL}")
                     lines.append(f"{Fore.LIGHTBLACK_EX}{msg['reasoning_content']}{Style.RESET_ALL}")
                 else:
-                    lines.append(f"{Fore.LIGHTBLACK_EX}╰─ 已完成思考{Style.RESET_ALL}")
+                    lines.append(f"{Fore.LIGHTBLACK_EX}╰─ {i18n.t('chat.thinking_done_no_time')}{Style.RESET_ALL}")
             if content:
                 lines.append(content)
             if msg.get('tool_calls'):

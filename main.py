@@ -25,6 +25,7 @@ from rich.progress import Progress, BarColumn, TextColumn
 from rich.console import Console
 
 from modules.bootstrap import constants
+from modules.CLIserver import i18n
 from modules.CLIserver.state import ui, state
 from modules.CLIserver.splash import show_splash, progress_bar
 from modules.CLIserver.terminal import exit_screen
@@ -88,6 +89,7 @@ def _startup():
     # 20%：加载配置模块
     _load_config_module()
     state.current_config = state.config.load_config()
+    i18n.init(state.current_config.get('language', 'zh-CN'))
     state.show_thinking = state.current_config.get('show_thinking', False)
     state.effort_level = state.current_config.get('effort_level', 'fine')
     if 'effort_level' not in state.current_config:
@@ -145,6 +147,7 @@ def _startup():
     log.info("Dolphin 启动")
     log.info(
         f"当前配置: model={state.current_config.get('model')}, "
+        f"language={state.current_config.get('language')}, "
         f"max_tokens={state.current_config.get('max_tokens', 18000)}, "
         f"effort={state.effort_level}, "
         f"conversation={state.current_conversation}, "

@@ -5,6 +5,7 @@ from rich.text import Text
 from rich.table import Table
 
 from modules.logger import get_logger
+from . import i18n
 from .state import state
 from .screen_refresh import create_header_panel, create_footer_panel
 
@@ -332,6 +333,6 @@ def toggle_tools():
     current_status = state.chat_instance.enable_tools
     new_status = not current_status
     state.chat_instance.enable_tool(new_status)
-    status_text = "启用" if new_status else "禁用"
+    status_text = i18n.t("tools.enabled") if new_status else i18n.t("tools.disabled")
     log.info(f"工具状态已切换: {status_text}")
-    print(f"工具已{status_text}")
+    print(i18n.t("tools.toggled", status=status_text))

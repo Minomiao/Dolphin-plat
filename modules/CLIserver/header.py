@@ -5,6 +5,7 @@ from rich.text import Text
 from rich import box
 
 from modules.bootstrap import constants
+from . import i18n
 from .state import state
 
 _DOLPHIN_ART = constants.DOLPHIN_ART
@@ -23,10 +24,8 @@ def print_header():
     info = Text()
     if deprecation_warning:
         info.append(f"{deprecation_warning}\n", style="yellow")
-    info.append("输入 ", style="dim")
-    info.append(f"'{cmd.get_command('help')}'", style="bold white")
-    info.append(" 获取命令帮助\n", style="dim")
-    info.append("工作目录: ", style="dim")
+    info.append(i18n.t("header.help_hint", command=cmd.get_command('help')) + "\n", style="dim")
+    info.append(i18n.t("header.work_dir"), style="dim")
     info.append(work_dir, style="white")
 
     panel = Panel(

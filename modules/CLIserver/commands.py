@@ -69,6 +69,10 @@ def _get_default_commands():
                 "input": "model",
                 "description": "切换模型和配置 API 密钥"
             },
+            "language": {
+                "input": "language",
+                "description": "选择显示语言"
+            },
             "showthinking": {
                 "input": "showthinking",
                 "description": "显示/隐藏 AI 思考过程 (on/off)"
