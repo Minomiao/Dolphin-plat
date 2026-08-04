@@ -3,7 +3,6 @@ import time
 from modules.chater import conversation
 from modules.chater import dpc_manager
 from modules.logger import get_logger
-from modules.CLIserver import i18n
 from colorama import Fore, Style
 
 log = get_logger("Dolphin.conversation_loader")
@@ -78,6 +77,9 @@ def load_and_activate(chat_instance, dir_id, conv_id, conv_name, work_dir):
 
 
 def format_conversation_history(messages, show_thinking):
+    """格式化会话历史为文本，供回显展示。"""
+    from modules.CLIserver import i18n
+
     start = time.perf_counter()
     if not messages:
         return ""

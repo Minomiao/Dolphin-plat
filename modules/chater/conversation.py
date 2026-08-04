@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import asyncio
 from modules.logger import get_logger
 from modules import bootstrap as app_paths
 from modules.bootstrap import constants
@@ -219,27 +220,37 @@ def init_conversation(dir_id, conv_id, conv_name, work_dir):
 
 
 def save_conversation(messages, dir_id, conv_id):
-    """将会话保存到文件夹结构。
+    """同步将会话保存到文件夹结构（用于同步上下文，如启动阶段）。
 
     - 会话文件夹：date/conversations/{dir_id}/{conv_id}/
     - 会话文件：{conv_id}/{conv_id}.json
     - 备份管理：{conv_id}/backup_registry.json（由 backup_manager 管理）
     - 备份文件：{conv_id}/backups/{dialog_id}/...
     """
+    return _save_conversation_sync(messages, dir_id, conv_id)
+
+
+def _save_conversation_sync(messages, dir_id, conv_id):
+    """底层同步写盘实现。"""
     start = time.perf_counter()
     conv_base_dir = os.path.join(CONVERSATIONS_DIR, dir_id)
     conv_folder = os.path.join(conv_base_dir, conv_id)
-    
+
     # 创建会话文件夹
     os.makedirs(conv_folder, exist_ok=True)
-    
+
     # 保存会话文件
     filepath = os.path.join(conv_folder, f"{conv_id}.json")
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
-    
+
     elapsed = time.perf_counter() - start
     log.info(f"保存对话: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}, 耗时={elapsed:.3f}s")
+
+
+async def save_conversation_async(messages, dir_id, conv_id):
+    """异步将会话保存到文件夹结构，写盘在后台线程执行，避免阻塞事件循环。"""
+    await asyncio.to_thread(_save_conversation_sync, messages, dir_id, conv_id)
 
 
 def load_conversation(dir_id, conv_id):

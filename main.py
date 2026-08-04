@@ -57,7 +57,7 @@ def _load_commands_module():
 
 def _load_core_modules():
     """加载对话、屏幕刷新、备份管理及 OpenAI 等核心重模块（进度条 50% 阶段）。"""
-    from openai import OpenAI, AuthenticationError, RateLimitError, APIConnectionError, APIError
+    from openai import AuthenticationError, RateLimitError, APIConnectionError, APIError
     from modules.chater import chat, conversation_loader
     from modules.chater.conversation_loader import format_user_output_line
     from modules.CLIserver import screen_refresh
@@ -69,7 +69,6 @@ def _load_core_modules():
     state.format_user_output_line = format_user_output_line
     state.screen_refresh = screen_refresh
     state.backup_manager = backup_manager
-    state.OpenAI = OpenAI
     state.AuthenticationError = AuthenticationError
     state.RateLimitError = RateLimitError
     state.APIConnectionError = APIConnectionError
@@ -127,10 +126,6 @@ def _startup():
 
     time.sleep(0.1)
 
-    state.client = state.OpenAI(
-        api_key=state.current_config.get("api_key"),
-        base_url=state.current_config.get("base_url")
-    )
     state.chat_instance = state.chat.DolphinChat(
         model=state.current_config.get('model', 'deepseek-v4-flash'),
         max_tokens=state.current_config.get('max_tokens', 18000),

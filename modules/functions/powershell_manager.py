@@ -29,6 +29,8 @@ MAX_COMMAND_CACHE_SIZE = constants.MAX_COMMAND_CACHE_SIZE
 
 _running_processes: Dict[str, Dict[str, Any]] = {}
 _process_counter = 0
+# 后台自动清理任务集合：保存引用避免任务被 GC 时产生 "Task was destroyed" 警告
+_bg_cleanup_tasks: set = set()
 
 # 后台进程最长存活时间（秒），超时自动清理防止泄漏
 MAX_BACKGROUND_LIFETIME = 600  # 10分钟
@@ -415,7 +417,10 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
             stdout = ''.join(stdout_buffer)
 
             # 注册后台超时自动清理：后台存活不超过 timeout（至少 wait_time），防止进程永久泄漏
-            asyncio.create_task(_auto_kill_background(command_id, delay=max(timeout, wait_time)))
+            task = asyncio.create_task(_auto_kill_background(command_id, delay=max(timeout, wait_time)))
+            # 保存引用，避免任务被 GC 时产生 "Task was destroyed but it is pending!" 警告
+            _bg_cleanup_tasks.add(task)
+            task.add_done_callback(_bg_cleanup_tasks.discard)
 
             elapsed = time.time() - exec_start
             log.info(f"命令仍在运行: command_id={command_id}, stdout={len(stdout)}字, 已耗时={elapsed:.3f}s")

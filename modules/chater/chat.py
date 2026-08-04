@@ -127,6 +127,8 @@ class DolphinChat:
         # 防抖自动保存状态
         self._save_pending = False
         self._save_timer = None
+        self._save_task = None  # 在途异步写盘任务
+        self._pending_snapshot = None  # 写盘期间产生的最新消息快照，写完后补写
         
         # 工具分发链: (谓词, 处理器) 对
         self._tool_dispatch = [
@@ -171,9 +173,43 @@ class DolphinChat:
         log.debug(f"设置保存目标: dir={dir_id}, conv={conv_id}, dialog_id={conv_id}")
 
     def _auto_save(self):
-        if self._save_dir_id and self._save_conv_id:
-            conversation.save_conversation(self.messages, self._save_dir_id, self._save_conv_id)
-            log.debug(f"实时保存: {len(self.messages)} 条消息")
+        """执行待保存：事件循环内异步写盘避免阻塞，同步上下文（如启动阶段）直接写。"""
+        if not (self._save_dir_id and self._save_conv_id):
+            return
+        self._pending_snapshot = list(self.messages)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # 不在事件循环中（如启动阶段），立即同步写盘
+            self._pending_snapshot = None
+            conversation.save_conversation(list(self.messages), self._save_dir_id, self._save_conv_id)
+            return
+        if self._save_task is not None and not self._save_task.done():
+            # 已有写盘在途，保留最新快照，任务结束后自动补写
+            return
+        self._save_task = loop.create_task(self._run_save())
+        self._save_task.add_done_callback(self._on_save_done)
+        log.debug(f"实时保存(异步): {len(self._pending_snapshot)} 条消息")
+
+    async def _run_save(self):
+        """后台线程写盘：读取最新快照并清空。"""
+        snapshot = self._pending_snapshot
+        self._pending_snapshot = None
+        if snapshot is None:
+            return
+        await conversation.save_conversation_async(snapshot, self._save_dir_id, self._save_conv_id)
+
+    def _on_save_done(self, task):
+        """写盘完成：检索异常并补写写盘期间产生的新快照。"""
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            log.warning(f"异步保存对话失败: {e}")
+        if self._pending_snapshot is not None:
+            self._save_task = asyncio.ensure_future(self._run_save())
+            self._save_task.add_done_callback(self._on_save_done)
 
     def _schedule_auto_save(self):
         """延迟保存：同一次同步块内的多次消息变更合并为一次写盘。"""

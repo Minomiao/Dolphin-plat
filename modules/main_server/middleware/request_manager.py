@@ -6,10 +6,11 @@ from modules.logger import get_logger
 log = get_logger("Dolphin.request_manager")
 
 
-def _run_async(coro: Awaitable) -> Any:
+def _run_async(coro: Awaitable, timeout: float = 120.0) -> Any:
     """在同步或异步上下文中安全执行协程。
 
-    - 已在事件循环内运行时：使用 loop.run_until_complete()（兼容嵌套场景）
+    - 已在事件循环内运行时：将协程提交到独立线程的独立事件循环执行，
+      避免跨线程使用主循环对象，并设置超时防止永久挂起
     - 无事件循环时：使用 asyncio.run() 创建新循环
 
     用于在同步请求处理函数中调用异步的 skill/工具接口，
@@ -24,9 +25,17 @@ def _run_async(coro: Awaitable) -> Any:
         if loop.is_running():
             # 创建 Task 并等待完成（适用于嵌套在已有 async 上下文中的同步调用）
             import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
+            pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            try:
                 future = pool.submit(asyncio.run, coro)
-                return future.result()
+                return future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                log.error(f"协程执行超过 {timeout}s 超时")
+                raise TimeoutError(f"协程执行超时 ({timeout}s)")
+            finally:
+                # 不等待线程完成：超时后仍被 with 块 join 会卡住主流程，
+                # 线程会独立跑完 asyncio.run 后自行结束
+                pool.shutdown(wait=False)
         return loop.run_until_complete(coro)
 
 class RequestType:

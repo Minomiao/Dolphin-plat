@@ -35,7 +35,6 @@ class AppState:
         self.current_conversation = None
         self.current_dir_id = None
         self.current_conv_id = None
-        self.client = None
         self.show_thinking = False
         self.effort_level = "fine"
 
@@ -47,7 +46,6 @@ class AppState:
         self.format_user_output_line = None
         self.screen_refresh = None
         self.backup_manager = None
-        self.OpenAI = None
         self.AuthenticationError = None
         self.RateLimitError = None
         self.APIConnectionError = None

@@ -54,11 +54,23 @@ def _load_backup_registry(dir_id: str, conv_id: str) -> Dict[str, Any]:
     }
 
 def _save_backup_registry(dir_id: str, conv_id: str, registry: Dict[str, Any]) -> None:
-    """保存备份注册表"""
+    """保存备份注册表（先写临时文件再原子替换，避免写盘中断损坏 JSON）。"""
     registry_path = _get_backup_registry_path(dir_id, conv_id)
     registry_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(registry_path, 'w', encoding='utf-8') as f:
-        json.dump(registry, f, ensure_ascii=False, indent=2)
+    tmp_path = registry_path.with_name(registry_path.name + ".tmp")
+    try:
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(registry, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, registry_path)
+    except Exception:
+        # 清理临时文件，避免残留
+        try:
+            tmp_path.unlink()
+        except Exception:
+            pass
+        raise
     log.debug(f"保存备份注册表: {registry_path}")
 
 def _generate_file_id() -> str:

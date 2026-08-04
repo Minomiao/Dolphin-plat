@@ -3,24 +3,15 @@ import requests
 import os
 import warnings
 import logging
-import sys
-from io import StringIO
-
-# 抑制 jieba 的警告
-warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
-
-# 临时重定向 stdout 抑制 jieba 的初始化日志
-_old_stdout = sys.stdout
-sys.stdout = StringIO()
-try:
-    import jieba
-    # 抑制 jieba 的日志级别
-    logging.getLogger("jieba").setLevel(logging.CRITICAL)
-finally:
-    sys.stdout = _old_stdout
 
 from typing import Dict, Any, List, Set
 from modules.bootstrap import constants
+
+# 抑制 jieba 的警告与初始化日志（jieba 初始化日志通过 logging 输出，无需劫持 stdout）
+warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
+
+import jieba
+jieba.setLogLevel(logging.CRITICAL)
 
 
 # ===== 停用词表加载 =====

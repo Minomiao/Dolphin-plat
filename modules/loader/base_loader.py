@@ -8,6 +8,7 @@ import traceback
 from typing import Dict, List, Any, Optional
 
 from modules.logger import get_logger
+from modules.bootstrap import constants
 
 log = get_logger("Dolphin.base_loader")
 
@@ -153,15 +154,22 @@ class BaseSkillLoader:
             if 'context' in sig.parameters:
                 from .skill_context import create_default_context
                 ctx = create_default_context(self._current_work_dir or self._get_default_work_dir())
-                result = await asyncio.to_thread(func, context=ctx, **arguments)
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(func, context=ctx, **arguments),
+                    timeout=constants.SKILL_TIMEOUT)
             else:
-                result = await asyncio.to_thread(func, **arguments)
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(func, **arguments),
+                    timeout=constants.SKILL_TIMEOUT)
 
             if asyncio.iscoroutine(result):
                 result = await result
 
             log.debug(f"技能工具执行结果: {result}")
             return result
+        except asyncio.TimeoutError:
+            log.error(f"技能工具 {tool_name} 执行超时 ({constants.SKILL_TIMEOUT}s)")
+            return {"error": f"工具执行超时 ({constants.SKILL_TIMEOUT}s)"}
         except TypeError as e:
             log.error(f"技能工具 {tool_name} 参数类型错误: {e}\n{traceback.format_exc()}")
             return {"error": "参数类型错误，请检查调用参数格式"}

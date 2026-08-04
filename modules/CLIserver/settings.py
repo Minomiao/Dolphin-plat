@@ -23,10 +23,6 @@ def _rebuild_client_and_chat():
     if state.chat_instance is not None:
         old_messages = state.chat_instance.messages
 
-    state.client = state.OpenAI(
-        api_key=state.current_config.get("api_key"),
-        base_url=state.current_config.get("base_url")
-    )
     state.chat_instance = chat.DolphinChat(
         model=state.current_config.get('model'),
         max_tokens=state.current_config.get('max_tokens', 18000),

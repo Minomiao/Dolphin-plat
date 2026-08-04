@@ -5,6 +5,7 @@ from typing import Dict, List, Any, Optional
 from mcp.client.session import ClientSession
 from mcp.client.stdio import stdio_client
 from modules.logger import get_logger
+from modules.bootstrap import constants
 
 log = get_logger("Dolphin.mcp_manager")
 
@@ -23,15 +24,17 @@ class MCPManager:
                 "args": command[1:] if len(command) > 1 else []
             }
             
-            stdio_transport = await stdio_client(server_params)
+            stdio_transport = await asyncio.wait_for(
+                stdio_client(server_params), timeout=constants.MCP_TIMEOUT)
             stdio, write = stdio_transport
             
             session = ClientSession(stdio, write)
-            await session.initialize()
+            await asyncio.wait_for(session.initialize(), timeout=constants.MCP_TIMEOUT)
             
             self.sessions[name] = session
             
-            tools_response = await session.list_tools()
+            tools_response = await asyncio.wait_for(
+                session.list_tools(), timeout=constants.MCP_TIMEOUT)
             for tool in tools_response.tools:
                 self.tools[f"{name}.{tool.name}"] = {
                     "name": tool.name,
@@ -60,7 +63,12 @@ class MCPManager:
 
         session = self.sessions[server_name]
         try:
-            result = await session.call_tool(actual_tool_name, arguments)
+            result = await asyncio.wait_for(
+                session.call_tool(actual_tool_name, arguments),
+                timeout=constants.MCP_TIMEOUT)
+        except asyncio.TimeoutError:
+            log.error(f"MCP 工具 {tool_name} 执行超时 ({constants.MCP_TIMEOUT}s)")
+            return {"error": f"MCP 工具执行超时 ({constants.MCP_TIMEOUT}s)"}
         except Exception as e:
             log.error(f"MCP 工具 {tool_name} 执行失败: {e}\n{traceback.format_exc()}")
             return {"error": "MCP 工具执行过程中发生内部错误"}

@@ -139,6 +139,12 @@ MODEL_REGISTRY = {
 # OpenAI SDK 默认 600s，网络故障时会让整个 CLI 冻结过久，这里收紧为 120s
 API_TIMEOUT = 120
 
+# MCP 服务器连接与工具调用超时（秒），防止 MCP 进程无响应时永久挂起
+MCP_TIMEOUT = 30
+
+# 技能/插件函数在线程中执行的最长时限（秒）
+SKILL_TIMEOUT = 300
+
 # ===== 启动动画 =====
 # 启动进度条文字
 DEEPSLEEPING_TEXT = "d-e-e-p-s-l-e-e-p-i-n-g"

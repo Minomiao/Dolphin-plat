@@ -18,19 +18,35 @@ _SPINNER_FRAMES = constants.SPINNER_FRAMES
 async def run_spinner(prefix: str):
     """运行工具调用等待的 spinner 动画。"""
     i = 0
-    while True:
-        frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
-        indent = "  " if (ui._indented_after_thinking and state.show_thinking) else ""
-        sys.stdout.write(f"\r\033[K{indent}{Fore.CYAN}[{prefix}]{Style.RESET_ALL} {frame}")
-        sys.stdout.flush()
-        i += 1
-        await asyncio.sleep(0.12)
+    try:
+        while True:
+            frame = _SPINNER_FRAMES[i % len(_SPINNER_FRAMES)]
+            indent = "  " if (ui._indented_after_thinking and state.show_thinking) else ""
+            sys.stdout.write(f"\r\033[K{indent}{Fore.CYAN}[{prefix}]{Style.RESET_ALL} {frame}")
+            sys.stdout.flush()
+            i += 1
+            await asyncio.sleep(0.12)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        # stdout 被重定向/关闭（如管道输出）时优雅退出，而不是留下未检索的异常
+        log.debug(f"spinner 输出失败: {e}")
+
+
+def _consume_task_result(task):
+    """检索已结束任务的异常，避免 "Task exception was never retrieved"。"""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        log.debug(f"spinner 任务异常: {exc}")
 
 
 def clear_tool_pending():
     """清除工具等待状态和 spinner。"""
     if ui._spinner_task and not ui._spinner_task.done():
         ui._spinner_task.cancel()
+        ui._spinner_task.add_done_callback(_consume_task_result)
         ui._spinner_task = None
     ui._tool_pending = False
 
