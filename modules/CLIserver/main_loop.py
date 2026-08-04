@@ -9,7 +9,7 @@ from .state import ui, state
 from .callback import chat_callback, clear_tool_pending, rollback_last_message
 from .changes import handle_post_chat_changes
 from .header import print_header, print_conversation_history
-from .settings import settings_mode, model_settings, toggle_tools
+from .settings import settings_mode, model_settings, toggle_tools, effort_settings
 from .conversation_ops import (
     open_work_directory, new_conversation, load_conversation, list_conversations
 )
@@ -124,7 +124,8 @@ async def main():
                         else:
                             print(i18n.t("main.effort_invalid"))
                     else:
-                        print(i18n.t("main.effort_current", level=state.effort_level))
+                        # 无参数时进入上下键选择界面
+                        effort_settings()
                     continue
                 elif keyword == cmd.get_command_keyword('toggle'):
                     toggle_tools()

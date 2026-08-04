@@ -31,6 +31,8 @@ _running_processes: Dict[str, Dict[str, Any]] = {}
 _process_counter = 0
 # 后台自动清理任务集合：保存引用避免任务被 GC 时产生 "Task was destroyed" 警告
 _bg_cleanup_tasks: set = set()
+# 退出信号是否已处理，防止重复触发
+_shutdown_started = False
 
 # 后台进程最长存活时间（秒），超时自动清理防止泄漏
 MAX_BACKGROUND_LIFETIME = 600  # 10分钟
@@ -576,8 +578,19 @@ def _cleanup_all_processes():
 
 
 def _signal_handler(signum, frame):
-    _cleanup_all_processes()
-    sys.exit(0)
+    """处理退出信号：请求解释器正常退出。
+
+    进程与缓存清理由 atexit 注册的 _cleanup_all_processes 兜底，
+    此处不做重复清理。防重入 + 解释器退出阶段检查，避免在
+    atexit 回调执行期间二次抛出 SystemExit，产生
+    "Exception ignored in atexit callback" 噪音。
+    """
+    global _shutdown_started
+    if _shutdown_started or sys.is_finalizing():
+        return
+    _shutdown_started = True
+    log.info(f"收到退出信号 {signum}，开始退出")
+    raise SystemExit(0)
 
 
 def get_cache_stats() -> Dict[str, Any]:

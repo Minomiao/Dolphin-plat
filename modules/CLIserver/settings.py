@@ -2,7 +2,6 @@
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich.table import Table
 
 from modules.logger import get_logger
 from . import i18n
@@ -44,93 +43,80 @@ def _chat_callback_proxy(event_type, data):
 
 
 def settings_mode():
-    """进入设置界面。"""
+    """进入设置界面（上下键选择配置项）。"""
     cmd = state.cmd
     config = state.config
     log.info("进入设置模式")
 
-    def _render():
-        while True:
-            current_max_tokens = state.current_config.get('max_tokens', 18000)
-            current_prefix = state.current_config.get('command_prefix', '/')
+    def _run_token():
+        """修改最大 Token 数。"""
+        current_max_tokens = state.current_config.get('max_tokens', 18000)
+        _console.print()
+        _console.print(Panel(Text(i18n.t("settings.max_tokens_panel", current=current_max_tokens)), title=i18n.t("settings.max_tokens"), border_style="cyan"))
+        new_value = input(i18n.t("settings.input_max_tokens")).strip()
 
-            # 构建当前配置表格
-            table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 2))
-            table.add_column("配置项", style="bold white", width=15)
-            table.add_column("当前值", style="dim")
-            table.add_row("最大 Token 数", str(current_max_tokens))
-            table.add_row("命令前缀", current_prefix)
+        if not new_value:
+            return
 
-            # 渲染界面
-            _console.print()
-            _console.print(create_header_panel("设置模式", "配置 Dolphin 的运行参数"))
-            _console.print()
-            _console.print(table)
-            _console.print()
-            _console.print("[bold]操作选项:[/bold]")
-            _console.print("  [cyan]1[/cyan] - 修改最大 Token 数")
-            _console.print("  [cyan]2[/cyan] - 修改命令前缀")
-            _console.print(f"  [dim]{cmd.get_command_keyword('back')}[/dim] - 返回主界面")
-            _console.print()
-            _console.print(create_footer_panel("输入对应选项进行配置"))
-
-            choice = input("\n> ").strip()
-
-            if choice == cmd.get_command_keyword('back') or not choice:
-                _rebuild_client_and_chat()
+        try:
+            new_max_tokens = int(new_value)
+            if new_max_tokens < 1:
+                _console.print(f"[red]{i18n.t('settings.token_min')}[/red]")
+                input(i18n.t("main.press_enter"))
                 return
+            elif new_max_tokens > 200000:
+                _console.print(f"[red]{i18n.t('settings.token_max')}[/red]")
+                input(i18n.t("main.press_enter"))
+                return
+            state.current_config['max_tokens'] = new_max_tokens
+            config.save_config(state.current_config)
+            log.info(f"最大 Token 数已更改: {new_max_tokens}")
+            _console.print(f"[green]{i18n.t('settings.updated', value=new_max_tokens)}[/green]")
+            input(i18n.t("main.press_enter"))
+        except ValueError:
+            _console.print(f"[red]{i18n.t('settings.invalid_number')}[/red]")
+            input(i18n.t("main.press_enter"))
 
-            if choice == '1':
-                # 修改最大 Token 数
-                _console.print()
-                _console.print(Panel(Text("当前值: " + str(current_max_tokens) + "\n推荐值: 18000 (适合大多数场景)\n范围: 1-200000"), title="最大 Token 数", border_style="cyan"))
-                new_value = input("输入新的最大 Token 数 (留空保持当前值): ").strip()
+    def _run_prefix():
+        """修改命令前缀。"""
+        current_prefix = state.current_config.get('command_prefix', '/')
+        _console.print()
+        _console.print(Panel(Text(i18n.t("settings.prefix_panel", prefix=current_prefix)), title=i18n.t("settings.command_prefix"), border_style="cyan"))
+        new_prefix = input(i18n.t("settings.input_prefix")).strip()
 
-                if not new_value:
-                    continue
+        if not new_prefix:
+            return
 
-                try:
-                    new_max_tokens = int(new_value)
-                    if new_max_tokens < 1:
-                        _console.print("[red]Token 数至少为 1[/red]")
-                        input("按 Enter 键继续...")
-                        continue
-                    elif new_max_tokens > 200000:
-                        _console.print("[red]Token 数最大不超过 200000[/red]")
-                        input("按 Enter 键继续...")
-                        continue
-                    state.current_config['max_tokens'] = new_max_tokens
-                    config.save_config(state.current_config)
-                    log.info(f"最大 Token 数已更改: {new_max_tokens}")
-                    _console.print(f"[green]已更新: {new_max_tokens}[/green]")
-                    input("按 Enter 键继续...")
-                except ValueError:
-                    _console.print("[red]请输入有效数字[/red]")
-                    input("按 Enter 键继续...")
+        if len(new_prefix) > 10:
+            new_prefix = new_prefix[:10]
+            _console.print(f"[yellow]{i18n.t('settings.prefix_truncated', prefix=new_prefix)}[/yellow]")
 
-            elif choice == '2':
-                # 修改命令前缀
-                _console.print()
-                _console.print(Panel(Text(f"当前前缀: {current_prefix}\n修改后将统一更改所有命令的唤起前缀\n例如: /help → .help"), title="命令前缀", border_style="cyan"))
-                new_prefix = input("输入新的命令前缀 (最长10字符): ").strip()
+        state.current_config['command_prefix'] = new_prefix
+        config.save_config(state.current_config)
+        cmd.save_commands()
+        log.info(f"命令前缀已更改: {current_prefix} -> {new_prefix}")
+        _console.print(f"[green]{i18n.t('settings.updated', value=new_prefix)}[/green]")
+        input(i18n.t("main.press_enter"))
 
-                if not new_prefix:
-                    continue
+    def _render():
+        from .key_nav import navigate
 
-                if len(new_prefix) > 10:
-                    new_prefix = new_prefix[:10]
-                    _console.print(f"[yellow]命令前缀已截断为: {new_prefix}[/yellow]")
+        def _label(item, i):
+            if item["key"] == "max_tokens":
+                return f"{i18n.t('settings.max_tokens')}: {state.current_config.get('max_tokens', 18000)}"
+            return f"{i18n.t('settings.command_prefix')}: {state.current_config.get('command_prefix', '/')}"
 
-                state.current_config['command_prefix'] = new_prefix
-                config.save_config(state.current_config)
-                cmd.save_commands()
-                log.info(f"命令前缀已更改: {current_prefix} -> {new_prefix}")
-                _console.print(f"[green]已更新: {new_prefix}[/green]")
-                input("按 Enter 键继续...")
+        def _on_enter(item, i):
+            item["action"]()
+            return False  # 完成后回到导航，可继续配置其他项
 
-            else:
-                _console.print("[red]无效选项[/red]")
-                input("按 Enter 键继续...")
+        items = [
+            {"key": "max_tokens", "action": _run_token},
+            {"key": "command_prefix", "action": _run_prefix},
+        ]
+        navigate(i18n.t("settings.title"), i18n.t("settings.subtitle"), items, _label, _on_enter,
+                 f"{i18n.t('settings.enter_configure')} | {i18n.t('settings.esc_back', back=cmd.get_command_keyword('back'))}")
+        _rebuild_client_and_chat()
 
     from .screen_refresh import enter_screen
     enter_screen(_render,
@@ -149,7 +135,7 @@ def _apply_model_config(model_info):
 
 
 def model_settings():
-    """模型设置界面。"""
+    """模型设置界面（上下键导航，k/a/d 为动作键）。"""
     cmd = state.cmd
     config = state.config
     log.info("进入模型设置")
@@ -160,94 +146,66 @@ def model_settings():
     )
 
     def _render():
+        from .key_nav import navigate
+
         current_model = state.current_config.get('model', 'deepseek-v4-flash')
+        available_models = get_available_models()
 
-        while True:
-            available_models = get_available_models()
+        def _label(model_info, i):
+            name_display = model_info['name']
+            if model_info.get("custom"):
+                name_display = f"* {name_display}"
+            desc = model_info.get('description', '')
+            marker = "✓" if model_info['name'] == current_model else ""
+            line = f"{name_display}  {desc}".rstrip()
+            if marker:
+                line += f"  {marker}"
+            return line
 
-            # 构建模型列表表格
-            table = Table(show_header=True, header_style="bold cyan", border_style="dim", padding=(0, 2))
-            table.add_column("#", style="dim", width=4)
-            table.add_column("模型名称", style="bold white", width=30)
-            table.add_column("描述", style="dim", width=20)
-            table.add_column("状态", width=12)
-
-            choice_map = {}
-            custom_indices = set()
-            idx = 1
-
-            for model_info in available_models:
-                marker = "✓" if model_info['name'] == current_model else ""
-                desc = model_info.get('description', '')
-                name_display = model_info['name']
-                if model_info.get("custom"):
-                    name_display = f"* {name_display}"
-                    custom_indices.add(str(idx))
-                table.add_row(str(idx), name_display, desc, Text(marker, style="green"))
-                choice_map[str(idx)] = model_info
-                idx += 1
-
-            # 渲染界面
-            _console.print()
-            _console.print(create_header_panel("模型设置", f"当前模型: {current_model}"))
-            _console.print()
-            _console.print(table)
-            _console.print()
-            _console.print("[bold]操作选项:[/bold]")
-            _console.print(f"  [cyan]1-{idx-1}[/cyan] - 选择模型")
-            _console.print(f"  [cyan]k[/cyan] - 修改 API 密钥")
-            _console.print(f"  [cyan]a[/cyan] - 添加自定义模型")
-            if custom_indices:
-                _console.print(f"  [cyan]d[/cyan] - 删除自定义模型")
-            _console.print(f"  [dim]{cmd.get_command_keyword('back')}[/dim] - 返回主界面")
-            _console.print("  ([dim]*[/dim] 标记表示自定义模型)")
-            _console.print()
-            api_key = state.current_config.get('api_key', '')
-            _console.print(create_footer_panel(f"API 密钥: {'***' + api_key[-4:] if len(api_key) > 4 else ('已设置' if api_key else '未设置')}"))
-
-            choice = input("\n> ").strip()
-
-            if choice == cmd.get_command_keyword('back') or not choice:
-                return
-
-            if choice == 'k':
-                # 修改 API 密钥
-                _console.print()
-                new_api_key = input("API 密钥 (留空保持当前值): ").strip()
-                if new_api_key:
-                    state.current_config['api_key'] = new_api_key
-                    config.save_config(state.current_config)
-                    log.info("API 密钥已更新")
-                    _console.print("[green]API 密钥已更新[/green]")
-                    _rebuild_client_and_chat()
-                    input("按 Enter 键继续...")
-                continue
-
-            if choice == 'a':
-                # 添加自定义模型
-                _add_custom_model_flow()
-                continue
-
-            if choice == 'd':
-                # 删除自定义模型
-                _delete_custom_model_flow(custom_indices, choice_map)
-                continue
-
-            if choice not in choice_map:
-                _console.print("[red]无效选择[/red]")
-                input("按 Enter 键继续...")
-                continue
-
-            model_info = choice_map[choice]
+        def _on_enter(model_info, i):
             new_model = model_info["name"]
             state.current_config['model'] = new_model
             _apply_model_config(model_info)
             config.save_config(state.current_config)
             log.info(f"模型已切换: {new_model}")
             _rebuild_client_and_chat()
-            _console.print(f"[green]已切换至: {new_model}[/green]")
-            input("按 Enter 键继续...")
-            return
+            _console.print(f"[green]{i18n.t('model.switched', name=new_model)}[/green]")
+            input(i18n.t("main.press_enter"))
+            return True  # 切换完成后退出模型设置
+
+        def _extra_key(key, model_info, i):
+            if key == 'k':
+                # 修改 API 密钥
+                _console.print()
+                new_api_key = input(i18n.t("model.input_api_key")).strip()
+                if new_api_key:
+                    state.current_config['api_key'] = new_api_key
+                    config.save_config(state.current_config)
+                    log.info("API 密钥已更新")
+                    _console.print(f"[green]{i18n.t('model.api_key_updated')}[/green]")
+                    _rebuild_client_and_chat()
+                    input(i18n.t("main.press_enter"))
+                return True
+            if key == 'a':
+                # 添加自定义模型
+                _add_custom_model_flow()
+                return True
+            if key == 'd':
+                # 删除自定义模型
+                if not model_info.get("custom"):
+                    _console.print(f"[red]{i18n.t('model.not_custom')}[/red]")
+                    input(i18n.t("main.press_enter"))
+                    return True
+                _delete_custom_model_flow(model_info)
+                return True
+            return False
+
+        api_key = state.current_config.get('api_key', '')
+        footer = (f"{i18n.t('model.api_key_label')}{'***' + api_key[-4:] if len(api_key) > 4 else ('已设置' if api_key else '未设置')}"
+                  f" | {i18n.t('model.hint', back=cmd.get_command_keyword('back'))}")
+        navigate(i18n.t("model.title"), i18n.t("model.current", name=current_model),
+                 available_models, _label, _on_enter, footer,
+                 extra_key=_extra_key)
 
     from .screen_refresh import enter_screen
     enter_screen(_render,
@@ -260,60 +218,56 @@ def _add_custom_model_flow():
     from modules.main_server.config import add_custom_model
 
     _console.print()
-    _console.print(create_header_panel("添加自定义模型", "输入新模型的配置信息"))
+    _console.print(create_header_panel(i18n.t("model.add_title"), i18n.t("model.add_subtitle")))
 
-    name = input("模型名称 (如 gpt-4o): ").strip()
+    name = input(i18n.t("model.input_name")).strip()
     if not name:
-        _console.print("[red]模型名称不能为空[/red]")
-        input("按 Enter 键继续...")
+        _console.print(f"[red]{i18n.t('model.name_required')}[/red]")
+        input(i18n.t("main.press_enter"))
         return
 
-    description = input("模型描述 (如 OpenAI GPT-4o): ").strip()
+    description = input(i18n.t("model.input_description")).strip()
     if not description:
         description = name
 
-    base_url = input("API 地址 (如 https://api.openai.com/v1): ").strip()
+    base_url = input(i18n.t("model.input_base_url")).strip()
     if not base_url:
-        _console.print("[red]API 地址不能为空[/red]")
-        input("按 Enter 键继续...")
+        _console.print(f"[red]{i18n.t('model.base_url_required')}[/red]")
+        input(i18n.t("main.press_enter"))
         return
 
-    api_key = input("API 密钥: ").strip()
+    api_key = input(i18n.t("model.api_key_label")).strip()
     if not api_key:
-        _console.print("[red]API 密钥不能为空[/red]")
-        input("按 Enter 键继续...")
+        _console.print(f"[red]{i18n.t('model.api_key_required')}[/red]")
+        input(i18n.t("main.press_enter"))
         return
 
-    context_str = input("上下文窗口大小 (留空默认 128000): ").strip()
+    context_str = input(i18n.t("model.input_context")).strip()
     context_window = 128000
     if context_str:
         try:
             context_window = int(context_str)
         except ValueError:
-            _console.print("[yellow]输入无效，使用默认值 128000[/yellow]")
+            _console.print(f"[yellow]{i18n.t('model.invalid_context')}[/yellow]")
 
     success, error = add_custom_model(name, description, base_url, api_key, context_window)
     if success:
-        _console.print(f"[green]自定义模型 '{name}' 已添加[/green]")
+        _console.print(f"[green]{i18n.t('model.added', name=name)}[/green]")
     else:
         _console.print(f"[red]{error}[/red]")
-    input("按 Enter 键继续...")
+    input(i18n.t("main.press_enter"))
 
 
-def _delete_custom_model_flow(custom_indices, choice_map):
-    """自定义模型删除流程。"""
+def _delete_custom_model_flow(model_info):
+    """删除当前选中的自定义模型。"""
     from modules.main_server.config import remove_custom_model
 
-    _console.print()
-    _console.print(create_header_panel("删除自定义模型", "选择要删除的自定义模型"))
-    _console.print(f"[bold]可删除的模型序号:[/bold] {', '.join(sorted(custom_indices))}")
-
-    idx_input = input("输入要删除的模型序号 (留空取消): ").strip()
-    if not idx_input or idx_input not in custom_indices:
-        return
-
-    model_info = choice_map[idx_input]
     name = model_info["name"]
+    _console.print()
+    _console.print(create_header_panel(i18n.t("model.delete_title"), i18n.t("model.delete_subtitle")))
+    confirm = input(i18n.t("model.confirm_delete", name=name)).strip().lower()
+    if confirm not in ('y', 'yes'):
+        return
 
     # 如果当前正在使用该模型，切回默认模型
     if state.current_config.get('model') == name:
@@ -321,10 +275,53 @@ def _delete_custom_model_flow(custom_indices, choice_map):
 
     success, error = remove_custom_model(name)
     if success:
-        _console.print(f"[green]自定义模型 '{name}' 已删除[/green]")
+        _console.print(f"[green]{i18n.t('model.deleted', name=name)}[/green]")
     else:
         _console.print(f"[red]{error}[/red]")
-    input("按 Enter 键继续...")
+    input(i18n.t("main.press_enter"))
+
+
+def effort_settings():
+    """思考深度设置界面（上下键导航）。"""
+    cmd = state.cmd
+    log.info("进入思考深度设置")
+
+    _LEVELS = [
+        ("fine", i18n.t("effort.fine")),
+        ("normal", i18n.t("effort.normal")),
+        ("high", i18n.t("effort.high")),
+    ]
+
+    def _render():
+        from .key_nav import navigate
+
+        def _label(level, i):
+            name, desc = level
+            marker = "✓" if state.effort_level == name else ""
+            line = f"{name} - {desc}"
+            if marker:
+                line += f"  {marker}"
+            return line
+
+        def _on_enter(level, i):
+            name, _ = level
+            state.effort_level = name
+            state.chat_instance.effort_level = name
+            state.current_config['effort_level'] = name
+            state.config.save_config(state.current_config)
+            log.info(f"思考深度已更改: {name}")
+            _console.print(f"[green]{i18n.t('main.effort_set', level=name)}[/green]")
+            input(i18n.t("main.press_enter"))
+            return True  # 应用后退出
+
+        navigate(i18n.t("effort.title"), i18n.t("effort.subtitle", level=state.effort_level),
+                 _LEVELS, _label, _on_enter,
+                 i18n.t("effort.hint", back=cmd.get_command_keyword('back')))
+
+    from .screen_refresh import enter_screen
+    enter_screen(_render,
+                 command_input=cmd.get_command('effort'),
+                 command_info=f"╰─{cmd.get_command_description('effort')}")
 
 
 def toggle_tools():

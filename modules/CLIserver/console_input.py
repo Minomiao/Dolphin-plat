@@ -54,7 +54,8 @@ def read_key():
     """读取一个按键事件。
 
     Returns:
-        KEY_UP / KEY_DOWN / KEY_ENTER / KEY_ESC，失败时返回 None
+        KEY_UP / KEY_DOWN / KEY_ENTER / KEY_ESC，或普通可打印字符（小写），
+        失败时返回 None
     """
     if os.name == 'nt':
         return _read_key_windows()
@@ -120,6 +121,10 @@ def _read_key_windows():
                 return KEY_ESC
             if vk == ord('C') and ctrl_state & (RIGHT_CTRL_PRESSED | LEFT_CTRL_PRESSED):
                 return KEY_ESC
+            # 普通可打印字符（如动作键 k/a/d）
+            ch = record.KeyEvent.UnicodeChar
+            if ch and ch not in ('\r', '\x1b', '\x00'):
+                return ch.lower()
 
 
 def _read_key_unix():
@@ -138,6 +143,13 @@ def _read_key_unix():
         if first in (b'\r', b'\n'):
             return KEY_ENTER
         if first != b'\x1b':
+            # 普通可打印字符（如动作键 k/a/d）
+            try:
+                ch = first.decode('utf-8')
+            except UnicodeDecodeError:
+                return None
+            if ch.isprintable():
+                return ch.lower()
             return None
 
         second = _read_bytes(fd, 1, timeout=0.1)
