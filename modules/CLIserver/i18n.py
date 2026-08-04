@@ -66,6 +66,50 @@ SUPPORTED_LANGUAGES = [
     {"code": "nyannyan", "native": "喵喵語 (=^･ω･^=)"},
 ]
 
+# 语言代码 → 英语语言名（用于系统提示词中的语言指令，随所选语言切换）
+LANGUAGE_INSTRUCTION_NAMES = {
+    "zh-CN": "Simplified Chinese",
+    "zh-TW": "Traditional Chinese",
+    "ja-JP": "Japanese",
+    "ko-KR": "Korean",
+    "en-US": "English",
+    "fr-FR": "French",
+    "de-DE": "German",
+    "es-ES": "Spanish",
+    "pt-BR": "Portuguese",
+    "it-IT": "Italian",
+    "ru-RU": "Russian",
+    "nl-NL": "Dutch",
+    "pl-PL": "Polish",
+    "sv-SE": "Swedish",
+    "cs-CZ": "Czech",
+    "hu-HU": "Hungarian",
+    "ro-RO": "Romanian",
+    "da-DK": "Danish",
+    "fi-FI": "Finnish",
+    "nb-NO": "Norwegian",
+    "el-GR": "Greek",
+    "bg-BG": "Bulgarian",
+    "sr-RS": "Serbian",
+    "lt-LT": "Lithuanian",
+    "tr-TR": "Turkish",
+    "ar-SA": "Arabic",
+    "he-IL": "Hebrew",
+    "fa-IR": "Persian",
+    "hi-IN": "Hindi",
+    "bn-BD": "Bengali",
+    "th-TH": "Thai",
+    "vi-VN": "Vietnamese",
+    "id-ID": "Indonesian",
+    "ms-MY": "Malay",
+    "tl-PH": "Tagalog",
+    "sw-KE": "Swahili",
+    "ka-GE": "Georgian",
+    "uk-UA": "Ukrainian",
+    "wenyan": "Classical Chinese",
+    "nyannyan": "Nyan (meow) language",
+}
+
 _active_language = DEFAULT_LANGUAGE
 _translations = _BUILTIN_TRANSLATIONS
 
@@ -152,6 +196,16 @@ def get_language():
 def get_supported_languages():
     """返回支持的语言列表（含母语名称）。"""
     return list(SUPPORTED_LANGUAGES)
+
+
+def get_language_instruction_name():
+    """返回当前语言的英语名称，用于系统提示词中的语言指令。
+
+    Returns:
+        英语语言名；未注册的语言回退到默认语言名称
+    """
+    return (LANGUAGE_INSTRUCTION_NAMES.get(_active_language)
+            or LANGUAGE_INSTRUCTION_NAMES[DEFAULT_LANGUAGE])
 
 
 def t(key, **kwargs):

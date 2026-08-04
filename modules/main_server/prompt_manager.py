@@ -1,4 +1,6 @@
 import os
+import re
+
 from modules.logger import get_logger
 from modules import bootstrap as app_paths
 
@@ -29,7 +31,7 @@ _DEFAULTS = {
         "embody the mentality of a skilled senior engineer.\n"
         "\n"
         "<language>\n"
-        "Always respond in Chinese. Use Chinese for all explanations, comments, and\n"
+        "Always respond in {language}. Use {language} for all explanations, comments, and\n"
         "communication with the user. Technical terms and code identifiers should\n"
         "remain in their original form.\n"
         "\n"
@@ -215,6 +217,34 @@ _DEFAULTS = {
 }
 
 
+# 语言指令块模板（{language} 由 compose_system_prompt 按当前所选语言动态注入）
+_LANGUAGE_BLOCK = (
+    "<language>\n"
+    "Always respond in {language}. Use {language} for all explanations, comments, and\n"
+    "communication with the user. Technical terms and code identifiers should\n"
+    "remain in their original form."
+)
+
+# 匹配 <language> 段直到下一个空行或文件末尾
+_LANGUAGE_PATTERN = re.compile(r"<language>.*?(?=\n\n|\Z)", re.DOTALL)
+
+
+def _with_language_block(prompt, language_name):
+    """替换或追加 <language> 语言指令段，使语言与当前选择一致。
+
+    Args:
+        prompt: system.txt 内容
+        language_name: 当前语言的英语名称
+
+    Returns:
+        注入语言指令后的完整提示词
+    """
+    block = _LANGUAGE_BLOCK.format(language=language_name)
+    if "<language>" in prompt:
+        return _LANGUAGE_PATTERN.sub(block, prompt, count=1)
+    return prompt.rstrip() + "\n\n" + block
+
+
 class PromptManager:
     _instance = None
 
@@ -302,8 +332,14 @@ class PromptManager:
         return prompt
 
     def compose_system_prompt(self):
-        """返回静态系统提示词（仅 system.txt，用于 prompt caching）"""
-        return self.prompts.get("system", "")
+        """返回系统提示词，语言指令段随当前所选显示语言动态拼接。
+
+        已存在的旧版 system.txt（硬编码 Chinese）也会被替换为当前语言；
+        若文件中无 <language> 段则在末尾追加。
+        """
+        prompt = self.prompts.get("system", "")
+        from modules.CLIserver import i18n
+        return _with_language_block(prompt, i18n.get_language_instruction_name())
 
     def compose_context(self, **kwargs):
         """组合每轮动态上下文 (turn_reminder + work_directory + directory_structure + effort)"""
