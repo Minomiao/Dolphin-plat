@@ -414,8 +414,8 @@ async def execute_script(script: str, timeout: int = DEFAULT_TIMEOUT, wait_time:
             await asyncio.sleep(0.1)
             stdout = ''.join(stdout_buffer)
 
-            # 注册后台超时自动清理，防止进程永久泄漏
-            asyncio.create_task(_auto_kill_background(command_id))
+            # 注册后台超时自动清理：后台存活不超过 timeout（至少 wait_time），防止进程永久泄漏
+            asyncio.create_task(_auto_kill_background(command_id, delay=max(timeout, wait_time)))
 
             elapsed = time.time() - exec_start
             log.info(f"命令仍在运行: command_id={command_id}, stdout={len(stdout)}字, 已耗时={elapsed:.3f}s")

@@ -34,6 +34,9 @@ def _rebuild_client_and_chat():
     )
     state.chat_instance.effort_level = state.effort_level
     state.chat_instance.messages = old_messages
+    # 恢复保存目标，避免重建后自动保存失效导致退出丢失本轮消息
+    if state.current_dir_id and state.current_conv_id:
+        state.chat_instance.set_save_target(state.current_dir_id, state.current_conv_id)
     log.info("客户端已更新")
     print("客户端已更新")
 

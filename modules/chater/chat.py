@@ -12,6 +12,7 @@ from modules.loader import skill_manager
 from modules.loader import plugin_skill_loader
 from modules.main_server.middleware import request_manager
 from modules.functions import backup_manager, powershell_manager
+from modules.bootstrap import constants
 from modules.logger import get_logger, log_thinking
 
 log = get_logger("Dolphin.chat")
@@ -106,7 +107,8 @@ class DolphinChat:
         self.callback = callback or (lambda *args, **kwargs: None)
         self.client = OpenAI(
             api_key=_cfg.get("api_key"),
-            base_url=_cfg.get("base_url", "https://api.deepseek.com")
+            base_url=_cfg.get("base_url", "https://api.deepseek.com"),
+            timeout=constants.API_TIMEOUT
         )
         self.mcp_mgr = mcp_manager.get_mcp_manager()
         self.skill_mgr = skill_manager.get_skill_manager()
@@ -599,57 +601,61 @@ class DolphinChat:
         response_started = False
         last_usage = None  # 捕获流式响应的 usage
 
-        for chunk in stream:
-            # 检查 usage 信息（流式响应的最后一块可能包含 usage）
-            if hasattr(chunk, 'usage') and chunk.usage:
-                last_usage = chunk.usage
+        try:
+            for chunk in stream:
+                # 检查 usage 信息（流式响应的最后一块可能包含 usage）
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    last_usage = chunk.usage
 
-            # usage-only chunk 没有 choices，跳过
-            if not chunk.choices:
-                continue
+                # usage-only chunk 没有 choices，跳过
+                if not chunk.choices:
+                    continue
 
-            delta = chunk.choices[0].delta
+                delta = chunk.choices[0].delta
 
-            if hasattr(delta, 'model_extra') and delta.model_extra:
-                reasoning = delta.model_extra.get('reasoning_content')
-                if reasoning:
-                    if not reasoning_started:
-                        await self._call_callback('thinking_start', {})
-                        reasoning_started = True
-                    full_reasoning += reasoning
-                    await self._call_callback('thinking_chunk', {
-                        'content': reasoning
+                if hasattr(delta, 'model_extra') and delta.model_extra:
+                    reasoning = delta.model_extra.get('reasoning_content')
+                    if reasoning:
+                        if not reasoning_started:
+                            await self._call_callback('thinking_start', {})
+                            reasoning_started = True
+                        full_reasoning += reasoning
+                        await self._call_callback('thinking_chunk', {
+                            'content': reasoning
+                        })
+
+                if delta.content:
+                    content = delta.content
+                    full_response += content
+                    if not response_started:
+                        response_started = True
+                        if reasoning_started:
+                            await self._call_callback('thinking_end', {})
+                            reasoning_started = False
+                    await self._call_callback('response_chunk', {
+                        'content': content
                     })
 
-            if delta.content:
-                content = delta.content
-                full_response += content
-                if not response_started:
-                    response_started = True
-                    if reasoning_started:
-                        await self._call_callback('thinking_end', {})
-                        reasoning_started = False
-                await self._call_callback('response_chunk', {
-                    'content': content
-                })
-
-            if delta.tool_calls:
-                has_tool_calls = True
-                for tc in delta.tool_calls:
-                    if tc.index not in tool_calls_buffer:
-                        tool_calls_buffer[tc.index] = {
-                            "id": tc.id,
-                            "type": tc.type,
-                            "function": {
-                                "name": tc.function.name if tc.function.name else "",
-                                "arguments": tc.function.arguments if tc.function.arguments else ""
+                if delta.tool_calls:
+                    has_tool_calls = True
+                    for tc in delta.tool_calls:
+                        if tc.index not in tool_calls_buffer:
+                            tool_calls_buffer[tc.index] = {
+                                "id": tc.id,
+                                "type": tc.type,
+                                "function": {
+                                    "name": tc.function.name if tc.function.name else "",
+                                    "arguments": tc.function.arguments if tc.function.arguments else ""
+                                }
                             }
-                        }
-                    else:
-                        if tc.function.name:
-                            tool_calls_buffer[tc.index]["function"]["name"] = tc.function.name
-                        if tc.function.arguments:
-                            tool_calls_buffer[tc.index]["function"]["arguments"] += tc.function.arguments
+                        else:
+                            if tc.function.name:
+                                tool_calls_buffer[tc.index]["function"]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                tool_calls_buffer[tc.index]["function"]["arguments"] += tc.function.arguments
+        finally:
+            # 确保流式连接被释放，避免中途异常时连接泄漏
+            stream.close()
 
         if reasoning_started:
             log.debug(f"思考过程长度: {len(full_reasoning)}")

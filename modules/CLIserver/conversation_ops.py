@@ -1,6 +1,5 @@
 """对话管理操作：打开工作目录、新建/加载/列出对话。"""
 import os
-import importlib
 
 from rich.console import Console
 from rich.panel import Panel
@@ -49,11 +48,11 @@ def open_work_directory(path=None, silent=False):
 
     if path != old_work_directory:
         print(f"工作目录已更改，正在重新加载技能模块...")
-        import modules.loader.skill_manager as sm
-        importlib.reload(sm)
-        state.skill_mgr = sm.get_skill_manager()
-        state.skill_mgr.set_work_dir(path)
-        state.chat_instance.skill_mgr = state.skill_mgr
+        # 复用同一单例重载技能，避免 importlib.reload 造成模块/单例分裂
+        sm = state.chat_instance.skill_mgr
+        sm.reload_skills()
+        sm.set_work_dir(path)
+        state.skill_mgr = sm
         if state.chat_instance.plugin_loader:
             state.chat_instance.plugin_loader.set_work_dir(path)
         state.chat_instance._update_tools()

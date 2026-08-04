@@ -284,10 +284,36 @@ def save_config(config):
 
     config_to_save = {k: v for k, v in config.items() if k not in ("api_key", "work_directory")}
     if not os.path.exists(app_paths.DATE_DIR):
-        os.makedirs(app_paths.DATE_DIR)
-    with open(app_paths.CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config_to_save, f, ensure_ascii=False, indent=2)
-    log.debug(f"保存配置文件: {app_paths.CONFIG_FILE}")
+        try:
+            os.makedirs(app_paths.DATE_DIR)
+        except OSError as e:
+            log.warning(f"创建 date 目录失败: {e}")
+            return
+    tmp_path = app_paths.CONFIG_FILE + ".tmp"
+    try:
+        # 原子写：先写临时文件再替换，避免写一半中断损坏 config.json
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(config_to_save, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, app_paths.CONFIG_FILE)
+    except PermissionError as e:
+        log.warning(f"无权限保存配置文件: {e}")
+    except OSError as e:
+        log.warning(f"保存配置文件失败 (操作系统错误): {e}")
+        _remove_tmp_config(tmp_path)
+    except Exception as e:
+        log.warning(f"保存配置文件发生意外错误: {e}")
+        _remove_tmp_config(tmp_path)
+    else:
+        log.debug(f"保存配置文件: {app_paths.CONFIG_FILE}")
+
+
+def _remove_tmp_config(tmp_path):
+    """清理原子写入失败时遗留的临时文件。"""
+    try:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    except OSError:
+        pass
 
 
 def ensure_config():

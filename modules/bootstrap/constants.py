@@ -135,6 +135,10 @@ MODEL_REGISTRY = {
     },
 }
 
+# ===== API 请求超时 =====
+# OpenAI SDK 默认 600s，网络故障时会让整个 CLI 冻结过久，这里收紧为 120s
+API_TIMEOUT = 120
+
 # ===== 启动动画 =====
 # 启动进度条文字
 DEEPSLEEPING_TEXT = "d-e-e-p-s-l-e-e-p-i-n-g"
