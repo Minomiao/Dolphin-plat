@@ -245,6 +245,33 @@ def _with_language_block(prompt, language_name):
     return prompt.rstrip() + "\n\n" + block
 
 
+# 每轮动态提醒追加的语言准则块（{language} 按当前所选语言注入）
+_TURN_LANGUAGE_BLOCK = (
+    "<language>\n"
+    "Reply to the user in {language}. Write all explanations, comments, and\n"
+    "communication in {language}. Technical terms and code identifiers remain\n"
+    "in their original form."
+)
+
+# 特殊语言风格指导（仅对特定语言注入，key 为语言代码）
+_LANGUAGE_STYLE_GUIDES = {
+    "wenyan": (
+        "<style>\n"
+        "Respond in a Classical Chinese (文言文) register: use classical pronouns\n"
+        "and particles (吾, 汝, 之, 乎, 者, 也), keep sentences concise and\n"
+        "dignified, and avoid modern colloquialisms and internet slang. Technical\n"
+        "terms and code identifiers stay in their original form."
+    ),
+    "nyannyan": (
+        "<style>\n"
+        "Respond in a playful cat-speak style (喵喵語): sprinkle meow particles\n"
+        "(喵~, nya~) naturally into the sentences, use light and cute wording,\n"
+        "while keeping the meaning clear. Technical terms and code identifiers\n"
+        "stay in their original form."
+    ),
+}
+
+
 class PromptManager:
     _instance = None
 
@@ -342,12 +369,25 @@ class PromptManager:
         return _with_language_block(prompt, i18n.get_language_instruction_name())
 
     def compose_context(self, **kwargs):
-        """组合每轮动态上下文 (turn_reminder + work_directory + directory_structure + effort)"""
+        """组合每轮动态上下文 (turn_reminder + work_directory + directory_structure + effort)。
+
+        turn_reminder 会追加当前所选语言的语言准则，特殊语言（文言文、
+        喵喵語等）再附加对应风格指导。
+        """
         effort_level = kwargs.pop("effort_level", "fine")
         effort_prompt = self.effort_prompts.get(effort_level, "")
 
-        parts = [
-            self.prompts.get("turn_reminder", ""),
+        from modules.CLIserver import i18n
+        language_code = i18n.get_language()
+        language_name = i18n.get_language_instruction_name()
+
+        turn_reminder = self.prompts.get("turn_reminder", "")
+        parts = [turn_reminder, _TURN_LANGUAGE_BLOCK.format(language=language_name)]
+        style_guide = _LANGUAGE_STYLE_GUIDES.get(language_code)
+        if style_guide:
+            parts.append(style_guide)
+
+        parts += [
             self.get_prompt("work_directory", **kwargs),
             self.get_prompt("directory_structure", **kwargs),
             effort_prompt,
