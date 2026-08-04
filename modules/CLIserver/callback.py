@@ -100,7 +100,10 @@ def flush_context_usage():
     elif level == 'warn':
         print(f"\n{Fore.LIGHTBLACK_EX}上下文使用率 {pct}{Style.RESET_ALL}")
 
-    # 显示 token 用量
+    # 若流式回复末尾未换行，先换行再显示 token 统计，避免拼在同一行
+    if not ui.at_line_start:
+        sys.stdout.write("\n")
+        ui.at_line_start = True
     print(f"{Fore.LIGHTBLACK_EX}[Token] 本轮 {turn_completion} | {circle} {pct}{Style.RESET_ALL}")
 
 
@@ -165,6 +168,7 @@ def chat_callback(event_type, data):
                 print(f"{prefix}{content}", end="", flush=True)
         else:
             print(content, end="", flush=True)
+        ui.at_line_start = content.endswith('\n')
     elif event_type == 'response_end':
         ui._indented_after_thinking = False
         ui._fold_corner_used = False
