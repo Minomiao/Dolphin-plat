@@ -1,4 +1,3 @@
-import os
 from typing import Dict, Any, List
 from pathlib import Path
 from modules.bootstrap import constants
@@ -8,54 +7,6 @@ MAX_FILE_SIZE = constants.MAX_FILE_SIZE
 MAX_SEARCH_RESULTS = constants.MAX_SEARCH_RESULTS
 MAX_FILES_TO_SEARCH_IN_CONTENT = constants.MAX_FILES_TO_SEARCH_IN_CONTENT
 MAX_MATCHES_PER_FILE = constants.MAX_MATCHES_PER_FILE
-
-
-def _check_dpc_restriction(absolute_path: str, work_dir: str) -> tuple:
-    from modules.chater import dpc_manager
-    current = os.path.dirname(os.path.abspath(absolute_path))
-    work_path = os.path.abspath(work_dir)
-    while True:
-        dpc_path = os.path.join(current, '.dpc')
-        if os.path.exists(dpc_path):
-            rel = os.path.relpath(absolute_path, current)
-            allowed, msg = dpc_manager.is_path_allowed(current, rel)
-            if not allowed:
-                return False, msg
-        parent = os.path.dirname(current)
-        if parent == current or os.path.commonpath([parent, work_path]) != work_path:
-            break
-        current = parent
-    return True, None
-
-
-def _is_path_allowed(file_path: str, work_dir: str) -> Dict[str, Any]:
-    try:
-        path = Path(file_path)
-        work_path = Path(work_dir).resolve()
-
-        if path.is_absolute():
-            resolved_path = path.resolve()
-        else:
-            resolved_path = (work_path / path).resolve()
-
-        try:
-            resolved_path.relative_to(work_path)
-        except ValueError:
-            return {
-                "allowed": False,
-                "path": str(resolved_path),
-                "work_directory": str(work_path),
-                "requires_confirmation": True,
-                "message": f"路径 '{file_path}' 不在工作目录 '{work_dir}' 内"
-            }
-
-        allowed, msg = _check_dpc_restriction(str(resolved_path), work_dir)
-        if not allowed:
-            return {"allowed": False, "path": str(resolved_path), "message": msg}
-
-        return {"allowed": True, "path": str(resolved_path)}
-    except Exception as e:
-        return {"allowed": False, "path": file_path, "error": str(e)}
 
 
 skill_info = {
@@ -124,7 +75,7 @@ def get_work_directory(context) -> Dict[str, Any]:
 def search_files(context, pattern: str, directory: str = ".", search_in_content: bool = False, file_extension: str = None) -> Dict[str, Any]:
     wd = context.work_directory
     try:
-        path_check = _is_path_allowed(directory, wd)
+        path_check = context.is_path_allowed(directory)
         if not path_check["allowed"]:
             return {"error": path_check["message"], "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径后再进行操作", "user_output": {"label": "Search", "parts": [{"text": f"--{directory}"}, {"text": "Error", "style": "red"}]}}
 
@@ -152,8 +103,7 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
                     file_size = file_path.stat().st_size
                     if file_size > MAX_FILE_SIZE:
                         continue
-                    allowed, _ = _check_dpc_restriction(str(file_path), wd)
-                    if not allowed:
+                    if not context.is_path_allowed(str(file_path)).get("allowed"):
                         continue
                     matched_lines = []
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -187,8 +137,7 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
                 if len(results) >= MAX_SEARCH_RESULTS:
                     break
                 if pattern.lower() in file_path.name.lower():
-                    allowed, _ = _check_dpc_restriction(str(file_path), wd)
-                    if not allowed:
+                    if not context.is_path_allowed(str(file_path)).get("allowed"):
                         continue
                     relative_path = file_path.relative_to(Path(wd))
                     results.append({
@@ -223,7 +172,7 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
 def list_directory(context, directory: str = ".", max_depth: int = 10, show_hidden: bool = False) -> Dict[str, Any]:
     wd = context.work_directory
     try:
-        path_check = _is_path_allowed(directory, wd)
+        path_check = context.is_path_allowed(directory)
         if not path_check["allowed"]:
             return {"error": path_check["message"], "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径后再进行操作", "user_output": {"label": "Read", "parts": [{"text": f"--{directory}"}, {"text": "Error", "style": "red"}]}}
 
@@ -252,8 +201,7 @@ def list_directory(context, directory: str = ".", max_depth: int = 10, show_hidd
                 if not show_hidden and item.name.startswith('.'):
                     continue
                 if not item.is_dir():
-                    allowed, _ = _check_dpc_restriction(str(item), wd)
-                    if not allowed:
+                    if not context.is_path_allowed(str(item)).get("allowed"):
                         continue
                 if file_count >= MAX_FILES_TO_READ:
                     lines.append(f"{prefix}└── ... (已达到最大文件数量限制 {MAX_FILES_TO_READ})")
@@ -288,7 +236,7 @@ def list_directory(context, directory: str = ".", max_depth: int = 10, show_hidd
 def read_file(context, file_path: str, offset: int = 0, limit: int = 1000, encoding: str = "utf-8") -> Dict[str, Any]:
     wd = context.work_directory
     try:
-        path_check = _is_path_allowed(file_path, wd)
+        path_check = context.is_path_allowed(file_path)
         if not path_check["allowed"]:
             return {"error": path_check["message"], "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的路径后再进行操作", "user_output": {"label": "Read", "parts": [{"text": f"--{file_path}"}, {"text": "Error", "style": "red"}]}}
 

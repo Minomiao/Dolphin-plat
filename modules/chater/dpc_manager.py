@@ -205,6 +205,31 @@ def is_path_allowed(work_dir, relative_path):
     return True, None
 
 
+def is_path_allowed_walkup(work_dir, absolute_path):
+    """从文件所在目录向上逐级校验 .dpc 限制，直至工作目录。
+
+    Args:
+        work_dir: 工作目录
+        absolute_path: 待校验文件的绝对路径
+
+    Returns:
+        (allowed, msg)：是否允许访问及原因
+    """
+    current = os.path.dirname(os.path.abspath(absolute_path))
+    work_path = os.path.abspath(work_dir)
+    while True:
+        if os.path.exists(os.path.join(current, DPC_FILENAME)):
+            rel = os.path.relpath(absolute_path, current)
+            allowed, msg = is_path_allowed(current, rel)
+            if not allowed:
+                return False, msg
+        parent = os.path.dirname(current)
+        if parent == current or os.path.commonpath([parent, work_path]) != work_path:
+            break
+        current = parent
+    return True, None
+
+
 def filter_allowed_paths(work_dir, paths):
     allowed = []
     blocked = []
@@ -240,3 +265,19 @@ def ensure_restriction(work_dir, restricted_patterns):
     data["updated_at"] = datetime.now().isoformat()
     _write_raw(work_dir, data)
     log.info(f".dpc restriction 已更新: {data['restricted']}")
+
+
+def remove_restriction(work_dir, restricted_patterns):
+    """从 .dpc 屏蔽规则中移除指定模式（".dpc" 始终保留）。"""
+    data = _read_raw(work_dir)
+    if data is None:
+        return
+    data = _migrate_old_format(data)
+    existing = set(data.get("restricted", [".dpc"]))
+    for p in restricted_patterns:
+        existing.discard(p)
+    existing.add(".dpc")
+    data["restricted"] = list(existing)
+    data["updated_at"] = datetime.now().isoformat()
+    _write_raw(work_dir, data)
+    log.info(f".dpc restriction 已移除: {data['restricted']}")

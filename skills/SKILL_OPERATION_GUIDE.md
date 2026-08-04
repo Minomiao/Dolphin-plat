@@ -27,7 +27,11 @@ def my_skill_fn(context, param1: str) -> Dict[str, Any]:
 | `context.log_warning(msg)` | warning 日志 |
 | `context.log_error(msg)` | error 日志 |
 | `context.resolve_path(path)` | 相对路径 → 绝对路径 |
-| `context.is_path_allowed(path)` | 检查路径是否在允许范围内 |
+| `context.is_path_allowed(path)` | 检查路径是否在工作目录内且未被 .dpc 限制（含逐级校验） |
+| `context.get_restricted_paths()` | 获取工作目录的 .dpc 屏蔽规则列表 |
+| `context.add_restriction(patterns)` | 将文件/文件夹模式加入 .dpc 屏蔽规则 |
+| `context.remove_restriction(patterns)` | 将文件/文件夹模式从 .dpc 屏蔽规则中移除 |
+| `context.filter_allowed_paths(paths)` | 批量过滤路径，返回 (允许列表, 屏蔽列表) |
 | `context.file_operation(op, **kw)` | 执行文件操作（create/modify/delete） |
 | `context.require_confirmation(msg, action, **kw)` | 请求用户确认 |
 | `context.require_user_input(prompt, default)` | 请求用户输入 |

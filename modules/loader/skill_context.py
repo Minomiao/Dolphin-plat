@@ -41,10 +41,37 @@ class SkillContext:
         return str(resolved)
 
     def is_path_allowed(self, file_path: str) -> Dict[str, Any]:
-        """检查路径是否在工作目录内且未被 .dpc 限制。"""
+        """检查路径是否在工作目录内且未被 .dpc 限制（含逐级校验）。"""
         if self._check_path_allowed:
             return self._check_path_allowed(file_path)
         return {"allowed": True, "path": file_path}
+
+    # ===== .dpc 限制 =====
+    def get_restricted_paths(self) -> List[str]:
+        """获取工作目录的 .dpc 屏蔽规则列表。"""
+        from modules.chater import dpc_manager
+        return dpc_manager.get_restricted_paths(self._work_directory)
+
+    def filter_allowed_paths(self, paths: List[str]):
+        """批量过滤路径，返回 (允许列表, 屏蔽列表)。"""
+        allowed = []
+        blocked = []
+        for p in paths:
+            if self.is_path_allowed(p).get("allowed"):
+                allowed.append(p)
+            else:
+                blocked.append(p)
+        return allowed, blocked
+
+    def add_restriction(self, patterns: List[str]) -> None:
+        """将文件/文件夹模式加入工作目录的 .dpc 屏蔽规则。"""
+        from modules.chater import dpc_manager
+        dpc_manager.ensure_restriction(self._work_directory, patterns)
+
+    def remove_restriction(self, patterns: List[str]) -> None:
+        """将文件/文件夹模式从工作目录的 .dpc 屏蔽规则中移除。"""
+        from modules.chater import dpc_manager
+        dpc_manager.remove_restriction(self._work_directory, patterns)
 
     # ===== 日志 =====
     @property
@@ -161,7 +188,7 @@ def create_default_context(work_directory: str) -> SkillContext:
                 resolved.relative_to(work_path)
             except ValueError:
                 return {"allowed": False, "path": str(resolved), "message": f"路径不在工作目录内"}
-            allowed, msg = dpc_manager.is_path_allowed(work_directory, str(resolved.relative_to(work_path)))
+            allowed, msg = dpc_manager.is_path_allowed_walkup(work_directory, str(resolved))
             return {"allowed": allowed, "path": str(resolved), "message": msg}
         except Exception as e:
             return {"allowed": False, "path": file_path, "error": str(e)}
