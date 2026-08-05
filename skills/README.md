@@ -1,6 +1,6 @@
 # Skills 目录说明
 
-本目录包含 Dolphin 的所有技能（Skills）。
+本目录包含 dolphincode 的所有技能（Skills）。
 
 ## 目录结构
 
@@ -155,7 +155,8 @@ def my_function(context, param1: str) -> Dict[str, Any]:
 
 ### 6. web_search（网络搜索）
 提供网络搜索功能：
-- `search` - 使用 DuckDuckGo 搜索网络信息
+- `search` - 使用 Bing 搜索网络信息（jieba 分词 + 关键字相关性过滤）
+- `fetch` - 解析指定网址的网页内容
 
 ## 注意事项
 

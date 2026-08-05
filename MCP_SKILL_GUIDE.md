@@ -1,8 +1,8 @@
-# Dolphin Skill 使用说明
+# dolphincode Skill 使用说明
 
 ## 概述
 
-Dolphin 通过技能（Skills）系统扩展 AI 能力，AI 可自动调用工具完成文件操作、计算、搜索等任务。
+dolphincode 通过技能（Skills）系统扩展 AI 能力，AI 可自动调用工具完成文件操作、计算、搜索等任务。
 
 ## 内置技能
 
@@ -48,7 +48,8 @@ Dolphin 通过技能（Skills）系统扩展 AI 能力，AI 可自动调用工�
 ### web_search — 网络搜索
 | 工具 | 说明 |
 |------|------|
-| `search(query, num_results)` | DuckDuckGo API 搜索 |
+| `search(query, num_results)` | Bing 搜索（jieba 关键字相关性过滤） |
+| `fetch(url)` | 解析指定网址的网页内容 |
 
 ---
 
