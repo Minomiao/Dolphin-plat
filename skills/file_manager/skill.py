@@ -1,8 +1,5 @@
 from typing import Dict, Any
 from pathlib import Path
-from modules.bootstrap import constants
-
-MAX_FILE_SIZE = constants.MAX_FILE_SIZE
 
 
 def _safe_filename(file_path: str) -> str:

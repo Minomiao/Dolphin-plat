@@ -1,12 +1,5 @@
 from typing import Dict, Any, List
 from pathlib import Path
-from modules.bootstrap import constants
-
-MAX_FILES_TO_READ = constants.MAX_FILES_TO_READ
-MAX_FILE_SIZE = constants.MAX_FILE_SIZE
-MAX_SEARCH_RESULTS = constants.MAX_SEARCH_RESULTS
-MAX_FILES_TO_SEARCH_IN_CONTENT = constants.MAX_FILES_TO_SEARCH_IN_CONTENT
-MAX_MATCHES_PER_FILE = constants.MAX_MATCHES_PER_FILE
 
 
 skill_info = {
@@ -96,7 +89,7 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
                     continue
                 if file_extension and file_path.suffix != file_extension:
                     continue
-                if files_searched >= MAX_FILES_TO_SEARCH_IN_CONTENT:
+                if files_searched >= context.constants.MAX_FILES_TO_SEARCH_IN_CONTENT:
                     break
                 files_searched += 1
                 try:
@@ -108,7 +101,7 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
                     matched_lines = []
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line_num, line in enumerate(f, 1):
-                            if len(matched_lines) >= MAX_MATCHES_PER_FILE:
+                            if len(matched_lines) >= context.constants.MAX_MATCHES_PER_FILE:
                                 break
                             if pattern.lower() in line.lower():
                                 matched_lines.append({
@@ -134,7 +127,7 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
                     continue
                 if file_extension and file_path.suffix != file_extension:
                     continue
-                if len(results) >= MAX_SEARCH_RESULTS:
+                if len(results) >= context.constants.MAX_SEARCH_RESULTS:
                     break
                 if pattern.lower() in file_path.name.lower():
                     if not context.is_path_allowed(str(file_path)).get("allowed"):
@@ -148,9 +141,9 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
 
         truncated = False
         if search_in_content:
-            truncated = files_searched >= MAX_FILES_TO_SEARCH_IN_CONTENT or len(results) >= MAX_SEARCH_RESULTS
+            truncated = files_searched >= context.constants.MAX_FILES_TO_SEARCH_IN_CONTENT or len(results) >= context.constants.MAX_SEARCH_RESULTS
         else:
-            truncated = len(results) >= MAX_SEARCH_RESULTS
+            truncated = len(results) >= context.constants.MAX_SEARCH_RESULTS
 
         return {
             "success": True,
@@ -160,7 +153,7 @@ def search_files(context, pattern: str, directory: str = ".", search_in_content:
             "count": len(results),
             "files": results,
             "truncated": truncated,
-            "max_results": MAX_SEARCH_RESULTS,
+            "max_results": context.constants.MAX_SEARCH_RESULTS,
             "files_searched": files_searched if search_in_content else None,
             "user_output": {"label": "Search", "parts": [{"text": f"--{pattern}"}]}
         }
@@ -190,8 +183,8 @@ def list_directory(context, directory: str = ".", max_depth: int = 10, show_hidd
             nonlocal file_count
             if depth > max_depth:
                 return []
-            if file_count >= MAX_FILES_TO_READ:
-                return [f"{prefix}└── ... (已达到最大文件数量限制 {MAX_FILES_TO_READ})"]
+            if file_count >= context.constants.MAX_FILES_TO_READ:
+                return [f"{prefix}└── ... (已达到最大文件数量限制 {context.constants.MAX_FILES_TO_READ})"]
             lines = []
             try:
                 items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
@@ -203,8 +196,8 @@ def list_directory(context, directory: str = ".", max_depth: int = 10, show_hidd
                 if not item.is_dir():
                     if not context.is_path_allowed(str(item)).get("allowed"):
                         continue
-                if file_count >= MAX_FILES_TO_READ:
-                    lines.append(f"{prefix}└── ... (已达到最大文件数量限制 {MAX_FILES_TO_READ})")
+                if file_count >= context.constants.MAX_FILES_TO_READ:
+                    lines.append(f"{prefix}└── ... (已达到最大文件数量限制 {context.constants.MAX_FILES_TO_READ})")
                     break
                 is_last = i == len(items) - 1
                 current_prefix = "└── " if is_last else "├── "
@@ -225,7 +218,7 @@ def list_directory(context, directory: str = ".", max_depth: int = 10, show_hidd
             "tree": "\n".join(tree_lines),
             "line_count": len(tree_lines),
             "file_count": file_count,
-            "truncated": file_count >= MAX_FILES_TO_READ,
+            "truncated": file_count >= context.constants.MAX_FILES_TO_READ,
             "user_output": {"label": "Read", "parts": [{"text": f"--{target_dir}\\"}]}
         }
 
@@ -250,11 +243,11 @@ def read_file(context, file_path: str, offset: int = 0, limit: int = 1000, encod
 
         file_size = path.stat().st_size
 
-        if file_size > MAX_FILE_SIZE:
+        if file_size > context.constants.MAX_FILE_SIZE:
             return {
-                "error": f"文件过大: {file_path} (大小: {file_size} 字节，最大允许: {MAX_FILE_SIZE} 字节)",
+                "error": f"文件过大: {file_path} (大小: {file_size} 字节，最大允许: {context.constants.MAX_FILE_SIZE} 字节)",
                 "file_size": file_size,
-                "max_size": MAX_FILE_SIZE,
+                "max_size": context.constants.MAX_FILE_SIZE,
                 "suggestion": "建议使用 read_file 函数重新阅读文件，获取正确的文件信息后再进行操作",
                 "user_output": {"label": "Read", "parts": [{"text": f"--{file_path}"}, {"text": "Error", "style": "red"}]}
             }

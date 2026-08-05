@@ -1,14 +1,10 @@
 import re
 from typing import Dict, Any
-from modules.bootstrap import constants
-
-MAX_SCRIPT_LENGTH = constants.MAX_SCRIPT_LENGTH
-DANGEROUS_PATTERNS = constants.DANGEROUS_PATTERNS
 
 
-def _is_dangerous_script(script: str) -> bool:
+def _is_dangerous_script(script: str, patterns) -> bool:
     script_lower = script.lower()
-    for pattern in DANGEROUS_PATTERNS:
+    for pattern in patterns:
         if re.search(pattern, script_lower):
             return True
     return False
@@ -59,13 +55,13 @@ def run_script(context, script: str, timeout: int = None, wait_time: int = None)
     try:
         script_length = len(script)
 
-        if script_length > MAX_SCRIPT_LENGTH:
-            context.log_warning(f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符")
+        if script_length > context.constants.MAX_SCRIPT_LENGTH:
+            context.log_warning(f"脚本过长: {script_length} 字符，最大允许: {context.constants.MAX_SCRIPT_LENGTH} 字符")
             preview = script[:500] + "..." if len(script) > 500 else script
             return {
-                "error": f"脚本过长: {script_length} 字符，最大允许: {MAX_SCRIPT_LENGTH} 字符",
+                "error": f"脚本过长: {script_length} 字符，最大允许: {context.constants.MAX_SCRIPT_LENGTH} 字符",
                 "script_length": script_length,
-                "max_length": MAX_SCRIPT_LENGTH,
+                "max_length": context.constants.MAX_SCRIPT_LENGTH,
                 "user_output": {"label": "Run", "parts": [{"text": f"--{preview}"}, {"text": "Error", "style": "red"}]}
             }
 
@@ -74,7 +70,7 @@ def run_script(context, script: str, timeout: int = None, wait_time: int = None)
 
         context.log_info(f"AI 请求运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s)")
 
-        if _is_dangerous_script(script):
+        if _is_dangerous_script(script, context.constants.DANGEROUS_PATTERNS):
             script_preview = script[:500] + "..." if len(script) > 500 else script
             message = f"确认运行 PowerShell 脚本 (长度: {script_length} 字符, 超时: {actual_timeout}s, 等待: {actual_wait}s):\n{script_preview}"
 

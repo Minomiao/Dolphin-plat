@@ -205,4 +205,5 @@ result["user_output"] = {
 | 文件操作 | `req_mgr.create_file_operation_request()` + `handle_request()` | `context.file_operation("create_file", ...)` |
 | 确认 | `self-code` 或 `rm.create_skill_confirmation()` | `context.require_confirmation(...)` |
 | PowerShell | `from modules.functions import powershell_manager` | `context.execute_script(...)` |
+| 常量 | `from modules.bootstrap import constants` | `context.constants.MAX_FILE_SIZE` |
 | 模块导入 | `sys.path.insert` + import | 零 import |

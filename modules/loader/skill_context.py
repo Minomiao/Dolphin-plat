@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
+from modules.bootstrap import constants
+
 
 class SkillContext:
     """技能执行的统一上下文，封装所有 skill 需要的程序能力。"""
@@ -39,6 +41,12 @@ class SkillContext:
         else:
             resolved = (Path(self._work_directory) / p).resolve()
         return str(resolved)
+
+    # ===== 常量 =====
+    @property
+    def constants(self):
+        """项目全局常量（只读），供技能读取文件大小、结果数量等限制类数值。"""
+        return constants
 
     def is_path_allowed(self, file_path: str) -> Dict[str, Any]:
         """检查路径是否在工作目录内且未被 .dpc 限制（含逐级校验）。"""

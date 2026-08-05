@@ -5,7 +5,6 @@ import warnings
 import logging
 
 from typing import Dict, Any, List, Set
-from modules.bootstrap import constants
 
 # 抑制 jieba 的警告与初始化日志（jieba 初始化日志通过 logging 输出，无需劫持 stdout）
 warnings.filterwarnings("ignore", category=UserWarning, module="jieba")
@@ -80,7 +79,7 @@ skill_info = {
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "搜索关键词"},
-                    "num_results": {"type": "integer", "description": f"返回结果数量，默认为{constants.WEB_SEARCH_DEFAULT_RESULTS}"}
+                    "num_results": {"type": "integer", "description": "返回结果数量，默认为15"}
                 },
                 "required": ["query"]
             }
@@ -240,7 +239,7 @@ def search(context, query: str, num_results: int = None) -> Dict[str, Any]:
         3. 合并返回：相关结果优先 + 部分原始结果补齐
     """
     if num_results is None:
-        num_results = constants.WEB_SEARCH_DEFAULT_RESULTS
+        num_results = context.constants.WEB_SEARCH_DEFAULT_RESULTS
 
     try:
         # 搜索 3 倍数量以获得足够的相关结果（期望相关结果占 1/3）
@@ -313,8 +312,8 @@ def fetch(context, url: str) -> Dict[str, Any]:
         text = re.sub(r'\s+', ' ', text).strip()
 
         # 截断过长的内容
-        if len(text) > constants.MAX_WEB_CONTENT_LENGTH:
-            text = text[:constants.MAX_WEB_CONTENT_LENGTH] + "..."
+        if len(text) > context.constants.MAX_WEB_CONTENT_LENGTH:
+            text = text[:context.constants.MAX_WEB_CONTENT_LENGTH] + "..."
 
         return {
             "url": url,
