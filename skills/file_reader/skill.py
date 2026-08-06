@@ -193,9 +193,9 @@ def list_directory(context, directory: str = ".", max_depth: int = 10, show_hidd
             for i, item in enumerate(items):
                 if not show_hidden and item.name.startswith('.'):
                     continue
-                if not item.is_dir():
-                    if not context.is_path_allowed(str(item)).get("allowed"):
-                        continue
+                # 文件与目录均校验 .dpc 屏蔽规则，屏蔽的目录不再列出与递归
+                if not context.is_path_allowed(str(item)).get("allowed"):
+                    continue
                 if file_count >= context.constants.MAX_FILES_TO_READ:
                     lines.append(f"{prefix}└── ... (已达到最大文件数量限制 {context.constants.MAX_FILES_TO_READ})")
                     break
