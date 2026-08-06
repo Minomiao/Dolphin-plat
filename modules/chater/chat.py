@@ -1,4 +1,5 @@
 import json
+import os
 import asyncio
 import time
 import uuid
@@ -124,11 +125,9 @@ class DolphinChat:
         self._save_dir_id = None
         self._save_conv_id = None
 
-        # 防抖自动保存状态
-        self._save_pending = False
-        self._save_timer = None
-        self._save_task = None  # 在途异步写盘任务
-        self._pending_snapshot = None  # 写盘期间产生的最新消息快照，写完后补写
+        # 流式缓冲：生成中的 chunk 先落盘再显示，消息完成后并入 JSON
+        self._stream_buffer_path = None
+        self._stream_buffer_fh = None
         
         # 工具分发链: (谓词, 处理器) 对
         self._tool_dispatch = [
@@ -160,7 +159,153 @@ class DolphinChat:
             message["reasoning_content"] = reasoning_content
         self.messages.append(message)
         log.debug(f"添加消息: role={role}, content_length={len(content)}, tool_calls={len(tool_calls) if tool_calls else 0}")
-        self._schedule_auto_save()
+        self._save_now()
+
+    def _save_now(self):
+        """立即同步写盘：每条完整消息生成后先落盘，再进入显示流程。
+
+        主循环会阻塞在 input()，事件循环不再有机会执行异步保存任务，
+        因此对话保存统一采用同步写盘，保证"先储存后显示"。
+        """
+        if not (self._save_dir_id and self._save_conv_id):
+            return
+        conversation.save_conversation(list(self.messages), self._save_dir_id, self._save_conv_id)
+
+    def _open_stream_buffer(self):
+        """打开流式缓冲文件（追加模式）。"""
+        if self._stream_buffer_fh is not None:
+            return
+        if not (self._save_dir_id and self._save_conv_id):
+            return
+        conv_folder = os.path.join(conversation.CONVERSATIONS_DIR, self._save_dir_id, self._save_conv_id)
+        os.makedirs(conv_folder, exist_ok=True)
+        self._stream_buffer_path = os.path.join(conv_folder, "stream.jsonl")
+        self._stream_buffer_fh = open(self._stream_buffer_path, 'a', encoding='utf-8')
+
+    def _append_stream_chunk(self, kind, text):
+        """先储存后显示：将流式块同步追加到缓冲文件并刷新。"""
+        if not text:
+            return
+        if self._stream_buffer_fh is None:
+            self._open_stream_buffer()
+        if self._stream_buffer_fh is None:
+            return
+        try:
+            self._stream_buffer_fh.write(json.dumps({"t": kind, "c": text}, ensure_ascii=False) + "\n")
+            self._stream_buffer_fh.flush()
+        except Exception as e:
+            log.warning(f"写入流式缓冲失败: {e}")
+
+    def _clear_stream_buffer(self):
+        """消息已并入 JSON 后清空缓冲文件，避免下次恢复时重复合并。"""
+        if self._stream_buffer_fh is not None:
+            try:
+                self._stream_buffer_fh.close()
+            except Exception:
+                pass
+            self._stream_buffer_fh = None
+        if self._stream_buffer_path and os.path.exists(self._stream_buffer_path):
+            try:
+                os.remove(self._stream_buffer_path)
+            except Exception as e:
+                log.debug(f"删除流式缓冲失败: {e}")
+        self._stream_buffer_path = None
+
+    def _recover_stream_buffer(self, messages, dir_id, conv_id):
+        """将崩溃/退出时遗留的流式缓冲恢复为一条部分 assistant 消息。
+
+        内容块和思考块分别拼回 content 与 reasoning_content，
+        恢复后立即写盘并删除缓冲文件，保证"显示过的内容不丢失"。
+        """
+        path = os.path.join(conversation.CONVERSATIONS_DIR, dir_id, conv_id, "stream.jsonl")
+        if not os.path.exists(path):
+            return messages
+
+        content_parts = []
+        reasoning_parts = []
+        if messages is None:
+            messages = []
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    kind = entry.get("t")
+                    text = entry.get("c", "")
+                    if kind == "thinking":
+                        reasoning_parts.append(text)
+                    elif kind == "content":
+                        content_parts.append(text)
+        except Exception as e:
+            log.warning(f"读取流式缓冲失败: {e}")
+            return messages
+
+        if not content_parts and not reasoning_parts:
+            # 空缓冲文件，直接清理
+            try:
+                os.remove(path)
+            except Exception as e:
+                log.debug(f"删除流式缓冲失败: {e}")
+            return messages
+
+        recovered_content = "".join(content_parts)
+        recovered_reasoning = "".join(reasoning_parts)
+        # 去重：若缓冲与最后一条已提交的 assistant 消息完全一致，
+        # 说明内容已随消息落盘（崩溃发生在保存后、清缓冲前），直接清理避免重复。
+        if messages and messages[-1].get("role") == "assistant":
+            last = messages[-1]
+            if (last.get("content", "") == recovered_content
+                    and last.get("reasoning_content", "") == recovered_reasoning):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    log.debug(f"删除流式缓冲失败: {e}")
+                return messages
+
+        recovered = {"role": "assistant", "content": recovered_content}
+        if recovered_reasoning:
+            recovered["reasoning_content"] = recovered_reasoning
+        messages.append(recovered)
+        log.warning(
+            f"对话恢复: 从流式缓冲恢复内容 {len(content_parts)} 块, 思考 {len(reasoning_parts)} 块"
+        )
+        # 先写盘成功再删除缓冲，避免保存失败导致内容丢失
+        conversation.save_conversation(list(messages), dir_id, conv_id)
+        try:
+            os.remove(path)
+        except Exception as e:
+            log.debug(f"删除流式缓冲失败: {e}")
+        return messages
+
+    def save_on_exit(self, dir_id, conv_id):
+        """退出兜底：合并流式缓冲残留并同步写盘。"""
+        self._save_dir_id = dir_id
+        self._save_conv_id = conv_id
+        recovered = self._recover_stream_buffer(list(self.messages), dir_id, conv_id)
+        if recovered is not self.messages:
+            self.messages = recovered
+        conversation.save_conversation(list(self.messages), dir_id, conv_id)
+        self._clear_stream_buffer()
+
+    def _merge_stale_stream_buffer(self):
+        """将上一轮异常中断遗留的流式缓冲并入消息后清理。
+
+        流式中途被中断时缓冲文件可能残留且句柄未关，若直接复用会导致
+        新旧 chunk 混入同一文件。每轮开始前先合并残留，保证已显示内容不丢失。
+        """
+        if self._stream_buffer_fh is None and not (
+            self._stream_buffer_path and os.path.exists(self._stream_buffer_path)
+        ):
+            return
+        if not (self._save_dir_id and self._save_conv_id):
+            return
+        self._recover_stream_buffer(self.messages, self._save_dir_id, self._save_conv_id)
+        self._clear_stream_buffer()
 
     def set_save_target(self, dir_id, conv_id):
         self._save_dir_id = dir_id
@@ -171,70 +316,6 @@ class DolphinChat:
         if self.backup_mgr:
             self.backup_mgr.set_session(dir_id, conv_id)
         log.debug(f"设置保存目标: dir={dir_id}, conv={conv_id}, dialog_id={conv_id}")
-
-    def _auto_save(self):
-        """执行待保存：事件循环内异步写盘避免阻塞，同步上下文（如启动阶段）直接写。"""
-        if not (self._save_dir_id and self._save_conv_id):
-            return
-        self._pending_snapshot = list(self.messages)
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # 不在事件循环中（如启动阶段），立即同步写盘
-            self._pending_snapshot = None
-            conversation.save_conversation(list(self.messages), self._save_dir_id, self._save_conv_id)
-            return
-        if self._save_task is not None and not self._save_task.done():
-            # 已有写盘在途，保留最新快照，任务结束后自动补写
-            return
-        self._save_task = loop.create_task(self._run_save())
-        self._save_task.add_done_callback(self._on_save_done)
-        log.debug(f"实时保存(异步): {len(self._pending_snapshot)} 条消息")
-
-    async def _run_save(self):
-        """后台线程写盘：读取最新快照并清空。"""
-        snapshot = self._pending_snapshot
-        self._pending_snapshot = None
-        if snapshot is None:
-            return
-        await conversation.save_conversation_async(snapshot, self._save_dir_id, self._save_conv_id)
-
-    def _on_save_done(self, task):
-        """写盘完成：检索异常并补写写盘期间产生的新快照。"""
-        try:
-            task.result()
-        except asyncio.CancelledError:
-            return
-        except Exception as e:
-            log.warning(f"异步保存对话失败: {e}")
-        if self._pending_snapshot is not None:
-            self._save_task = asyncio.ensure_future(self._run_save())
-            self._save_task.add_done_callback(self._on_save_done)
-
-    def _schedule_auto_save(self):
-        """延迟保存：同一次同步块内的多次消息变更合并为一次写盘。"""
-        if not self._save_dir_id or not self._save_conv_id:
-            return
-        self._save_pending = True
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # 不在事件循环中（如启动阶段），立即保存
-            self._flush_auto_save()
-            return
-
-        if self._save_timer is None or self._save_timer.cancelled():
-            self._save_timer = loop.call_later(0.25, self._flush_auto_save)
-
-    def _flush_auto_save(self):
-        """立即执行待保存。"""
-        if self._save_timer and not self._save_timer.cancelled():
-            self._save_timer.cancel()
-        self._save_timer = None
-        if not self._save_pending:
-            return
-        self._auto_save()
-        self._save_pending = False
 
     def _update_tools(self):
         self.tools = []
@@ -517,7 +598,8 @@ class DolphinChat:
                 displayed_results.append((result, format_tool_result(result)))
 
         self.messages.extend(tool_responses)
-        self._schedule_auto_save()
+        # 先储存：整批工具结果落盘后再显示
+        self._save_now()
 
         if displayed_calls:
             await self._call_callback('tool_calls', {
@@ -552,6 +634,8 @@ class DolphinChat:
         log.info(f"开始聊天 (非流式): 输入长度={len(user_input)}")
         chat_start = time.perf_counter()
 
+        # 先处理上一轮异常中断遗留的流式缓冲，再开始新一轮
+        self._merge_stale_stream_buffer()
         self.add_message("user", user_input)
         
         kwargs = {
@@ -619,7 +703,6 @@ class DolphinChat:
         total_elapsed = time.perf_counter() - chat_start
         log.info(f"聊天完成: 响应长度={len(final_content)}, 总耗时={total_elapsed:.3f}s")
         self.add_message("assistant", final_content)
-        self._flush_auto_save()
 
         # 新架构：无需清理内存缓存（持久化存储）
         log.debug("对话完成（备份记录已持久化）")
@@ -656,6 +739,8 @@ class DolphinChat:
                             await self._call_callback('thinking_start', {})
                             reasoning_started = True
                         full_reasoning += reasoning
+                        # 先储存后显示：思考块先写入流式缓冲
+                        self._append_stream_chunk("thinking", reasoning)
                         await self._call_callback('thinking_chunk', {
                             'content': reasoning
                         })
@@ -668,6 +753,8 @@ class DolphinChat:
                         if reasoning_started:
                             await self._call_callback('thinking_end', {})
                             reasoning_started = False
+                    # 先储存后显示：内容块先写入流式缓冲
+                    self._append_stream_chunk("content", content)
                     await self._call_callback('response_chunk', {
                         'content': content
                     })
@@ -706,6 +793,8 @@ class DolphinChat:
         log.info(f"开始聊天 (流式): 输入长度={len(user_input)}")
         chat_start = time.perf_counter()
 
+        # 先处理上一轮异常中断遗留的流式缓冲，再开始新一轮
+        self._merge_stale_stream_buffer()
         self.add_message("user", user_input)
         
         kwargs = {
@@ -737,11 +826,13 @@ class DolphinChat:
 
         if not has_tool_calls:
             self.add_message("assistant", full_response, reasoning_content=full_reasoning)
+            self._clear_stream_buffer()
         
         if has_tool_calls and tool_calls_buffer:
             tool_calls = list(tool_calls_buffer.values())
             log.info(f"检测到 {len(tool_calls)} 个工具调用")
             self.add_message("assistant", full_response or "", tool_calls, reasoning_content=full_reasoning)
+            self._clear_stream_buffer()
 
             await self._run_tool_calls(tool_calls)
 
@@ -772,6 +863,7 @@ class DolphinChat:
                     tool_calls = list(tool_calls_buffer.values())
                     log.info(f"迭代 {iteration}: 检测到 {len(tool_calls)} 个工具调用")
                     self.add_message("assistant", full_response or "", tool_calls, reasoning_content=full_reasoning)
+                    self._clear_stream_buffer()
 
                     await self._run_tool_calls(tool_calls)
 
@@ -794,9 +886,11 @@ class DolphinChat:
                     continue
                 else:
                     self.add_message("assistant", full_response, reasoning_content=full_reasoning)
+                    self._clear_stream_buffer()
                     break
 
-        self._flush_auto_save()
+        # 缓冲应已在上一条消息提交后清空，此处兜底清理
+        self._clear_stream_buffer()
 
         # 新架构：无需清理内存缓存（持久化存储）
         log.debug("流式对话完成（备份记录已持久化）")
@@ -811,6 +905,8 @@ class DolphinChat:
         self.messages = []
         self.context.reset_usage()  # 重置 token 用量统计
         self.reset_work_directory()
+        # 显式清空历史时应一并丢弃残留的流式缓冲
+        self._clear_stream_buffer()
         # 新架构：无需清理内存缓存（持久化存储）
         log.debug("历史已清空（备份记录已持久化）")
     
@@ -819,6 +915,9 @@ class DolphinChat:
 
     def load_conversation(self, dir_id, conv_id):
         messages = conversation.load_conversation(dir_id, conv_id)
+        # 无论 JSON 是否为空/损坏，都先尝试恢复上次强杀遗留的流式缓冲
+        # （显示过但未完成的消息），避免损坏文件导致半截回复一并丢失
+        messages = self._recover_stream_buffer(messages, dir_id, conv_id)
         if messages:
             messages = conversation.repair_conversation_messages(
                 messages, work_dir=self.default_work_directory

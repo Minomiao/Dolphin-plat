@@ -1,7 +1,6 @@
 import os
 import json
 import time
-import asyncio
 from modules.logger import get_logger
 from modules import bootstrap as app_paths
 from modules.bootstrap import constants
@@ -239,18 +238,15 @@ def _save_conversation_sync(messages, dir_id, conv_id):
     # 创建会话文件夹
     os.makedirs(conv_folder, exist_ok=True)
 
-    # 保存会话文件
+    # 保存会话文件（先写临时文件再原子替换，避免进程被杀时留下损坏 JSON）
     filepath = os.path.join(conv_folder, f"{conv_id}.json")
-    with open(filepath, 'w', encoding='utf-8') as f:
+    tmp_filepath = f"{filepath}.tmp"
+    with open(tmp_filepath, 'w', encoding='utf-8') as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_filepath, filepath)
 
     elapsed = time.perf_counter() - start
     log.info(f"保存对话: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}, 耗时={elapsed:.3f}s")
-
-
-async def save_conversation_async(messages, dir_id, conv_id):
-    """异步将会话保存到文件夹结构，写盘在后台线程执行，避免阻塞事件循环。"""
-    await asyncio.to_thread(_save_conversation_sync, messages, dir_id, conv_id)
 
 
 def load_conversation(dir_id, conv_id):
@@ -264,31 +260,50 @@ def load_conversation(dir_id, conv_id):
     # 尝试新格式
     new_filepath = os.path.join(CONVERSATIONS_DIR, dir_id, conv_id, f"{conv_id}.json")
     if os.path.exists(new_filepath):
-        with open(new_filepath, 'r', encoding='utf-8') as f:
-            messages = json.load(f)
-            elapsed = time.perf_counter() - start
-            log.info(f"加载对话（新格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}, 耗时={elapsed:.3f}s")
-            return messages
+        try:
+            with open(new_filepath, 'r', encoding='utf-8') as f:
+                messages = json.load(f)
+        except json.JSONDecodeError:
+            # 进程被强杀可能打断写入，遗留损坏文件：备份后按空对话处理
+            backup = f"{new_filepath}.corrupt.{int(time.time())}"
+            try:
+                os.replace(new_filepath, backup)
+            except OSError:
+                pass
+            log.warning(f"对话文件损坏（已备份为 {backup}），按空对话处理")
+            return []
+        elapsed = time.perf_counter() - start
+        log.info(f"加载对话（新格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}, 耗时={elapsed:.3f}s")
+        return messages
     
     # 尝试旧格式（兼容现有数据）
     old_filepath = os.path.join(CONVERSATIONS_DIR, dir_id, f"{conv_id}.json")
     if os.path.exists(old_filepath):
-        with open(old_filepath, 'r', encoding='utf-8') as f:
-            messages = json.load(f)
-            log.info(f"加载对话（旧格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
-            
-            # 自动迁移到新格式
-            log.info(f"迁移对话到新格式: conv={conv_id}")
-            save_conversation(messages, dir_id, conv_id)
-            
-            # 删除旧文件
+        try:
+            with open(old_filepath, 'r', encoding='utf-8') as f:
+                messages = json.load(f)
+        except json.JSONDecodeError:
+            backup = f"{old_filepath}.corrupt.{int(time.time())}"
             try:
-                os.remove(old_filepath)
-                log.info(f"删除旧格式文件: {old_filepath}")
-            except Exception as e:
-                log.warning(f"删除旧格式文件失败: {e}")
-            
-            return messages
+                os.replace(old_filepath, backup)
+            except OSError:
+                pass
+            log.warning(f"对话文件损坏（已备份为 {backup}），按空对话处理")
+            return []
+        log.info(f"加载对话（旧格式）: dir={dir_id}, conv={conv_id}, 消息数: {len(messages)}")
+
+        # 自动迁移到新格式
+        log.info(f"迁移对话到新格式: conv={conv_id}")
+        save_conversation(messages, dir_id, conv_id)
+
+        # 删除旧文件
+        try:
+            os.remove(old_filepath)
+            log.info(f"删除旧格式文件: {old_filepath}")
+        except Exception as e:
+            log.warning(f"删除旧格式文件失败: {e}")
+
+        return messages
     
     log.warning(f"对话不存在: dir={dir_id}, conv={conv_id}")
     return None

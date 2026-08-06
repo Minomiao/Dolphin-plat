@@ -160,9 +160,21 @@ def _startup():
         print_conversation_history()
 
 
+def _exit_save():
+    """退出兜底：将内存中未落盘内容（含流式缓冲残留）同步写盘。"""
+    chat = state.chat_instance
+    if not chat or not (state.current_dir_id and state.current_conv_id):
+        return
+    try:
+        chat.save_on_exit(state.current_dir_id, state.current_conv_id)
+    except Exception as e:
+        log.warning(f"退出保存失败: {e}")
+
+
 if __name__ == "__main__":
     try:
         _startup()
         asyncio.run(main())
     finally:
+        _exit_save()
         exit_screen()
