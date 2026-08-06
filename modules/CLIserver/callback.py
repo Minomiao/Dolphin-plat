@@ -150,13 +150,13 @@ def chat_callback(event_type, data):
         else:
             ui.thinking_start_time = time.time()
             log.debug("思考开始")
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}{i18n.t('chat.thinking_in_progress', elapsed=0)}{Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}╰─ {i18n.t('chat.thinking_in_progress', elapsed=0)}{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_chunk':
         if state.show_thinking:
             print(f"{Fore.LIGHTBLACK_EX}{data['content']}{Style.RESET_ALL}", end="", flush=True)
         else:
             elapsed = int(time.time() - ui.thinking_start_time)
-            print(f"\r\033[K{Fore.LIGHTBLACK_EX}{i18n.t('chat.thinking_in_progress', elapsed=elapsed)}{Style.RESET_ALL}", end="", flush=True)
+            print(f"\r\033[K{Fore.LIGHTBLACK_EX}╰─ {i18n.t('chat.thinking_in_progress', elapsed=elapsed)}{Style.RESET_ALL}", end="", flush=True)
     elif event_type == 'thinking_end':
         if not state.show_thinking:
             elapsed = int(time.time() - ui.thinking_start_time)
