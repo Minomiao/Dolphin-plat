@@ -115,7 +115,7 @@ def settings_mode():
             {"key": "command_prefix", "action": _run_prefix},
         ]
         navigate(i18n.t("settings.title"), i18n.t("settings.subtitle"), items, _label, _on_enter,
-                 f"{i18n.t('settings.enter_configure')} | {i18n.t('settings.esc_back', back=cmd.get_command_keyword('back'))}")
+                 f"{i18n.t('settings.enter_configure')} | {i18n.t('settings.esc_back')}")
         _rebuild_client_and_chat()
 
     from .screen_refresh import enter_screen
@@ -202,7 +202,7 @@ def model_settings():
 
         api_key = state.current_config.get('api_key', '')
         footer = (f"{i18n.t('model.api_key_label')}{'***' + api_key[-4:] if len(api_key) > 4 else ('已设置' if api_key else '未设置')}"
-                  f" | {i18n.t('model.hint', back=cmd.get_command_keyword('back'))}")
+                  f" | {i18n.t('model.hint')}")
         navigate(i18n.t("model.title"), i18n.t("model.current", name=current_model),
                  available_models, _label, _on_enter, footer,
                  extra_key=_extra_key)
@@ -316,7 +316,7 @@ def effort_settings():
 
         navigate(i18n.t("effort.title"), i18n.t("effort.subtitle", level=state.effort_level),
                  _LEVELS, _label, _on_enter,
-                 i18n.t("effort.hint", back=cmd.get_command_keyword('back')))
+                 i18n.t("effort.hint"))
 
     from .screen_refresh import enter_screen
     enter_screen(_render,

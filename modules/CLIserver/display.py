@@ -123,7 +123,7 @@ def show_skills():
 
         navigate(i18n.t("skills.title"), i18n.t("skills.subtitle", count=len(skills)),
                  skills, _label, _toggle,
-                 i18n.t("skills.hint", back=cmd.get_command_keyword('back')),
+                 i18n.t("skills.hint"),
                  line_height=3)
 
     from .screen_refresh import enter_screen
