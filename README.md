@@ -86,13 +86,15 @@ python main.py
 
 ## 内置技能
 
-位于 `skills/` 目录，共 6 个：
+位于 `skills/` 目录，共 8 个：
 
 | 技能                       | 功能                     | 工具                                                                  |
 | ------------------------ | ---------------------- | ------------------------------------------------------------------- |
 | **calculator**           | 数学表达式求值、获取时间           | `calculate`, `get_current_time`                                     |
 | **file\_reader**         | 文件搜索、目录浏览、内容阅读         | `get_work_directory`, `search_files`, `list_directory`, `read_file` |
 | **file\_manager**        | 文件创建、修改、删除、切换目录        | `set_work_directory`, `create_file`, `modify_file`, `delete_file`   |
+| **git**                  | Git 版本控制（初始化、暂存、提交、查看状态/历史），创建 `.gitignore` 时自动同步 `.dpc` 屏蔽规则 | `git_init`, `git_status`, `git_diff`, `git_add`, `git_commit`, `git_log`, `create_gitignore` |
+| **memory\_manager**      | 跨会话项目记忆（正文存独立文档，索引存 `Dmemory/index.json`） | `write_memory`, `search_memory`, `get_memory`, `list_memory`, `delete_memory` |
 | **powershell\_executor** | PowerShell 脚本异步执行（需确认） | `run_script`, `check_script`, `kill_command`                        |
 | **random\_generator**    | 随机数、随机选择、密码生成          | `random_int`, `random_float`, `random_choice`, `random_password`    |
 | **web\_search**          | Bing 网络搜索 (jieba 关键字相关性过滤) | `search`, `fetch`                                                |
@@ -103,6 +105,7 @@ python main.py
 - **DPC 文件保护**：`.dpc` 文件控制目录访问权限，保护程序数据不被 AI 读取
 - **工作目录隔离**：AI 操作限制在配置的工作目录内，支持子目录切换
 - **文件备份**：修改前自动备份到 `date/backup/`，退出时可选择应用/还原
+- **记忆库保护**：`Dmemory/` 记忆文件夹自动加入 `.dpc` 屏蔽规则（含子路径），只能通过 memory_manager 技能读写
 
 ***
 

@@ -14,6 +14,10 @@ skills/
 │   └── skill.py
 ├── file_reader/          # 文件阅读器技能
 │   └── skill.py
+├── git/                  # Git 版本控制技能
+│   └── skill.py
+├── memory_manager/       # 跨会话项目记忆技能
+│   └── skill.py
 ├── powershell_executor/  # PowerShell 执行器技能
 │   └── skill.py
 ├── random_generator/     # 随机数生成器技能
@@ -157,6 +161,34 @@ def my_function(context, param1: str) -> Dict[str, Any]:
 提供网络搜索功能：
 - `search` - 使用 Bing 搜索网络信息（jieba 分词 + 关键字相关性过滤）
 - `fetch` - 解析指定网址的网页内容
+
+### 7. git（Git 版本控制）
+提供 Git 仓库操作功能：
+- `git_init` - 初始化仓库，自动生成 `.gitignore`（同步 `.dpc` 屏蔽规则）
+- `git_status` - 查看暂存区与工作区变更
+- `git_diff` - 查看未暂存差异（`path` 可限定单个文件）
+- `git_add` - 暂存文件（`.dpc` 屏蔽路径自动跳过）
+- `git_commit` - 提交更改（需用户确认，提交信息使用英文）
+- `git_log` - 查看提交历史
+- `create_gitignore` - 创建/更新 `.gitignore`，自动从 `.dpc` 屏蔽规则生成条目
+
+**安全特性：**
+- `.dpc` 屏蔽的路径不会被暂存
+- 所有 git 命令仅在项目根目录执行
+- 提交需用户确认，禁止破坏性命令（reset --hard、force push 等）
+
+### 8. memory_manager（跨会话项目记忆）
+提供项目记忆的读写与检索功能：
+- `write_memory(key, title, content)` - 写入或更新记忆（正文存独立文档，标题/摘要存索引）
+- `search_memory(query)` - 按关键词检索 key、标题、摘要与正文
+- `get_memory(key)` - 按 key 获取完整正文
+- `list_memory` - 列出全部条目（按更新时间倒序）
+- `delete_memory(key)` - 删除记忆（索引与文档一并删除）
+
+**存储结构：**
+- 记忆存放于工作目录的 `Dmemory/` 文件夹（自动隐藏）
+- 正文为 `{key}.md` 独立文档，索引为 `index.json`
+- 文件夹自动加入 `.dpc` 屏蔽规则（含子路径），只能通过本技能读写
 
 ## 注意事项
 

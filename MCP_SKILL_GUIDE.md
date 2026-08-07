@@ -51,6 +51,28 @@ dolphincode 通过技能（Skills）系统扩展 AI 能力，AI 可自动调用�
 | `search(query, num_results)` | Bing 搜索（jieba 关键字相关性过滤） |
 | `fetch(url)` | 解析指定网址的网页内容 |
 
+### git — Git 版本控制
+| 工具 | 说明 |
+|------|------|
+| `git_init()` | 初始化仓库并自动生成 `.gitignore`（同步 `.dpc` 屏蔽规则） |
+| `git_status()` | 查看暂存区与工作区变更 |
+| `git_diff(path)` | 查看未暂存差异，`path` 可限定单个文件 |
+| `git_add(paths)` | 暂存文件，`.dpc` 屏蔽的路径自动跳过 |
+| `git_commit(message)` | 提交更改（需用户确认，提交信息必须使用英文） |
+| `git_log(max_count)` | 查看提交历史 |
+| `create_gitignore()` | 创建/更新 `.gitignore`，自动同步 `.dpc` 屏蔽规则（已存在时需确认） |
+
+### memory_manager — 跨会话项目记忆
+| 工具 | 说明 |
+|------|------|
+| `write_memory(key, title, content, summary)` | 写入或更新一条记忆，正文存独立文档，标题/摘要存索引 |
+| `search_memory(query)` | 按关键词检索 key、标题、摘要与正文 |
+| `get_memory(key)` | 按 key 获取记忆的标题、摘要与完整正文 |
+| `list_memory()` | 列出全部记忆条目（按更新时间倒序） |
+| `delete_memory(key)` | 删除记忆（索引与文档一并删除） |
+
+记忆存放于工作目录的 `Dmemory/` 文件夹（正文为 `{key}.md` 独立文档，索引为 `index.json`），同一项目跨会话共享，并自动加入 `.dpc` 屏蔽规则防止被其他工具误改。
+
 ---
 
 ## 创建自定义技能

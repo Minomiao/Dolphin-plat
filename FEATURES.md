@@ -51,6 +51,12 @@
 | random_generator | `random_int/float/choice/password` | `[Random] --type (details)` |
 | calculator | `calculate` | `[Calculator] expr result` |
 | calculator | `get_current_time` | `[Calculator] --time time` |
+| git | `git_init/status/diff/add/commit/log/create_gitignore` | `[Git] --action` |
+| memory_manager | `write_memory` | `[Memory] --write key` |
+| memory_manager | `search_memory` | `[Memory] --search query` |
+| memory_manager | `get_memory` | `[Memory] --get key` |
+| memory_manager | `list_memory` | `[Memory] --list` |
+| memory_manager | `delete_memory` | `[Memory] --delete key` |
 
 ## Skills
 
@@ -85,6 +91,21 @@
 - [x] Semantic relevance filtering via ONNX embedding (bge-small-zh-v1.5, cosine similarity)
 - [x] Keyword substring matching fallback when embedding model unavailable
 - [x] Model auto-download and ONNX conversion on first startup
+
+### git
+- [x] `git_init` — initialize repo + auto-generate `.gitignore` synced from `.dpc` restricted rules
+- [x] `git_status`, `git_diff` (per-path), `git_log` (max_count)
+- [x] `git_add` — skips paths blocked by `.dpc`
+- [x] `git_commit` — requires user confirmation, English message
+- [x] `create_gitignore` — updates the `.dpc` section in existing `.gitignore`
+- [x] Runs only in project root; destructive commands (reset --hard, force push) prohibited
+
+### memory_manager
+- [x] Cross-session project memory keyed by `.dpc` dir_id
+- [x] `write_memory(key, title, content, summary)` — body stored as standalone `{key}.md`, title/summary in `index.json`
+- [x] `search_memory(query)` — matches key/title/summary/body, returns sorted results
+- [x] `get_memory(key)`, `list_memory()` (updated_at desc), `delete_memory(key)` (index + doc)
+- [x] `Dmemory/` folder auto-hidden and added to `.dpc` restricted rules (incl. subpaths)
 
 ## File Operations & Security
 
