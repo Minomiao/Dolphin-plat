@@ -1,5 +1,75 @@
 # Change Log
 
+## v1.2.0 (2026-08-07)
+
+Multi-language i18n with arrow-key navigation, two new skills (git, memory_manager), jieba-based web search, model management overhaul, and stability fixes.
+
+### Multi-language i18n & Arrow-key Navigation
+
++ Add multi-language support with `/language` command and arrow-key navigation (`6b76cc6`)
+  - 40 languages with built-in translation tables
+  - `date/language/{code}.json` generated on first run; file-based translations override built-ins with automatic fallback
++ Add arrow-key navigation for settings UIs with full i18n coverage (`b42679d`)
+  - Settings, model, effort, and skills screens navigable via ↑/↓/Enter/Esc
+  - Digit fallback for non-interactive (piped) terminals
++ Make system prompt language directive follow the selected display language (`7bf7108`)
++ Keep language list within terminal view; add per-turn language rule to prompt (`564e437`)
++ Keep token usage line on a new line after streaming reply (`be52228`)
++ Rewrite nyannyan translations based on simplified Chinese (`ea02d51`)
+
+### New Skills: memory_manager & git
+
++ Add `memory_manager` skill for cross-session project memory (`d746937`)
+  - Body stored as standalone `{key}.md` documents, title/summary in `Dmemory/index.json`
+  - Keyed by `.dpc` dir_id — same work directory shares memory across sessions
+  - `Dmemory/` auto-hidden and added to `.dpc` restricted rules (incl. subpaths)
+  - Tools: `write_memory`, `search_memory`, `get_memory`, `list_memory`, `delete_memory`
++ Add `git` skill with `.dpc`-aware `.gitignore` generation (`7195bc9`)
+  - `create_gitignore` / `git_init` auto-sync `.dpc` restricted rules into `.gitignore`
+  - Tools: `git_init`, `git_status`, `git_diff`, `git_add`, `git_commit`, `git_log`, `create_gitignore`
+  - `git_add` skips `.dpc`-blocked paths; commits require user confirmation
++ Guide git skill usage and per-turn memory recording in system prompts (`7d1273b`)
++ Remove misleading back hint from control pages — interactive key nav only recognizes single keys (`ac409d9`)
++ Show fold-corner symbol while thinking in hidden-thinking mode (`dceff7b`)
+
+### SkillContext Enhancements
+
++ Expose DPC restriction management to skills via SkillContext (`822bbe6`)
+  - `get_restricted_paths()`, `add_restriction()`, `remove_restriction()`, `filter_allowed_paths()`
++ Expose constants to skills via `context.constants` (`cf53e32`)
++ Fix `list_directory` to honor `.dpc` restrictions on directories (not just files)
+
+### Web Search Refactor
+
+/ Replace embedding model with jieba tokenization for web search (`c7f8ddc`)
+  - Remove ONNX embedding pipeline (`model_downloader`, `onnx_converter`, `embedding`)
+  - Keyword substring matching as primary relevance filter
++ Expand jieba dictionary to cover 15 technical domains (`7c80469`)
++ Return line numbers and matched content in content search (grep-style) (`5b25cf4`)
++ Prevent redundant model downloads and ONNX conversion failures (`e5ab484`)
+
+### Model Management
+
++ Remove deprecated models and add custom model management (`c9ec0e2`)
+  - Custom model add/remove with per-model settings
+
+### Commands
+
+/ Rename `/open` to `/workdir` and auto-create missing work directory (`c6472b9`)
+
+### Stability & Persistence
+
++ Fix: make conversation persistence lossless with stream buffer and atomic writes (`7375026`)
++ Resolve five high-risk stability issues (`6da1ac0`)
++ Address medium and low severity stability issues (`8a058ca`)
+
+### Documentation
+
+/ Rebrand to dolphincode and sync docs with actual commands and skills (`09cf9be`)
++ Document git and memory_manager skills in README, FEATURES, and skill guides (`0fa1a9b`)
+
+---
+
 ## v1.1.7 (2026-07-22)
 
 CLI module architecture, Rich command interfaces, prompt caching, thinking display refinement, and conversation UX improvements.
